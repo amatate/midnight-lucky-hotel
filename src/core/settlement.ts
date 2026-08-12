@@ -6,7 +6,6 @@ import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
 import type {
   AttributionSource,
-  ChapelPartResolveContext,
   Effect,
   FruitPartResolveContext,
   Grid,
@@ -52,6 +51,19 @@ type InternalEffectHandlerRegistration = EffectHandlerRegistration & {
   readonly [INTERNAL_FRUIT_REGISTRATION]?: number;
   readonly [INTERNAL_CHAPEL_REGISTRATION]?: number;
 };
+
+interface AuthorizedChapelPart {
+  readonly slot: number;
+  readonly part: PartInstance;
+  readonly claimTrigger: (key: string) => boolean;
+}
+
+const AUTHORIZED_CHAPEL_CONTEXTS = new WeakMap<ResolveContext, AuthorizedChapelPart>();
+
+/** Reads settlement-private Chapel data only for the exact currently executing central context. */
+export function readAuthorizedChapelPart(context: ResolveContext): AuthorizedChapelPart | undefined {
+  return AUTHORIZED_CHAPEL_CONTEXTS.get(context);
+}
 
 interface FruitRuntime {
   readonly initialCherryWins: number;
@@ -200,20 +212,7 @@ function createContext(
     return { ...context, fruitPart };
   }
 
-  const chapelSlot = registration?.[INTERNAL_CHAPEL_REGISTRATION];
-  const chapelPartInstance = chapelSlot === undefined ? undefined : state.partSlots[chapelSlot];
-  if (chapelSlot === undefined || chapelPartInstance === undefined || chapelPartInstance === null) return context;
-  const chapelPart: ChapelPartResolveContext = Object.freeze({
-    slot: chapelSlot,
-    part: Object.freeze({ ...chapelPartInstance }),
-    claimTrigger(key: string): boolean {
-      const scopedKey = `chapel:${chapelSlot}:${key}`;
-      if (working.triggeredKeys.has(scopedKey)) return false;
-      working.triggeredKeys.add(scopedKey);
-      return true;
-    }
-  });
-  return { ...context, chapelPart };
+  return context;
 }
 
 function registrationIsActive(
@@ -244,8 +243,27 @@ function dispatchSignal(
   if (working.overloaded) return;
   for (const registration of registrations) {
     if (!registrationIsActive(state, working.disabledSlots, registration)) continue;
-    const effects = registration.handler(createContext(state, currentBet, working, registration), cloneSignal(signal));
-    enqueueEffects(working, effects);
+    const context = createContext(state, currentBet, working, registration);
+    const chapelSlot = registration[INTERNAL_CHAPEL_REGISTRATION];
+    const chapelPart = chapelSlot === undefined ? undefined : state.partSlots[chapelSlot];
+    if (chapelSlot !== undefined && chapelPart !== undefined && chapelPart !== null) {
+      AUTHORIZED_CHAPEL_CONTEXTS.set(context, Object.freeze({
+        slot: chapelSlot,
+        part: Object.freeze({ ...chapelPart }),
+        claimTrigger(key: string): boolean {
+          const scopedKey = `chapel:${chapelSlot}:${key}`;
+          if (working.triggeredKeys.has(scopedKey)) return false;
+          working.triggeredKeys.add(scopedKey);
+          return true;
+        }
+      }));
+    }
+    try {
+      const effects = registration.handler(context, cloneSignal(signal));
+      enqueueEffects(working, effects);
+    } finally {
+      AUTHORIZED_CHAPEL_CONTEXTS.delete(context);
+    }
   }
 }
 
@@ -504,9 +522,10 @@ function immutableGrid(working: WorkingState): Grid {
 }
 
 function permanentReels(working: WorkingState): ReelSet {
-  return working.strips.map((strip, reel) =>
-    strip.filter((_symbol, index) => !working.temporaryEntries[reel]![index])
-  ) as unknown as ReelSet;
+  return working.strips.map((strip, reel) => {
+    const permanent = strip.filter((_symbol, index) => !working.temporaryEntries[reel]![index]);
+    return permanent.length === 0 ? ["blank"] : permanent;
+  }) as unknown as ReelSet;
 }
 
 function temporaryEntryMarkers(state: RunState, draw: ReelDraw): [boolean[], boolean[], boolean[]] {

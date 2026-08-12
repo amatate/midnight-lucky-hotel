@@ -140,13 +140,6 @@ export interface FruitPartResolveContext {
   readonly claimFoodReturn: (limit: number) => ReelIndex | null;
 }
 
-/** Settlement-owned, resolve-local capabilities for one exact chapel-part registration. */
-export interface ChapelPartResolveContext {
-  readonly slot: number;
-  readonly part: PartInstance;
-  readonly claimTrigger: (key: string) => boolean;
-}
-
 export interface ResolveContext {
   readonly state: RunState;
   readonly grid: Grid;
@@ -156,7 +149,6 @@ export interface ResolveContext {
   readonly awardedWinKeys: ReadonlySet<string>;
   readonly eventCount: number;
   readonly fruitPart?: FruitPartResolveContext;
-  readonly chapelPart?: ChapelPartResolveContext;
 }
 
 export interface SettlementResult {

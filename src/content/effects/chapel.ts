@@ -1,4 +1,5 @@
-import type { Effect, PartId, PartInstance, ResolveContext, ResolveSignal } from "@/core/types";
+import type { Effect, LineWin, PartId, PartInstance, ResolveContext, ResolveSignal } from "@/core/types";
+import { readAuthorizedChapelPart } from "@/core/settlement";
 
 const CHAPEL_PART_IDS = new Set<PartId>(["omen-collector", "triple-blessing", "midnight-bell", "martyr-coin"]);
 
@@ -12,7 +13,7 @@ function omenCollector(part: PartInstance, context: ResolveContext, signal: Reso
     signal.type !== "LINE_AWARDED" ||
     signal.win.symbol !== "seven" ||
     context.state.omen <= 0 ||
-    !context.chapelPart?.claimTrigger("omen-collector")
+    !readAuthorizedChapelPart(context)?.claimTrigger("omen-collector")
   ) {
     return [];
   }
@@ -32,7 +33,7 @@ function tripleBlessing(part: PartInstance, context: ResolveContext, signal: Res
     part.id !== "triple-blessing" ||
     signal.type !== "LINE_AWARDED" ||
     signal.win.symbol !== "seven" ||
-    !context.chapelPart?.claimTrigger("triple-blessing")
+    !readAuthorizedChapelPart(context)?.claimTrigger("triple-blessing")
   ) {
     return [];
   }
@@ -50,7 +51,7 @@ function midnightBell(part: PartInstance, context: ResolveContext, signal: Resol
     part.id !== "midnight-bell" ||
     signal.type !== "LINE_AWARDED" ||
     signal.win.symbol !== "bell" ||
-    !context.chapelPart?.claimTrigger("midnight-bell")
+    !readAuthorizedChapelPart(context)?.claimTrigger("midnight-bell")
   ) {
     return [];
   }
@@ -66,12 +67,17 @@ function martyrCoin(part: PartInstance, context: ResolveContext, signal: Resolve
     part.id !== "martyr-coin" ||
     signal.type !== "LINE_AWARDED" ||
     signal.win.symbol !== "seven" ||
-    !context.state.shiftFlags.martyrEnabled ||
-    !context.chapelPart?.claimTrigger("martyr-coin")
+    !context.state.shiftFlags.martyrEnabled
   ) {
     return [];
   }
+  const key = `martyr-coin:${lineWinKey(signal.win)}`;
+  if (!readAuthorizedChapelPart(context)?.claimTrigger(key)) return [];
   return repeatedPayout(signal.win.multiplier * context.currentBet, part.level);
+}
+
+function lineWinKey(win: LineWin): string {
+  return `${win.lineId}:${win.symbol}:${win.cells.map(([reel, row]) => `${reel},${row}`).join("|")}`;
 }
 
 function reactOnePart(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
@@ -85,7 +91,7 @@ function reactOnePart(part: PartInstance, context: ResolveContext, signal: Resol
 
 /** Returns chapel effects for the exact settlement-owned chapel-part registration in context. */
 export function reactChapelParts(context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
-  const registration = context.chapelPart;
+  const registration = readAuthorizedChapelPart(context);
   if (registration === undefined) return [];
   const equipped = context.state.partSlots[registration.slot];
   if (

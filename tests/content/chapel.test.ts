@@ -285,7 +285,10 @@ describe("chapel prayer", () => {
     expect(state).toEqual(snapshot);
   });
 
-  it("applies each seven part only to the first seven line in a multi-line spin", () => {
+  it.each([
+    [1, 260, 160],
+    [2, 360, 260]
+  ] as const)("applies martyr level %i to every seven line while other seven parts use only the first", (martyrLevel, total, part) => {
     const grid: Grid = [
       ["seven", "seven", "blank"],
       ["seven", "wild", "cherry"],
@@ -297,7 +300,7 @@ describe("chapel prayer", () => {
       [
         { id: "omen-collector", level: 1 },
         { id: "triple-blessing", level: 1 },
-        { id: "martyr-coin", level: 1 },
+        { id: "martyr-coin", level: martyrLevel },
         null,
         null
       ],
@@ -309,10 +312,11 @@ describe("chapel prayer", () => {
 
     const result = resolveSpin(base, draw);
 
-    expect(result.attribution).toMatchObject({ base: 100, part: 110 });
+    expect(result.payout).toBe(total);
+    expect(result.attribution).toMatchObject({ base: 100, part });
     expect(result.state.omen).toBe(0);
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(2);
-    expect(result.events.filter((event) => event.type === "PAYOUT_ADDED")).toHaveLength(3);
+    expect(result.events.filter((event) => event.type === "PAYOUT_ADDED")).toHaveLength(2 + martyrLevel * 2);
     for (const reel of [0, 1, 2] as const) expect(result.state.reels[reel].at(-1)).toBe("blank");
   });
 
@@ -324,6 +328,31 @@ describe("chapel prayer", () => {
       state,
       error: { code: "INVALID_TARGET", message: "prayer requires a base symbol" }
     });
+  });
+
+  it("keeps a permanent blank when removal consumes the only permanent entry under a surviving prayer copy", () => {
+    const draw: ReelDraw = {
+      strips: [["food", "cherry"], ["blank", "cherry"], ["blank", "cherry"]],
+      stops: [0, 0, 0],
+      grid: [["food", "cherry", "food"], ["blank", "cherry", "blank"], ["blank", "cherry", "blank"]],
+      rng: { value: 10 }
+    };
+    const state = settlementState(draw, [null, null, null, null, null], {
+      reels: [["food"], ["blank"], ["blank"]],
+      pendingPrayer: "cherry",
+      temporaryReelAdditions: [["cherry"], ["cherry"], ["cherry"]]
+    });
+
+    const settled = resolveSpin(state, draw);
+
+    expect(settled.state.reels[0]).toEqual(["blank"]);
+    expect(settled.state.pendingSpin?.draw.strips[0]).toEqual(["cherry"]);
+    const ready: RunState = { ...settled.state, phase: "READY_TO_SPIN", pendingSpin: null };
+    const next = dispatchCommand(ready, { type: "SPIN" });
+    expect(next.ok).toBe(true);
+    if (!next.ok) throw new Error(next.error.message);
+    expect(next.state.pendingSpin?.draw.strips[0]).toEqual(["blank"]);
+    expect(next.state.pendingSpin?.draw.grid[0]).toEqual(["blank", "blank", "blank"]);
   });
 });
 
@@ -359,6 +388,57 @@ describe("martyr coin service", () => {
     if (result.ok) throw new Error("expected rejection");
     expect(result.error.code).toBe(code);
     expect(state).toEqual(snapshot);
+  });
+
+  it("preserves the offering expense and history, then consumes a fuse on the subsequent spin before allowing play", () => {
+    const state = chapelReady({
+      bankroll: 5,
+      partSlots: [
+        { id: "martyr-coin", level: 1 },
+        { id: "safety-fuse", level: 1 },
+        null,
+        null,
+        null
+      ]
+    });
+    const enabled = dispatchCommand(state, { type: "ENABLE_MARTYR" });
+    expect(enabled.ok).toBe(true);
+    if (!enabled.ok) throw new Error(enabled.error.message);
+    expect(enabled.state).toMatchObject({ bankroll: 4, expenses: { chapel: 1 } });
+
+    const rescued = dispatchCommand(enabled.state, { type: "SPIN" });
+    expect(rescued.ok).toBe(true);
+    if (!rescued.ok) throw new Error(rescued.error.message);
+    expect(rescued.state).toMatchObject({ phase: "READY_TO_SPIN", bankroll: 24, expenses: { chapel: 1 } });
+    expect(rescued.state.commandHistory).toEqual([{ type: "ENABLE_MARTYR" }, { type: "SPIN" }]);
+    expect(rescued.state.partSlots[1]).toBeNull();
+    expect(rescued.events).toEqual([
+      expect.objectContaining({ type: "PART_TRIGGERED", partId: "safety-fuse" }),
+      expect.objectContaining({ type: "PAYOUT_ADDED", amount: 20, source: "part" })
+    ]);
+
+    const spinning = dispatchCommand(rescued.state, { type: "SPIN" });
+    expect(spinning.ok).toBe(true);
+    if (!spinning.ok) throw new Error(spinning.error.message);
+    expect(spinning.state.phase).toBe("SPINNING");
+  });
+
+  it("preserves the offering expense and history, then loses without a fuse on the subsequent spin", () => {
+    const state = chapelReady({
+      bankroll: 5,
+      partSlots: withPart({ id: "martyr-coin", level: 1 })
+    });
+    const enabled = dispatchCommand(state, { type: "ENABLE_MARTYR" });
+    expect(enabled.ok).toBe(true);
+    if (!enabled.ok) throw new Error(enabled.error.message);
+
+    const lost = dispatchCommand(enabled.state, { type: "SPIN" });
+
+    expect(lost.ok).toBe(true);
+    if (!lost.ok) throw new Error(lost.error.message);
+    expect(lost.state).toMatchObject({ phase: "RUN_LOST", bankroll: 4, expenses: { chapel: 1, wagers: 0 } });
+    expect(lost.state.commandHistory).toEqual([{ type: "ENABLE_MARTYR" }, { type: "SPIN" }]);
+    expect(lost.events).toEqual([expect.objectContaining({ type: "RUN_ENDED", outcome: "lost" })]);
   });
 });
 
@@ -519,7 +599,7 @@ describe("chapel part settlement", () => {
       partId: "triple-blessing",
       chapelSlot: 0,
       handler(context: ResolveContext): readonly [] {
-        exposed ||= context.chapelPart !== undefined;
+        exposed ||= "chapelPart" in context;
         return [];
       }
     } as const;
@@ -529,5 +609,32 @@ describe("chapel part settlement", () => {
     expect(exposed).toBe(false);
     expect(result.payout).toBe(100);
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(1);
+  });
+
+  it("rejects a forged public chapel capability even when it matches the former shape", () => {
+    const draw = makeDraw(sevenLineGrid);
+    const part = { id: "triple-blessing", level: 1 } as const;
+    const state = settlementState(draw, withPart(part));
+    const forged = {
+      state,
+      grid: draw.grid,
+      currentBet: 10,
+      queue: [],
+      triggeredKeys: new Set<string>(),
+      awardedWinKeys: new Set<string>(),
+      eventCount: 0,
+      chapelPart: {
+        slot: 0,
+        part,
+        claimTrigger: () => true
+      }
+    } as unknown as ResolveContext;
+    const signal = {
+      type: "LINE_AWARDED",
+      win: { lineId: "top", symbol: "seven", cells: [[0, 0], [1, 0], [2, 0]], multiplier: 5 }
+    } as const;
+
+    expect(reactChapelParts(forged, signal)).toEqual([]);
+    expect(resolveSpin(state, draw).payout).toBe(100);
   });
 });

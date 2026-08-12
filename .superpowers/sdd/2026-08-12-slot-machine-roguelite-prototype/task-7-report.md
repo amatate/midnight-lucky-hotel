@@ -72,3 +72,31 @@ Implemented the Chapel service commands, prayer lifecycle, settlement-private Ch
 - `git diff --check`
 
 The final fresh command results are recorded in the handoff message after completion.
+
+## Fix Round 1
+
+### Findings addressed
+
+- Martyr Coin now pays its one/two additional copies for every distinct seven base-line award. Its resolve-local trigger key includes the exact awarded line identity, preventing a duplicate signal from repaying while allowing separate seven lines. Omen Collector and Triple Blessing retain their first-seven-only claims.
+- Removed the structurally forgeable `chapelPart` member and exported Chapel capability interface from `ResolveContext`. Settlement now holds authorization in a private `WeakMap`: its symbol-keyed central slot registration synchronously authorizes the exact final context object passed to `reactChapelParts`, while the Chapel handler consumes only a narrow read accessor. A `finally` block deletes the entry immediately after that handler invocation. The mutating authorizer and brand store are not exported, external registrations receive separately cloned ordinary contexts, and forged former-shaped contexts produce no effects.
+- Permanent prayer reconciliation now inserts one deterministic permanent blank whenever filtering surviving temporary entries would otherwise leave a permanent reel empty. The resolved display remains coherent with its surviving temporary entry, and the next spin safely draws the blank-only permanent reel.
+- Confirmed the voluntary Martyr offering does not invoke loss/rescue checks. Tests cover a post-offering bankroll below minimum: the subsequent `SPIN` consumes a fuse and returns ready when equipped, or enters `RUN_LOST` without placing a wager when no fuse exists. Chapel expense and command history persist across both boundaries.
+
+### RED evidence
+
+`npm test -- tests/content/chapel.test.ts` produced four expected failures with 33 passing tests:
+
+- Martyr L1 multi-line payout was 210 instead of 260.
+- Martyr L2 multi-line payout was 260 instead of the hand-checked 360 target (the initial test literal was corrected from 410 before GREEN).
+- Empty permanent prayer reconciliation returned `[]` instead of `["blank"]`.
+- A forged former-shaped Chapel context produced Triple Blessing effects instead of `[]`.
+
+The new fuse/no-fuse offering-boundary tests passed in RED, demonstrating the existing command ordering already deferred authoritative loss/rescue behavior until `SPIN`.
+
+### GREEN and verification evidence
+
+- `npm test -- tests/content/chapel.test.ts`: 37/37 passed.
+- `npm run typecheck`: passed.
+- `npm test -- tests/content/chapel.test.ts tests/core/run.test.ts tests/core/settlement.test.ts tests/core/progression.test.ts tests/content/upgrades.test.ts`: 92/92 passed.
+- `npm run verify`: passed with typecheck, 13 test files / 147 tests, and the Vite production build.
+- `git diff --check`: passed before the full completion run.
