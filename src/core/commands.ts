@@ -4,6 +4,7 @@ import type { BetMode, CommandError, ReelIndex, RunState, ServiceId, UpgradeChoi
 export type GameCommand =
   | { readonly type: "SELECT_SERVICE"; readonly serviceId: ServiceId }
   | { readonly type: "SET_BET_MODE"; readonly mode: BetMode }
+  | { readonly type: "BUY_FOOD"; readonly reelIndex: ReelIndex }
   | { readonly type: "SPIN" }
   | { readonly type: "REELS_STOPPED" }
   | { readonly type: "RESPIN_REEL"; readonly reelIndex: ReelIndex }

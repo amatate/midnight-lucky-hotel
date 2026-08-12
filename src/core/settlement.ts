@@ -1,4 +1,5 @@
 import { BASE_PAYTABLE } from "@/content/base-machine";
+import { createFruitPartHandler, isFruitPartId } from "@/content/effects/fruit";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
@@ -20,6 +21,7 @@ import type {
   SettlementResult,
   StopSet,
   SymbolId,
+  ShiftFlags,
   TimedBuff
 } from "@/core/types";
 
@@ -55,6 +57,7 @@ interface WorkingState {
   overloaded: boolean;
   freeSpinQueue: number;
   counters: { blankCharge: number; cherryWinsThisShift: number };
+  shiftFlags: ShiftFlags;
 }
 
 function modulo(value: number, length: number): number {
@@ -126,6 +129,7 @@ function createContext(
       },
       freeSpinQueue: working.freeSpinQueue,
       counters: { ...working.counters },
+      shiftFlags: { ...working.shiftFlags },
       attribution
     },
     working.disabledSlots
@@ -210,6 +214,7 @@ function awardNewLines(
 ): void {
   const wins = evaluateBaseWins(working.grid as unknown as Grid, BASE_PAYTABLE);
   for (const win of wins) {
+    if (working.triggeredKeys.has(`fruit-salad:${win.lineId}`)) continue;
     const key = lineWinKey(win);
     if (working.awardedWinKeys.has(key)) continue;
     working.awardedWinKeys.add(key);
@@ -329,6 +334,18 @@ function applyEffect(
       working.counters[effect.counter] += amount;
       break;
     }
+    case "INCREMENT_SHIFT_FLAG": {
+      const amount = boundedStructuralCount(effect.amount);
+      if (amount === undefined) {
+        triggerOverload(currentBet, working);
+        break;
+      }
+      working.shiftFlags = {
+        ...working.shiftFlags,
+        [effect.flag]: Math.min(MAX_STRUCTURAL_COUNT, working.shiftFlags[effect.flag] + amount)
+      };
+      break;
+    }
   }
 }
 
@@ -408,7 +425,6 @@ export function resolveSpin(
   draw: ReelDraw,
   handlers: readonly EffectHandlerRegistration[] = []
 ): SettlementResult {
-  const registrations = handlers.map((registration) => ({ ...registration }));
   let currentBet: number;
   try {
     currentBet = safeMoney(getCurrentBet(state));
@@ -438,8 +454,16 @@ export function resolveSpin(
     effectCount: 0,
     overloaded: false,
     freeSpinQueue: state.freeSpinQueue,
-    counters: { ...state.counters }
+    counters: { ...state.counters },
+    shiftFlags: { ...state.shiftFlags }
   };
+
+  const fruitRegistrations: EffectHandlerRegistration[] = state.partSlots.flatMap((part, slot) =>
+    part !== null && isFruitPartId(part.id)
+      ? [{ kind: "part", slot, partId: part.id, handler: createFruitPartHandler(slot, part, working.triggeredKeys) }]
+      : []
+  );
+  const registrations = [...fruitRegistrations, ...handlers.map((registration) => ({ ...registration }))];
 
   const crackCount = countVisible(working.grid, "crack");
   const occupiedSlots = state.partSlots
@@ -486,6 +510,7 @@ export function resolveSpin(
     freeSpinQueue: working.freeSpinQueue,
     agitation,
     counters: working.counters,
+    shiftFlags: working.shiftFlags,
     buffs: [...existingBuffsAfterSpin(state.buffs), ...grantedBuffs],
     attribution: cumulativeAttribution
   };

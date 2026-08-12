@@ -120,7 +120,8 @@ export type Effect =
   | { readonly type: "DISABLE_PART"; readonly slot: number }
   | { readonly type: "GRANT_FREE_SPIN"; readonly count: number }
   | { readonly type: "REEVALUATE_LINES" }
-  | { readonly type: "INCREMENT_COUNTER"; readonly counter: CounterId; readonly amount: number };
+  | { readonly type: "INCREMENT_COUNTER"; readonly counter: CounterId; readonly amount: number }
+  | { readonly type: "INCREMENT_SHIFT_FLAG"; readonly flag: "returnedFoodCount"; readonly amount: number };
 
 export type ResolveSignal =
   | { readonly type: "GRID_ACCEPTED" }

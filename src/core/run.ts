@@ -1,5 +1,6 @@
 import { BASE_REELS } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
+import { buyFood } from "@/content/services/kitchen";
 import { generateCandidates } from "@/core/candidates";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
@@ -303,6 +304,8 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return selectService(state, command);
     case "SET_BET_MODE":
       return setBetMode(state, command);
+    case "BUY_FOOD":
+      return buyFood(state, command.reelIndex);
     case "SPIN":
       return spin(state, command);
     case "REELS_STOPPED":
