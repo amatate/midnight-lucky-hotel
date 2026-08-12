@@ -713,8 +713,12 @@ function permanentReels(working: WorkingState): ReelSet {
 
 function temporaryEntryMarkers(state: RunState, draw: ReelDraw): [boolean[], boolean[], boolean[]] {
   return draw.strips.map((strip, reel) => {
-    const permanentLength = state.reels[reel]!.length;
-    const temporaryLength = state.temporaryReelAdditions[reel]!.length;
+    const stateReel: unknown = (state.reels as unknown as readonly unknown[])?.[reel];
+    const additions: unknown = (state.temporaryReelAdditions as unknown as readonly unknown[])?.[reel];
+    const temporaryLength = Array.isArray(additions) ? additions.length : 0;
+    const permanentLength = Array.isArray(stateReel)
+      ? Math.min(stateReel.length, strip.length)
+      : Math.max(0, strip.length - temporaryLength);
     return strip.map((_symbol, index) => index >= permanentLength && index < permanentLength + temporaryLength);
   }) as [boolean[], boolean[], boolean[]];
 }
@@ -740,17 +744,17 @@ export function resolveSpin(
     AttributionSource,
     number
   >;
-  const initialIdentity = normalizeDrawIdentity(draw);
-  const initialEntryIds = initialIdentity.entryIds;
-  const initialVisibleSourceIds = initialIdentity.visibleSourceIds;
+  const normalizedDraw = normalizeDrawIdentity(draw);
+  const initialEntryIds = normalizedDraw.entryIds;
+  const initialVisibleSourceIds = normalizedDraw.visibleSourceIds;
   const working: WorkingState = {
-    grid: draw.grid.map((reel) => [...reel]) as [SymbolId[], SymbolId[], SymbolId[]],
-    strips: draw.strips.map((strip) => [...strip]) as [SymbolId[], SymbolId[], SymbolId[]],
+    grid: normalizedDraw.grid.map((reel) => [...reel]) as [SymbolId[], SymbolId[], SymbolId[]],
+    strips: normalizedDraw.strips.map((strip) => [...strip]) as [SymbolId[], SymbolId[], SymbolId[]],
     entryIds: initialEntryIds.map((ids) => [...ids]) as [number[], number[], number[]],
     visibleSourceIds: initialVisibleSourceIds.map((ids) => [...ids]) as WorkingState["visibleSourceIds"],
     nextEntryIds: initialEntryIds.map((ids) => Math.max(-1, ...ids) + 1) as [number, number, number],
-    temporaryEntries: temporaryEntryMarkers(state, draw),
-    stops: [...draw.stops],
+    temporaryEntries: temporaryEntryMarkers(state, normalizedDraw),
+    stops: [...normalizedDraw.stops],
     queue: [],
     drafts: [],
     triggeredKeys: new Set(),
@@ -875,7 +879,14 @@ export function resolveSpin(
   const visibleSourceIds = working.visibleSourceIds.map((ids) => [...ids]) as unknown as NonNullable<
     ReelDraw["visibleSourceIds"]
   >;
-  const resolvedDraw: ReelDraw = { ...draw, strips: resolvedReels, stops, grid, entryIds, visibleSourceIds };
+  const resolvedDraw: ReelDraw = {
+    ...normalizedDraw,
+    strips: resolvedReels,
+    stops,
+    grid,
+    entryIds,
+    visibleSourceIds
+  };
   const cumulativeAttribution = { ...state.attribution };
   for (const source of ATTRIBUTION_SOURCES) {
     cumulativeAttribution[source] = safeMoney(cumulativeAttribution[source] + working.attribution[source]);

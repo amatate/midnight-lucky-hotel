@@ -37,9 +37,6 @@ function legalityError(
   if (state.shiftFlags.kickUsed) {
     return { code: "RESOURCE_EXHAUSTED", message: "kick was already used this shift" };
   }
-  if (state.pendingSpin.draw.strips[reel].length === 0) {
-    return { code: "INVALID_TARGET", message: "selected reel has no symbols" };
-  }
   return null;
 }
 
@@ -65,10 +62,11 @@ function insertPermanentCracks(
 ): { readonly draw: ReelDraw; readonly reels: RunState["reels"] } {
   const permanentLength = state.reels[reel].length;
   const cracks = Array.from({ length: count }, (): SymbolId => "crack");
-  const currentEntryIds = normalizeDrawIdentity(draw).entryIds;
+  const normalized = normalizeDrawIdentity(draw);
+  const currentEntryIds = normalized.entryIds;
   const nextEntryId = Math.max(-1, ...currentEntryIds[reel]) + 1;
   const crackEntryIds = Array.from({ length: count }, (_unused, index) => nextEntryId + index);
-  const strips = draw.strips.map((strip, index) =>
+  const strips = normalized.strips.map((strip, index) =>
     index === reel
       ? [...strip.slice(0, permanentLength), ...cracks, ...strip.slice(permanentLength)]
       : [...strip]
@@ -81,7 +79,7 @@ function insertPermanentCracks(
   const reels = state.reels.map((strip, index) =>
     index === reel ? [...strip, ...cracks] : [...strip]
   ) as unknown as RunState["reels"];
-  return { draw: { ...draw, strips, entryIds }, reels };
+  return { draw: { ...normalized, strips, entryIds }, reels };
 }
 
 /** Advances one selected pending reel deterministically and appends permanent crack damage. */

@@ -110,7 +110,7 @@ describe("advanceReel", () => {
       visibleSourceIds: rawVisibleIds
     } as unknown as ReelDraw;
 
-    expect(normalizeDrawIdentity(draw)).toEqual({
+    expect(normalizeDrawIdentity(draw)).toMatchObject({
       entryIds: [[0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3]],
       visibleSourceIds: [[1, 2, 3], [0, 1, 2], [0, 1, 2]]
     });
@@ -131,9 +131,107 @@ describe("advanceReel", () => {
       visibleSourceIds: [[900, 1_200, 100], [60, 80, 20], [3, 9, 7]]
     };
 
-    expect(normalizeDrawIdentity(draw)).toEqual({
+    expect(normalizeDrawIdentity(draw)).toMatchObject({
       entryIds: [[0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3]],
       visibleSourceIds: [[2, 3, 0], [2, 3, 0], [3, 0, 1]]
     });
+  });
+
+  it.each([
+    ["null reel", [null, ["lemon", "bell", "seven"], ["bell", "seven", "cherry"]]],
+    ["missing reel", [["cherry", "lemon", "bell"], ["lemon", "bell", "seven"]]],
+    ["holey outer", (() => { const value = Array(3); value[1] = ["lemon"]; return value; })()],
+    ["wrong outer", { reels: [] }],
+    ["empty reel", [[], ["lemon"], ["bell"]]],
+    ["invalid symbol", [["bogus"], ["lemon"], ["bell"]]],
+    ["holey reel", [[...Array(2), "cherry"], ["lemon"], ["bell"]]]
+  ])("recovers malformed strips into nonempty known-symbol reels: %s", (_name, rawStrips) => {
+    const draw = {
+      strips: rawStrips,
+      stops: [99, 0, 0],
+      grid: [["cherry", "cherry", "cherry"], ["lemon", "lemon", "lemon"], ["bell", "bell", "bell"]],
+      rng: { value: 9 },
+      entryIds: [[0], [0], [0]],
+      visibleSourceIds: [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+    } as unknown as ReelDraw;
+
+    const normalized = normalizeDrawIdentity(draw);
+
+    expect(normalized.strips).toHaveLength(3);
+    expect(normalized.strips.every((strip) => strip.length > 0)).toBe(true);
+    expect(normalized.strips.flat().every((symbol) =>
+      ["cherry", "lemon", "bell", "seven", "wild", "blank", "food", "crack"].includes(symbol)
+    )).toBe(true);
+    expect(normalized.stops.every((stop, reel) =>
+      Number.isInteger(stop) && stop >= 0 && stop < normalized.strips[reel]!.length
+    )).toBe(true);
+    expect(() => advanceReel(draw, 0, 1)).not.toThrow();
+  });
+
+  it.each([
+    ["null grid", null],
+    ["missing reel", [["cherry", "lemon", "bell"], ["lemon", "bell", "seven"]]],
+    ["null row", [null, ["lemon", "bell", "seven"], ["bell", "seven", "cherry"]]],
+    ["holey outer", Array(3)],
+    ["holey row", [Array(3), ["lemon", "bell", "seven"], ["bell", "seven", "cherry"]]],
+    ["wrong row length", [["cherry"], ["lemon", "bell", "seven"], ["bell", "seven", "cherry"]]],
+    ["object grid", { rows: [] }],
+    ["invalid grid symbol", [["bogus", "lemon", "bell"], ["lemon", "bell", "seven"], ["bell", "seven", "cherry"]]]
+  ])("rebuilds malformed accepted grids instead of dereferencing them: %s", (_name, rawGrid) => {
+    const draw = {
+      strips,
+      stops: [1, 0, 0],
+      grid: rawGrid,
+      rng: { value: 9 },
+      entryIds: [[100, 200, 300, 400], [10, 20, 30, 40], [1, 3, 5, 7]],
+      visibleSourceIds: [[200, 300, 400], [10, 20, 30], [1, 3, 5]]
+    } as unknown as ReelDraw;
+
+    const normalized = normalizeDrawIdentity(draw);
+
+    expect(normalized.grid).toEqual([
+      ["lemon", "bell", "seven"],
+      ["lemon", "bell", "seven"],
+      ["bell", "seven", "cherry"]
+    ]);
+    expect(normalized.visibleSourceIds).toEqual([[1, 2, 3], [0, 1, 2], [0, 1, 2]]);
+    expect(() => advanceReel(draw, 2, 1)).not.toThrow();
+  });
+
+  it.each([
+    ["null stops", null],
+    ["missing stop", [1, 0]],
+    ["holey stops", Array(3)],
+    ["object stops", { first: 1 }],
+    ["NaN stop", [Number.NaN, 0, 0]],
+    ["infinite stop", [Number.POSITIVE_INFINITY, 0, 0]],
+    ["fractional stop", [1.5, 0, 0]]
+  ])("recovers malformed stops to valid in-range integers: %s", (_name, rawStops) => {
+    const draw = {
+      strips,
+      stops: rawStops,
+      grid: [["cherry", "lemon", "bell"], ["lemon", "bell", "seven"], ["bell", "seven", "cherry"]],
+      rng: { value: 9 }
+    } as unknown as ReelDraw;
+
+    const normalized = normalizeDrawIdentity(draw);
+
+    expect(normalized.stops).toEqual([0, 0, 0]);
+    expect(normalized.grid).toEqual([
+      ["cherry", "lemon", "bell"],
+      ["lemon", "bell", "seven"],
+      ["bell", "seven", "cherry"]
+    ]);
+  });
+
+  it("drawReels returns a fully valid draw when given malformed serialized strips", () => {
+    const malformed = [[], null, ["bogus", "seven"]] as unknown as ReelSet;
+
+    const draw = drawReels(malformed, { value: 7 });
+
+    expect(draw.strips).toEqual([["blank"], ["blank"], ["blank", "seven"]]);
+    expect(draw.stops.every((stop, reel) => stop >= 0 && stop < draw.strips[reel]!.length)).toBe(true);
+    expect(draw.grid).toHaveLength(3);
+    expect(draw.entryIds).toEqual([[0], [0], [0, 1]]);
   });
 });

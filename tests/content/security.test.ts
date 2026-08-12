@@ -296,4 +296,35 @@ describe("security kick", () => {
       ids.every((id) => Number.isSafeInteger(id))
     )).toBe(true);
   });
+
+  it("recovers malformed core draw structure before kick preview and execution", () => {
+    const base = readyKickState();
+    const malformed = {
+      ...base,
+      pendingSpin: {
+        ...base.pendingSpin!,
+        draw: {
+          ...base.pendingSpin!.draw,
+          strips: [[], null, ["bogus", "seven"]],
+          stops: [Number.NaN, 1.5],
+          grid: [null, Array(3), { row: [] }],
+          entryIds: [[0], [0], [0, 1]],
+          visibleSourceIds: [[0, 0, 0], [0, 0, 0], [0, 1, 0]]
+        } as unknown as ReelDraw
+      }
+    };
+
+    expect(() => previewKick(malformed, 0)).not.toThrow();
+    const kicked = kickReel(malformed, 0);
+
+    expect(kicked.ok).toBe(true);
+    if (!kicked.ok) throw new Error(kicked.error.message);
+    expect(kicked.state.pendingSpin?.draw.grid).toEqual([
+      ["blank", "blank", "blank"],
+      ["blank", "blank", "blank"],
+      ["blank", "seven", "blank"]
+    ]);
+    expect(kicked.state.pendingSpin?.draw.stops).toEqual([0, 0, 0]);
+    expect(() => resolveSpin(kicked.state, kicked.state.pendingSpin!.draw)).not.toThrow();
+  });
 });

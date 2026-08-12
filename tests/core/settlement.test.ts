@@ -229,6 +229,32 @@ describe("resolveSpin payout and queue behavior", () => {
     );
   });
 
+  it("recovers malformed strips, stops, grid, and symbols at the settlement boundary", () => {
+    const draw = makeDraw(deadGrid);
+    const malformed = {
+      ...draw,
+      strips: [[], null, ["bogus", "seven"]],
+      stops: [Number.POSITIVE_INFINITY, 1.5],
+      grid: [null, Array(3), { nope: true }],
+      entryIds: [[0], [0], [0, 1]],
+      visibleSourceIds: [[0, 0, 0], [0, 0, 0], [0, 1, 0]]
+    } as unknown as ReelDraw;
+
+    const result = resolveSpin(settlementState(malformed), malformed);
+
+    expect(result.state.pendingSpin?.draw).toMatchObject({
+      strips: [["blank"], ["blank"], ["blank", "seven"]],
+      stops: [0, 0, 0],
+      grid: [
+        ["blank", "blank", "blank"],
+        ["blank", "blank", "blank"],
+        ["blank", "seven", "blank"]
+      ],
+      entryIds: [[0], [0], [0, 1]],
+      visibleSourceIds: [[0, 0, 0], [0, 0, 0], [0, 1, 0]]
+    });
+  });
+
   it("rebases near-MAX_SAFE serialized IDs before the largest bounded structural chain", () => {
     const draw = makeDraw(deadGrid);
     const high = Number.MAX_SAFE_INTEGER - 200;
