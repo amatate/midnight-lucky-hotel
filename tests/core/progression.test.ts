@@ -74,10 +74,10 @@ describe("spin progression", () => {
     expect(new Set(Object.values(state.currentCandidates!)).size).toBe(3);
   });
 
-  it("enters SHIFT_COMPLETE after the third paid spin of shift five", () => {
+  it("loses below the checkout target after the third paid spin of shift five", () => {
     let state: RunState = { ...readyRun(34), shift: 5, baseSpinsInShift: 2 };
     state = completeSpin(state);
-    expect(state.phase).toBe("SHIFT_COMPLETE");
+    expect(state.phase).toBe("RUN_LOST");
     expect(state.baseSpinsInShift).toBe(3);
   });
 
@@ -186,7 +186,7 @@ describe("spin progression", () => {
     expect(new Set(Object.values(completed.state.currentCandidates!)).size).toBe(3);
   });
 
-  it("enters shift complete when a fuse rescues the third paid spin of shift five", () => {
+  it("still loses shift five when a fuse rescue remains below the checkout target", () => {
     let state: RunState = {
       ...readyRun(237),
       shift: 5,
@@ -202,7 +202,7 @@ describe("spin progression", () => {
     expect(completed.ok).toBe(true);
     if (!completed.ok) throw new Error(completed.error.message);
     expect(completed.state).toMatchObject({
-      phase: "SHIFT_COMPLETE",
+      phase: "RUN_LOST",
       shift: 5,
       baseSpinsInShift: 3,
       bankroll: 44.99,

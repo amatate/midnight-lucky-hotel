@@ -46,6 +46,8 @@ export interface ReelDraw {
   readonly rng: RngState;
   readonly entryIds?: ReelEntryIdSet;
   readonly visibleSourceIds?: VisibleSourceIds;
+  /** Whether the initially accepted, pre-intervention board already had a base payline. */
+  readonly preInterventionPaying?: boolean;
 }
 
 export type RunPhase =
@@ -241,6 +243,7 @@ export interface ShiftFlags {
 
 export interface ShiftSnapshot {
   readonly shift: number;
+  readonly afterHoursLevel?: number;
   readonly bankroll: Money;
   readonly reels: ReelSet;
   readonly parts: readonly PartInstance[];

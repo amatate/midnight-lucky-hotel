@@ -58,6 +58,14 @@ export type GameEvent =
       readonly progress: number;
       readonly completed: boolean;
     }
+  | {
+      readonly sequence: number;
+      readonly type: "SPIN_COMMITTED";
+      readonly interventionUsed: boolean;
+      readonly preInterventionPaying: boolean;
+      readonly finalPayout: number;
+    }
+  | { readonly sequence: number; readonly type: "BLOCK_COMPLETED"; readonly bankroll: number }
   | { readonly sequence: number; readonly type: "OVERLOAD"; readonly amount: number }
   | { readonly sequence: number; readonly type: "PAYOUT_COMPLETE"; readonly total: number }
   | { readonly sequence: number; readonly type: "SHIFT_CHANGED"; readonly shift: number }

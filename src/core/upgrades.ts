@@ -1,5 +1,6 @@
 import { copyBaseSymbol, isBaseSymbol, pruneOneSymbol } from "@/content/effects/neutral";
 import { UPGRADES } from "@/content/upgrades";
+import { generateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
 import { roundMoney } from "@/core/progression";
@@ -183,55 +184,97 @@ function acquireTool(state: RunState, id: UpgradeId): DispatchResult | RunState 
     : { ...state, toolLevel: level };
 }
 
-function advanceShift(original: RunState, acquired: RunState, choice: UpgradeChoice, didAcquire: boolean): DispatchResult {
-  const command = { type: "CHOOSE_UPGRADE", choice } as const satisfies GameCommand;
+function snapshotForBoundary(state: RunState): RunState["shiftHistory"][number] {
+  return {
+    shift: state.shift,
+    ...(state.afterHoursLevel > 0 ? { afterHoursLevel: state.afterHoursLevel } : {}),
+    bankroll: state.bankroll,
+    reels: cloneReels(state.reels),
+    parts: state.partSlots.filter((part) => part !== null),
+    totalWager: state.shiftWager,
+    totalPayout: state.shiftPayout
+  };
+}
+
+function hasCurrentSnapshot(state: RunState): boolean {
+  const last = state.shiftHistory.at(-1);
+  return last?.shift === state.shift && (last.afterHoursLevel ?? 0) === state.afterHoursLevel;
+}
+
+function completeUpgrade(
+  original: RunState,
+  acquired: RunState,
+  choice: UpgradeChoice,
+  didAcquire: boolean,
+  command: GameCommand
+): DispatchResult {
+  const isAfterHours = original.phase === "AFTER_HOURS";
+  const tipEvent = choice.action === "decline"
+    ? [{ sequence: original.pendingEvents.length + 1, type: "RESOURCE_CHANGED", resource: "tips", delta: 1 } as const]
+    : [];
+  if (isAfterHours) {
+    return {
+      ok: true,
+      events: tipEvent,
+      state: {
+        ...acquired,
+        phase: "AFTER_HOURS",
+        currentCandidates: null,
+        acquiredUpgrades: didAcquire ? [...acquired.acquiredUpgrades, choice.id] : acquired.acquiredUpgrades,
+        pendingEvents: [...original.pendingEvents, ...tipEvent],
+        commandHistory: [...original.commandHistory, command]
+      }
+    };
+  }
+
   const event = {
-    sequence: original.pendingEvents.length + 1,
+    sequence: original.pendingEvents.length + tipEvent.length + 1,
     type: "SHIFT_CHANGED",
     shift: original.shift + 1
   } as const satisfies GameEvent;
   const baseMaximum = acquired.service === "repair" ? 3 : 2;
   const nextMaximum = baseMaximum + acquired.nextShiftFocusBonus;
-  const snapshot = {
-    shift: original.shift,
-    bankroll: original.bankroll,
-    reels: cloneReels(original.reels),
-    parts: original.partSlots.filter((part) => part !== null),
-    totalWager: original.shiftWager,
-    totalPayout: original.shiftPayout
-  } as const;
+  const shiftHistory = hasCurrentSnapshot(original)
+    ? acquired.shiftHistory
+    : [...acquired.shiftHistory, snapshotForBoundary(original)];
+  const resetState: RunState = {
+    ...acquired,
+    phase: "READY_TO_SPIN",
+    shift: original.shift + 1,
+    baseSpinsInShift: 0,
+    shiftWager: 0,
+    shiftPayout: 0,
+    interventionPoints: nextMaximum,
+    maxInterventionPoints: nextMaximum,
+    nextShiftFocusBonus: 0,
+    interventionUsedThisSpin: false,
+    temporaryReelAdditions: [[], [], []],
+    pendingPrayer: null,
+    pendingSpin: null,
+    currentCandidates: null,
+    counters: { ...acquired.counters, cherryWinsThisShift: 0 },
+    shiftFlags: { ...EMPTY_SHIFT_FLAGS },
+    acquiredUpgrades: didAcquire ? [...acquired.acquiredUpgrades, choice.id] : acquired.acquiredUpgrades,
+    shiftHistory,
+    pendingEvents: [...original.pendingEvents, ...tipEvent, event],
+    commandHistory: [...original.commandHistory, command]
+  };
+  const contractResult = generateContract(resetState);
 
   return {
     ok: true,
-    events: [event],
+    events: [...tipEvent, event],
     state: {
-      ...acquired,
-      phase: "READY_TO_SPIN",
-      shift: original.shift + 1,
-      baseSpinsInShift: 0,
-      shiftWager: 0,
-      shiftPayout: 0,
-      interventionPoints: nextMaximum,
-      maxInterventionPoints: nextMaximum,
-      nextShiftFocusBonus: 0,
-      interventionUsedThisSpin: false,
-      temporaryReelAdditions: [[], [], []],
-      pendingPrayer: null,
-      pendingSpin: null,
-      currentCandidates: null,
-      counters: { ...acquired.counters, cherryWinsThisShift: 0 },
-      shiftFlags: { ...EMPTY_SHIFT_FLAGS },
-      acquiredUpgrades: didAcquire ? [...acquired.acquiredUpgrades, choice.id] : acquired.acquiredUpgrades,
-      shiftHistory: [...acquired.shiftHistory, snapshot],
-      pendingEvents: [...original.pendingEvents, event],
-      commandHistory: [...original.commandHistory, command]
+      ...resetState,
+      contract: contractResult.contract,
+      rng: contractResult.rng
     }
   };
 }
 
 /** Applies one offered upgrade choice and starts the next shift atomically. */
-export function applyUpgrade(state: RunState, choice: UpgradeChoice): DispatchResult {
-  if (state.phase !== "CHOOSING_UPGRADE") {
+function applyUpgradeCommand(state: RunState, choice: UpgradeChoice, command: GameCommand): DispatchResult {
+  if (state.phase !== "CHOOSING_UPGRADE" && state.phase !== "AFTER_HOURS") {
     return rejected(state, "INVALID_PHASE", `CHOOSE_UPGRADE is invalid during ${state.phase}`);
   }
   if (state.currentCandidates === null || !Object.values(state.currentCandidates).includes(choice.id)) {
@@ -250,7 +293,7 @@ export function applyUpgrade(state: RunState, choice: UpgradeChoice): DispatchRe
   }
 
   if (choice.action === "decline") {
-    return advanceShift(state, { ...state, tips: state.tips + 1 }, choice, false);
+    return completeUpgrade(state, { ...state, tips: state.tips + 1 }, choice, false, command);
   }
 
   let acquired: DispatchResult | RunState;
@@ -269,5 +312,24 @@ export function applyUpgrade(state: RunState, choice: UpgradeChoice): DispatchRe
   }
 
   if ("ok" in acquired) return acquired;
-  return advanceShift(state, acquired, choice, true);
+  return completeUpgrade(state, acquired, choice, true, command);
+}
+
+export function applyUpgrade(state: RunState, choice: UpgradeChoice): DispatchResult {
+  return applyUpgradeCommand(state, choice, { type: "CHOOSE_UPGRADE", choice });
+}
+
+/** Declines the wildcard candidate through the same validation and application path. */
+export function declineUpgrade(state: RunState): DispatchResult {
+  if (state.phase !== "CHOOSING_UPGRADE" && state.phase !== "AFTER_HOURS") {
+    return rejected(state, "INVALID_PHASE", `DECLINE_UPGRADE is invalid during ${state.phase}`);
+  }
+  if (state.currentCandidates === null) {
+    return rejected(state, "INVALID_TARGET", "there are no current upgrade candidates");
+  }
+  return applyUpgradeCommand(
+    state,
+    { id: state.currentCandidates.wildcard, action: "decline" },
+    { type: "DECLINE_UPGRADE" }
+  );
 }

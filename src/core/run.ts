@@ -1,17 +1,21 @@
 import { BASE_REELS } from "@/content/base-machine";
+import { BASE_PAYTABLE } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
 import { enableMartyr, pray } from "@/content/services/chapel";
 import { buyFood } from "@/content/services/kitchen";
+import { lockAndRespinOthers, removeCracks } from "@/content/services/repair";
 import { kickReel } from "@/content/services/security";
 import { generateCandidates } from "@/core/candidates";
+import { generateContract, updateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { getCurrentBet, roundMoney } from "@/core/progression";
+import { evaluateBaseWins } from "@/core/paylines";
 import { nextInt } from "@/core/random";
 import { advanceReel, drawReels, normalizeDrawIdentity } from "@/core/reels";
 import { resolveSpin } from "@/core/settlement";
 import type { ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId } from "@/core/types";
-import { applyUpgrade } from "@/core/upgrades";
+import { applyUpgrade, declineUpgrade } from "@/core/upgrades";
 
 const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security"];
 
@@ -161,7 +165,23 @@ function selectService(state: RunState, command: Extract<GameCommand, { type: "S
   if (!state.serviceCandidates.includes(command.serviceId)) {
     return rejected(state, "INVALID_TARGET", "service is not an offered candidate");
   }
-  return accepted(state, command, [], { phase: "READY_TO_SPIN", service: command.serviceId });
+  const baseMaximum = command.serviceId === "repair" ? 3 : 2;
+  const selectedState: RunState = {
+    ...state,
+    phase: "READY_TO_SPIN",
+    service: command.serviceId,
+    interventionPoints: baseMaximum,
+    maxInterventionPoints: baseMaximum
+  };
+  const contractResult = generateContract(selectedState);
+  return accepted(state, command, [], {
+    phase: "READY_TO_SPIN",
+    service: command.serviceId,
+    interventionPoints: baseMaximum,
+    maxInterventionPoints: baseMaximum,
+    contract: contractResult.contract,
+    rng: contractResult.rng
+  });
 }
 
 function setBetMode(state: RunState, command: Extract<GameCommand, { type: "SET_BET_MODE" }>): DispatchResult {
@@ -213,7 +233,16 @@ function spin(state: RunState, command: Extract<GameCommand, { type: "SPIN" }>):
 function reelsStopped(state: RunState, command: Extract<GameCommand, { type: "REELS_STOPPED" }>): DispatchResult {
   if (!supportsPhase(state, "SPINNING")) return invalidPhase(state, command);
   if (state.pendingSpin === null) return rejected(state, "INVALID_TARGET", "there is no pending spin");
-  return accepted(state, command, [], { phase: "AWAITING_INTERVENTION" });
+  const draw = state.pendingSpin.draw.preInterventionPaying === undefined
+    ? {
+        ...state.pendingSpin.draw,
+        preInterventionPaying: evaluateBaseWins(state.pendingSpin.draw.grid, BASE_PAYTABLE).length > 0
+      }
+    : state.pendingSpin.draw;
+  return accepted(state, command, [], {
+    phase: "AWAITING_INTERVENTION",
+    pendingSpin: { ...state.pendingSpin, draw }
+  });
 }
 
 function isReelIndex(value: number): value is ReelIndex {
@@ -270,28 +299,75 @@ function presentationComplete(
   if (state.pendingSpin === null) return rejected(state, "INVALID_TARGET", "there is no pending spin");
 
   const baseSpinsInShift = state.pendingSpin.isFree ? state.baseSpinsInShift : state.baseSpinsInShift + 1;
-  const isLost = state.bankroll < getMinimumBet(state) && state.freeSpinQueue === 0;
-  const rescue = isLost ? safetyFuseRescue(state) : null;
+  const completedPaidBlock = state.freeSpinQueue === 0 && baseSpinsInShift >= 3;
+  const belowMinimum = state.bankroll < getMinimumBet(state) && state.freeSpinQueue === 0;
+  const rescue = belowMinimum ? safetyFuseRescue(state) : null;
   const transitionState = rescue?.state ?? state;
+  const blockBankroll = transitionState.bankroll;
+  const finalPayout = state.pendingEvents.reduce(
+    (total, event) => event.type === "LINE_WIN" && event.source === "base" ? roundMoney(total + event.amount) : total,
+    0
+  );
+  const evidenceDrafts: GameEventDraft[] = [{
+    type: "SPIN_COMMITTED",
+    interventionUsed: state.interventionUsedThisSpin,
+    preInterventionPaying: state.pendingSpin.draw.preInterventionPaying ?? false,
+    finalPayout
+  }];
+  if (completedPaidBlock) evidenceDrafts.push({ type: "BLOCK_COMPLETED", bankroll: blockBankroll });
+  const evidence = evidenceDrafts.map((event, index) => ({ ...event, sequence: index + 1 }) as GameEvent);
+  const updatedContract = transitionState.contract === null
+    ? null
+    : updateContract(transitionState.contract, [...state.pendingEvents, ...evidence]);
+  const contractChanged = updatedContract !== null && transitionState.contract !== null && (
+    updatedContract.progress !== transitionState.contract.progress ||
+    updatedContract.completed !== transitionState.contract.completed ||
+    updatedContract.interventionsUsed !== transitionState.contract.interventionsUsed
+  );
+  const rewardTip = updatedContract?.completed === true && !updatedContract.rewardClaimed;
+  const contract = rewardTip ? { ...updatedContract, rewardClaimed: true } : updatedContract;
+  const exitUnlocked = transitionState.exitUnlocked || (completedPaidBlock && blockBankroll >= transitionState.checkoutTarget);
+  const isFifthLoss = completedPaidBlock && transitionState.afterHoursLevel === 0 &&
+    transitionState.shift >= 5 && blockBankroll < transitionState.checkoutTarget;
+  const unactionableLoss = !completedPaidBlock && belowMinimum && rescue === null;
   const nextPhase: RunPhase = state.freeSpinQueue > 0
     ? "READY_TO_SPIN"
-    : baseSpinsInShift >= 3
-      ? state.shift < 5
-        ? "CHOOSING_UPGRADE"
-        : "SHIFT_COMPLETE"
-      : rescue !== null
-        ? "READY_TO_SPIN"
-        : isLost
-          ? "RUN_LOST"
-          : "READY_TO_SPIN";
-  const events = rescue !== null
-    ? rescue.events.map((event, index) => ({ ...event, sequence: index + 1 }))
-    : isLost
-    ? ([{ sequence: 1, type: "RUN_ENDED", outcome: "lost" }] as const satisfies readonly GameEvent[])
-    : [];
-  const candidateResult = nextPhase === "CHOOSING_UPGRADE"
+    : completedPaidBlock
+      ? transitionState.afterHoursLevel > 0
+        ? "AFTER_HOURS"
+        : transitionState.shift < 5
+          ? "CHOOSING_UPGRADE"
+          : isFifthLoss
+            ? "RUN_LOST"
+            : "SHIFT_COMPLETE"
+      : unactionableLoss
+        ? "RUN_LOST"
+        : "READY_TO_SPIN";
+  const boundaryOffersUpgrade = nextPhase === "CHOOSING_UPGRADE" || nextPhase === "AFTER_HOURS";
+  const candidateResult = boundaryOffersUpgrade
     ? generateCandidates({ ...transitionState, baseSpinsInShift })
     : null;
+  const snapshot = completedPaidBlock
+    ? {
+        shift: transitionState.shift,
+        ...(transitionState.afterHoursLevel > 0 ? { afterHoursLevel: transitionState.afterHoursLevel } : {}),
+        bankroll: blockBankroll,
+        reels: cloneReels(transitionState.reels),
+        parts: transitionState.partSlots.filter((part) => part !== null),
+        totalWager: transitionState.shiftWager,
+        totalPayout: transitionState.shiftPayout
+      }
+    : null;
+  const hasSnapshot = snapshot !== null && transitionState.shiftHistory.at(-1)?.shift === snapshot.shift &&
+    (transitionState.shiftHistory.at(-1)?.afterHoursLevel ?? 0) === (snapshot.afterHoursLevel ?? 0);
+  const drafts: GameEventDraft[] = [];
+  if (contractChanged && contract !== null) {
+    drafts.push({ type: "CONTRACT_PROGRESS", contractId: contract.id, progress: contract.progress, completed: contract.completed });
+  }
+  if (rewardTip) drafts.push({ type: "RESOURCE_CHANGED", resource: "tips", delta: 1 });
+  if (rescue !== null) drafts.push(...rescue.events.map(({ sequence: _sequence, ...event }) => event));
+  if (nextPhase === "RUN_LOST") drafts.push({ type: "RUN_ENDED", outcome: "lost" });
+  const events = drafts.map((event, index) => ({ ...event, sequence: index + 1 }) as GameEvent);
 
   return {
     ok: true,
@@ -302,12 +378,84 @@ function presentationComplete(
       baseSpinsInShift,
       rng: candidateResult?.rng ?? transitionState.rng,
       currentCandidates: candidateResult?.candidates ?? null,
+      contract,
+      tips: transitionState.tips + (rewardTip ? 1 : 0),
+      exitUnlocked,
+      shiftHistory: snapshot !== null && !hasSnapshot
+        ? [...transitionState.shiftHistory, snapshot]
+        : transitionState.shiftHistory,
       pendingSpin: null,
       interventionUsedThisSpin: false,
-      pendingEvents: events,
+      pendingEvents: [],
       commandHistory: [...transitionState.commandHistory, command]
     }
   };
+}
+
+function rerollCandidates(state: RunState, command: Extract<GameCommand, { type: "REROLL_CANDIDATES" }>): DispatchResult {
+  if (state.phase !== "CHOOSING_UPGRADE" && state.phase !== "AFTER_HOURS") return invalidPhase(state, command);
+  if (state.currentCandidates === null) return rejected(state, "INVALID_TARGET", "there are no current upgrade candidates");
+  if (state.tips < 1) return rejected(state, "RESOURCE_EXHAUSTED", "no tips remain");
+  const result = generateCandidates(state);
+  const event = sequenceEvents(state, [{ type: "RESOURCE_CHANGED", resource: "tips", delta: -1 }]);
+  return accepted(state, command, event, { tips: state.tips - 1, rng: result.rng, currentCandidates: result.candidates });
+}
+
+function cashOut(state: RunState, command: Extract<GameCommand, { type: "CASH_OUT" }>): DispatchResult {
+  const boundary = state.phase === "CHOOSING_UPGRADE" || state.phase === "SHIFT_COMPLETE" || state.phase === "AFTER_HOURS";
+  if (!boundary) return invalidPhase(state, command);
+  if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
+  const events = sequenceEvents(state, [{ type: "RUN_ENDED", outcome: "won" }]);
+  return accepted(state, command, events, { phase: "RUN_WON" });
+}
+
+function resetForAfterHoursBlock(state: RunState, level: number): RunState {
+  const baseMaximum = state.service === "repair" ? 3 : 2;
+  const nextMaximum = baseMaximum + state.nextShiftFocusBonus;
+  const reset: RunState = {
+    ...state,
+    phase: "READY_TO_SPIN",
+    afterHoursLevel: level,
+    baseSpinsInShift: 0,
+    shiftWager: 0,
+    shiftPayout: 0,
+    interventionPoints: nextMaximum,
+    maxInterventionPoints: nextMaximum,
+    nextShiftFocusBonus: 0,
+    interventionUsedThisSpin: false,
+    temporaryReelAdditions: [[], [], []],
+    pendingPrayer: null,
+    pendingSpin: null,
+    currentCandidates: null,
+    counters: { ...state.counters, cherryWinsThisShift: 0 },
+    shiftFlags: {
+      foodBought: false,
+      prayerUsed: false,
+      kickUsed: false,
+      repairLockUsed: false,
+      martyrEnabled: false,
+      warrantyPaid: false,
+      returnedFoodCount: 0
+    }
+  };
+  const generated = generateContract(reset);
+  return { ...reset, contract: generated.contract, rng: generated.rng };
+}
+
+function continueRun(state: RunState, command: Extract<GameCommand, { type: "CONTINUE" }>): DispatchResult {
+  if (state.phase === "SHIFT_COMPLETE") {
+    if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
+    const next = resetForAfterHoursBlock(state, 1);
+    return accepted(state, command, [], next);
+  }
+  if (state.phase === "AFTER_HOURS") {
+    if (state.currentCandidates !== null) {
+      return rejected(state, "INVALID_TARGET", "choose or decline the after-hours upgrade first");
+    }
+    const next = resetForAfterHoursBlock(state, state.afterHoursLevel + 1);
+    return accepted(state, command, [], next);
+  }
+  return invalidPhase(state, command);
 }
 
 export function dispatchCommand(state: RunState, command: GameCommand): DispatchResult {
@@ -328,6 +476,8 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return reelsStopped(state, command);
     case "RESPIN_REEL":
       return respinReel(state, command);
+    case "LOCK_AND_RESPIN_OTHERS":
+      return lockAndRespinOthers(state, command.lockedReelIndex);
     case "KICK_REEL":
       return kickReel(state, command.reelIndex);
     case "ACCEPT_OUTCOME":
@@ -336,8 +486,15 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return presentationComplete(state, command);
     case "CHOOSE_UPGRADE":
       return applyUpgrade(state, command.choice);
+    case "DECLINE_UPGRADE":
+      return declineUpgrade(state);
+    case "REMOVE_CRACKS":
+      return removeCracks(state, command.reelIndex);
+    case "REROLL_CANDIDATES":
+      return rerollCandidates(state, command);
     case "CASH_OUT":
+      return cashOut(state, command);
     case "CONTINUE":
-      return invalidPhase(state, command);
+      return continueRun(state, command);
   }
 }
