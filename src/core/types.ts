@@ -108,6 +108,9 @@ export type UpgradeId =
 export type ContractId = "combination" | "discipline" | "rescue";
 export type CounterId = "blankCharge" | "cherryWinsThisShift";
 export type ExpenseSource = "wagers" | "kitchen" | "chapel" | "repair";
+export type CandidateRole = "synergy" | "pivot" | "wildcard";
+export type UpgradeKind = "reel-mod" | "part" | "tool";
+export type UpgradeRoute = "fruit" | "chapel" | "violent" | "neutral" | "information";
 
 export type Effect =
   | { readonly type: "ADD_PAYOUT"; readonly amount: number; readonly source: AttributionSource }
@@ -149,6 +152,35 @@ export interface CandidateSet {
   readonly pivot: UpgradeId;
   readonly wildcard: UpgradeId;
 }
+
+export interface CandidateResult {
+  readonly candidates: CandidateSet;
+  readonly rng: RngState;
+}
+
+export interface UpgradeDefinition {
+  readonly id: UpgradeId;
+  readonly name: string;
+  readonly kind: UpgradeKind;
+  readonly route: UpgradeRoute;
+  readonly tags: readonly string[];
+  readonly candidateRoles: readonly CandidateRole[];
+  readonly requires: (state: RunState) => boolean;
+}
+
+export type UpgradeTarget =
+  | { readonly kind: "reel"; readonly reel: ReelIndex }
+  | { readonly kind: "two-reels"; readonly reels: readonly [ReelIndex, ReelIndex] }
+  | {
+      readonly kind: "symbol-on-reel";
+      readonly reel: ReelIndex;
+      readonly symbol: Exclude<SymbolId, "wild">;
+    };
+
+export type UpgradeChoice =
+  | { readonly id: UpgradeId; readonly action: "apply"; readonly target?: UpgradeTarget }
+  | { readonly id: UpgradeId; readonly action: "replace"; readonly replaceSlot: number }
+  | { readonly id: UpgradeId; readonly action: "decline" };
 
 export interface PartInstance {
   readonly id: PartId;

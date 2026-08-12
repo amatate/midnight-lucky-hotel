@@ -1,4 +1,5 @@
 import { BASE_REELS } from "@/content/base-machine";
+import { generateCandidates } from "@/core/candidates";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { getCurrentBet, roundMoney } from "@/core/progression";
@@ -6,6 +7,7 @@ import { nextInt } from "@/core/random";
 import { advanceReel, drawReels } from "@/core/reels";
 import { resolveSpin } from "@/core/settlement";
 import type { ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId } from "@/core/types";
+import { applyUpgrade } from "@/core/upgrades";
 
 const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security"];
 
@@ -248,6 +250,9 @@ function presentationComplete(
   const events = isLost
     ? ([{ sequence: 1, type: "RUN_ENDED", outcome: "lost" }] as const satisfies readonly GameEvent[])
     : [];
+  const candidateResult = nextPhase === "CHOOSING_UPGRADE"
+    ? generateCandidates({ ...state, baseSpinsInShift })
+    : null;
 
   return {
     ok: true,
@@ -256,6 +261,8 @@ function presentationComplete(
       ...state,
       phase: nextPhase,
       baseSpinsInShift,
+      rng: candidateResult?.rng ?? state.rng,
+      currentCandidates: candidateResult?.candidates ?? null,
       pendingSpin: null,
       interventionUsedThisSpin: false,
       pendingEvents: events,
@@ -280,6 +287,8 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return acceptOutcome(state, command);
     case "PRESENTATION_COMPLETE":
       return presentationComplete(state, command);
+    case "CHOOSE_UPGRADE":
+      return applyUpgrade(state, command.choice);
     case "CASH_OUT":
     case "CONTINUE":
       return invalidPhase(state, command);

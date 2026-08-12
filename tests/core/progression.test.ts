@@ -55,7 +55,7 @@ describe("bet progression", () => {
 });
 
 describe("spin progression", () => {
-  it("counts three paid spins, clears presentation events, and enters the first-four-shift upgrade boundary", () => {
+  it("counts three paid spins, clears presentation events, and generates the first-four-shift upgrade boundary", () => {
     let state = readyRun(33);
     state = completeSpin(state);
     expect(state).toMatchObject({ phase: "READY_TO_SPIN", baseSpinsInShift: 1, pendingSpin: null, pendingEvents: [] });
@@ -66,11 +66,12 @@ describe("spin progression", () => {
       phase: "CHOOSING_UPGRADE",
       shift: 1,
       baseSpinsInShift: 3,
-      currentCandidates: null,
       pendingSpin: null,
       interventionUsedThisSpin: false,
       pendingEvents: []
     });
+    expect(state.currentCandidates).not.toBeNull();
+    expect(new Set(Object.values(state.currentCandidates!)).size).toBe(3);
   });
 
   it("enters SHIFT_COMPLETE after the third paid spin of shift five", () => {

@@ -1,5 +1,5 @@
 import type { GameEvent } from "@/core/events";
-import type { BetMode, CommandError, ReelIndex, RunState, ServiceId } from "@/core/types";
+import type { BetMode, CommandError, ReelIndex, RunState, ServiceId, UpgradeChoice } from "@/core/types";
 
 export type GameCommand =
   | { readonly type: "SELECT_SERVICE"; readonly serviceId: ServiceId }
@@ -9,6 +9,7 @@ export type GameCommand =
   | { readonly type: "RESPIN_REEL"; readonly reelIndex: ReelIndex }
   | { readonly type: "ACCEPT_OUTCOME" }
   | { readonly type: "PRESENTATION_COMPLETE" }
+  | { readonly type: "CHOOSE_UPGRADE"; readonly choice: UpgradeChoice }
   | { readonly type: "CASH_OUT" }
   | { readonly type: "CONTINUE" };
 
