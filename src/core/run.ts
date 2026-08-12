@@ -8,7 +8,7 @@ import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { getCurrentBet, roundMoney } from "@/core/progression";
 import { nextInt } from "@/core/random";
-import { advanceReel, drawReels } from "@/core/reels";
+import { advanceReel, drawReels, normalizeDrawIdentity } from "@/core/reels";
 import { resolveSpin } from "@/core/settlement";
 import type { ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId } from "@/core/types";
 import { applyUpgrade } from "@/core/upgrades";
@@ -231,11 +231,12 @@ function respinReel(state: RunState, command: Extract<GameCommand, { type: "RESP
   }
   if (state.pendingSpin === null) return rejected(state, "INVALID_TARGET", "there is no pending spin");
 
-  const stripLength = state.pendingSpin.draw.strips[command.reelIndex].length;
+  const normalizedDraw = normalizeDrawIdentity(state.pendingSpin.draw);
+  const stripLength = normalizedDraw.strips[command.reelIndex].length;
   if (stripLength <= 1) return rejected(state, "INVALID_TARGET", "selected reel cannot move to a different stop");
 
   const randomOffset = nextInt(state.rng, stripLength - 1);
-  const advanced = advanceReel(state.pendingSpin.draw, command.reelIndex, randomOffset.value + 1);
+  const advanced = advanceReel(normalizedDraw, command.reelIndex, randomOffset.value + 1);
   const draw = { ...advanced, rng: randomOffset.rng };
   const events = sequenceEvents(state, [
     { type: "INTERVENTION_USED", kind: "respin", target: command.reelIndex },

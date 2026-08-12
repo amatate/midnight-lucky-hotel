@@ -131,6 +131,7 @@ describe("dispatchCommand", () => {
     const ready = selectService(createRun(91));
     const spinning = dispatch(ready, { type: "SPIN" });
     const awaiting = dispatch(spinning, { type: "REELS_STOPPED" });
+    const snapshot = structuredClone(awaiting);
     const before = awaiting.pendingSpin!.draw;
     const randomOffset = nextInt(awaiting.rng, before.strips[1].length - 1);
     const respun = dispatchCommand(awaiting, { type: "RESPIN_REEL", reelIndex: 1 });
@@ -151,7 +152,119 @@ describe("dispatchCommand", () => {
       (before.stops[1] + randomOffset.value + 1) % before.strips[1].length
     );
     expect(respun.events.map((event) => event.type)).toEqual(["INTERVENTION_USED", "REELS_DRAWN"]);
-    expect(awaiting).toEqual(expect.objectContaining({ interventionPoints: 2, interventionUsedThisSpin: false }));
+    expect(awaiting).toEqual(snapshot);
+  });
+
+  it("rejects a respin after a null selected strip recovers to a single blank without consuming RNG", () => {
+    let state = selectService(createRun(92));
+    state = dispatch(state, { type: "SPIN" });
+    state = dispatch(state, { type: "REELS_STOPPED" });
+    const malformed: RunState = {
+      ...state,
+      pendingSpin: {
+        ...state.pendingSpin!,
+        draw: {
+          ...state.pendingSpin!.draw,
+          strips: [state.pendingSpin!.draw.strips[0], null, state.pendingSpin!.draw.strips[2]]
+        } as unknown as NonNullable<RunState["pendingSpin"]>["draw"]
+      }
+    };
+    const snapshot = structuredClone(malformed);
+
+    const result = dispatchCommand(malformed, { type: "RESPIN_REEL", reelIndex: 1 });
+
+    expect(result).toEqual({
+      ok: false,
+      state: malformed,
+      error: { code: "INVALID_TARGET", message: "selected reel cannot move to a different stop" }
+    });
+    expect(result.state).toBe(malformed);
+    expect(result.state.rng).toEqual(snapshot.rng);
+    expect(malformed).toEqual(snapshot);
+  });
+
+  it("normalizes malformed nonselected strips before a successful selected-reel respin", () => {
+    let state = selectService(createRun(93));
+    state = dispatch(state, { type: "SPIN" });
+    state = dispatch(state, { type: "REELS_STOPPED" });
+    const malformed: RunState = {
+      ...state,
+      pendingSpin: {
+        ...state.pendingSpin!,
+        draw: {
+          strips: [null, ["cherry", "lemon"], ["seven", null]],
+          stops: [0, 0, 0],
+          grid: null,
+          rng: { value: 999 },
+          entryIds: [null, [8, 8], [4]],
+          visibleSourceIds: null
+        } as unknown as NonNullable<RunState["pendingSpin"]>["draw"]
+      }
+    };
+    const snapshot = structuredClone(malformed);
+    const expectedRng = nextInt(malformed.rng, 1).rng;
+
+    const result = dispatchCommand(malformed, { type: "RESPIN_REEL", reelIndex: 1 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.state.rng).toEqual(expectedRng);
+    expect(result.state.pendingSpin!.draw).toEqual({
+      strips: [["blank"], ["cherry", "lemon"], ["seven", "blank"]],
+      stops: [0, 1, 0],
+      grid: [
+        ["blank", "blank", "blank"],
+        ["lemon", "cherry", "lemon"],
+        ["seven", "blank", "seven"]
+      ],
+      rng: expectedRng,
+      entryIds: [[0], [0, 1], [0, 1]],
+      visibleSourceIds: [[0, 0, 0], [1, 0, 1], [0, 1, 0]]
+    });
+    expect(result.events[1]).toEqual({ sequence: 4, type: "REELS_DRAWN", draw: result.state.pendingSpin!.draw });
+    expect(malformed).toEqual(snapshot);
+  });
+
+  it("normalizes malformed grid, stops, and identity mapping before a successful respin", () => {
+    let state = selectService(createRun(94));
+    state = dispatch(state, { type: "SPIN" });
+    state = dispatch(state, { type: "REELS_STOPPED" });
+    const malformed: RunState = {
+      ...state,
+      pendingSpin: {
+        ...state.pendingSpin!,
+        draw: {
+          strips: [["bell", "seven"], ["food", "blank"], ["crack", "wild"]],
+          stops: [Number.NaN, 1.5, null],
+          grid: null,
+          rng: { value: 123 },
+          entryIds: [[10, 10], [0], null],
+          visibleSourceIds: [[0, 1, 0], null, [99, 99, 99]]
+        } as unknown as NonNullable<RunState["pendingSpin"]>["draw"]
+      }
+    };
+    const snapshot = structuredClone(malformed);
+    const expectedRng = nextInt(malformed.rng, 1).rng;
+
+    const result = dispatchCommand(malformed, { type: "RESPIN_REEL", reelIndex: 2 });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.state.rng).toEqual(expectedRng);
+    expect(result.state.pendingSpin!.draw).toEqual({
+      strips: [["bell", "seven"], ["food", "blank"], ["crack", "wild"]],
+      stops: [0, 0, 1],
+      grid: [
+        ["bell", "seven", "bell"],
+        ["food", "blank", "food"],
+        ["wild", "crack", "wild"]
+      ],
+      rng: expectedRng,
+      entryIds: [[0, 1], [0, 1], [0, 1]],
+      visibleSourceIds: [[0, 1, 0], [0, 1, 0], [1, 0, 1]]
+    });
+    expect(result.events[1]).toEqual({ sequence: 4, type: "REELS_DRAWN", draw: result.state.pendingSpin!.draw });
+    expect(malformed).toEqual(snapshot);
   });
 
   it("rejects a second intervention without mutating the input", () => {
