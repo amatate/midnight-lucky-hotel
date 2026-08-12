@@ -161,6 +161,83 @@ describe("spin progression", () => {
     expect(resolving).toEqual(snapshot);
   });
 
+  it("enters the upgrade boundary when a fuse rescues the third paid spin of shift one", () => {
+    let state: RunState = {
+      ...readyRun(236),
+      bankroll: 10,
+      baseSpinsInShift: 2,
+      partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null]
+    };
+    state = dispatch(state, { type: "SPIN" });
+    state = dispatch(state, { type: "REELS_STOPPED" });
+    state = dispatch(state, { type: "ACCEPT_OUTCOME" });
+    const completed = dispatchCommand({ ...state, bankroll: 4.99 }, { type: "PRESENTATION_COMPLETE" });
+
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) throw new Error(completed.error.message);
+    expect(completed.state).toMatchObject({
+      phase: "CHOOSING_UPGRADE",
+      shift: 1,
+      baseSpinsInShift: 3,
+      bankroll: 24.99
+    });
+    expect(completed.state.partSlots[0]).toBeNull();
+    expect(completed.state.currentCandidates).not.toBeNull();
+    expect(new Set(Object.values(completed.state.currentCandidates!)).size).toBe(3);
+  });
+
+  it("enters shift complete when a fuse rescues the third paid spin of shift five", () => {
+    let state: RunState = {
+      ...readyRun(237),
+      shift: 5,
+      bankroll: 10,
+      baseSpinsInShift: 2,
+      partSlots: [null, { id: "safety-fuse", level: 2 }, null, null, null]
+    };
+    state = dispatch(state, { type: "SPIN" });
+    state = dispatch(state, { type: "REELS_STOPPED" });
+    state = dispatch(state, { type: "ACCEPT_OUTCOME" });
+    const completed = dispatchCommand({ ...state, bankroll: 4.99 }, { type: "PRESENTATION_COMPLETE" });
+
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) throw new Error(completed.error.message);
+    expect(completed.state).toMatchObject({
+      phase: "SHIFT_COMPLETE",
+      shift: 5,
+      baseSpinsInShift: 3,
+      bankroll: 44.99,
+      currentCandidates: null
+    });
+    expect(completed.state.partSlots[1]).toBeNull();
+  });
+
+  it("drains a queued free spin after the third paid spin without consuming a fuse", () => {
+    let state: RunState = {
+      ...readyRun(238),
+      bankroll: 10,
+      baseSpinsInShift: 2,
+      partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null]
+    };
+    state = dispatch(state, { type: "SPIN" });
+    state = dispatch(state, { type: "REELS_STOPPED" });
+    state = dispatch(state, { type: "ACCEPT_OUTCOME" });
+    const completed = dispatchCommand(
+      { ...state, bankroll: 0, freeSpinQueue: 1 },
+      { type: "PRESENTATION_COMPLETE" }
+    );
+
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) throw new Error(completed.error.message);
+    expect(completed.state).toMatchObject({
+      phase: "READY_TO_SPIN",
+      baseSpinsInShift: 3,
+      bankroll: 0,
+      freeSpinQueue: 1,
+      currentCandidates: null
+    });
+    expect(completed.state.partSlots[0]).toEqual({ id: "safety-fuse", level: 1 });
+  });
+
   it("ends a resumed ready state below the minimum bet instead of returning an unactionable funds error", () => {
     const ready: RunState = { ...readyRun(38), bankroll: 4.99 };
     const result = dispatchCommand(ready, { type: "SPIN" });

@@ -260,17 +260,17 @@ function presentationComplete(
   const isLost = state.bankroll < getMinimumBet(state) && state.freeSpinQueue === 0;
   const rescue = isLost ? safetyFuseRescue(state) : null;
   const transitionState = rescue?.state ?? state;
-  const nextPhase: RunPhase = rescue !== null
+  const nextPhase: RunPhase = state.freeSpinQueue > 0
     ? "READY_TO_SPIN"
-    : isLost
-    ? "RUN_LOST"
-    : state.freeSpinQueue > 0
-      ? "READY_TO_SPIN"
     : baseSpinsInShift >= 3
       ? state.shift < 5
         ? "CHOOSING_UPGRADE"
         : "SHIFT_COMPLETE"
-      : "READY_TO_SPIN";
+      : rescue !== null
+        ? "READY_TO_SPIN"
+        : isLost
+          ? "RUN_LOST"
+          : "READY_TO_SPIN";
   const events = rescue !== null
     ? rescue.events.map((event, index) => ({ ...event, sequence: index + 1 }))
     : isLost
