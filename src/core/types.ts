@@ -10,6 +10,12 @@ export type Grid = readonly [ReelWindow, ReelWindow, ReelWindow];
 export type ReelStrip = readonly SymbolId[];
 export type ReelSet = readonly [ReelStrip, ReelStrip, ReelStrip];
 export type StopSet = readonly [number, number, number];
+export type ReelEntryIdSet = readonly [readonly number[], readonly number[], readonly number[]];
+export type VisibleSourceIds = readonly [
+  readonly [number, number, number],
+  readonly [number, number, number],
+  readonly [number, number, number]
+];
 export type PaySymbolId = BaseSymbolId | "wild";
 export type Paytable = Readonly<Record<PaySymbolId, number>>;
 
@@ -38,6 +44,8 @@ export interface ReelDraw {
   readonly stops: StopSet;
   readonly grid: Grid;
   readonly rng: RngState;
+  readonly entryIds?: ReelEntryIdSet;
+  readonly visibleSourceIds?: VisibleSourceIds;
 }
 
 export type RunPhase =
@@ -119,7 +127,7 @@ export type Effect =
   | { readonly type: "REMOVE_FROM_REEL"; readonly reel: ReelIndex; readonly symbol: SymbolId; readonly count: number }
   | {
       readonly type: "REMOVE_PHYSICAL_CELLS";
-      readonly cells: readonly { readonly reel: ReelIndex; readonly index: number; readonly symbol: SymbolId }[];
+      readonly cells: readonly { readonly reel: ReelIndex; readonly entryId: number; readonly symbol: SymbolId }[];
     }
   | { readonly type: "DISABLE_PART"; readonly slot: number }
   | { readonly type: "GRANT_FREE_SPIN"; readonly count: number }

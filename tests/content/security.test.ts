@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { kickReel, previewKick } from "@/content/services/security";
 import { dispatchCommand, createRun } from "@/core/run";
+import { resolveSpin, type EffectHandler } from "@/core/settlement";
 import type { ReelDraw, ReelSet, RunState } from "@/core/types";
 
 function readyKickState(patch: Partial<RunState> = {}): RunState {
@@ -172,5 +173,103 @@ describe("security kick", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected rejection");
     expect(result.error.code).toBe("INVALID_TARGET");
+  });
+
+  it("keeps a one-symbol wrapped preview mapped to its original blank and hides the appended crack", () => {
+    const strips: ReelSet = [["blank"], ["cherry", "lemon"], ["bell", "seven"]];
+    const state = readyKickState({
+      reels: strips,
+      partSlots: [{ id: "blank-capacitor", level: 1 }, null, null, null, { id: "jam-jar", level: 1 }],
+      pendingSpin: {
+        isFree: false,
+        draw: {
+          strips,
+          stops: [0, 0, 0],
+          grid: [
+            ["blank", "blank", "blank"],
+            ["cherry", "lemon", "cherry"],
+            ["bell", "seven", "bell"]
+          ],
+          rng: { value: 777 }
+        }
+      }
+    });
+    const preview = previewKick(state, 0);
+    const kicked = kickReel(state, 0);
+
+    expect(kicked.ok).toBe(true);
+    if (!kicked.ok) throw new Error(kicked.error.message);
+    expect(preview).toEqual(["blank", "blank", "blank"]);
+    expect(kicked.state.pendingSpin?.draw.grid[0]).toEqual(preview);
+    const settled = resolveSpin(kicked.state, kicked.state.pendingSpin!.draw);
+    expect(settled.state.counters.blankCharge).toBe(1);
+    expect(settled.events.filter((event) => event.type === "PART_DISABLED")).toHaveLength(0);
+    expect(settled.state.reels[0]).toEqual(["blank", "crack"]);
+  });
+
+  it("keeps a two-symbol wrapped preview mapped to the shown entries for transformations", () => {
+    const strips: ReelSet = [["blank", "lemon"], ["cherry", "bell"], ["seven", "lemon"]];
+    const state = readyKickState({
+      reels: strips,
+      pendingSpin: {
+        isFree: false,
+        draw: {
+          strips,
+          stops: [0, 0, 0],
+          grid: [
+            ["blank", "lemon", "blank"],
+            ["cherry", "bell", "cherry"],
+            ["seven", "lemon", "seven"]
+          ],
+          rng: { value: 777 }
+        }
+      }
+    });
+    const preview = previewKick(state, 0);
+    const kicked = kickReel(state, 0);
+    expect(kicked.ok).toBe(true);
+    if (!kicked.ok) throw new Error(kicked.error.message);
+    expect(preview).toEqual(["lemon", "blank", "lemon"]);
+    expect(kicked.state.pendingSpin?.draw.grid[0]).toEqual(preview);
+    const transformShown: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED"
+        ? [{ type: "TRANSFORM_CELL", reel: 0, row: 0, symbol: "seven" }]
+        : [];
+
+    const settled = resolveSpin(kicked.state, kicked.state.pendingSpin!.draw, [
+      { kind: "system", handler: transformShown }
+    ]);
+
+    expect(settled.state.reels[0]).toEqual(["blank", "seven", "crack"]);
+    expect(settled.state.pendingSpin?.draw.grid[0]).toEqual(["seven", "blank", "seven"]);
+  });
+
+  it("removes one shown wrapped food entry once and retains the hidden appended crack", () => {
+    const strips: ReelSet = [["food"], ["cherry", "lemon"], ["bell", "seven"]];
+    const state = readyKickState({
+      reels: strips,
+      pendingSpin: {
+        isFree: false,
+        draw: {
+          strips,
+          stops: [0, 0, 0],
+          grid: [
+            ["food", "food", "food"],
+            ["cherry", "lemon", "cherry"],
+            ["bell", "seven", "bell"]
+          ],
+          rng: { value: 777 }
+        }
+      }
+    });
+    const kicked = kickReel(state, 0);
+    expect(kicked.ok).toBe(true);
+    if (!kicked.ok) throw new Error(kicked.error.message);
+
+    const settled = resolveSpin(kicked.state, kicked.state.pendingSpin!.draw);
+
+    expect(settled.events.filter((event) => event.type === "FOOD_CONSUMED")).toHaveLength(1);
+    expect(settled.state.reels[0]).toEqual(["crack"]);
+    expect(settled.state.buffs).toHaveLength(1);
   });
 });

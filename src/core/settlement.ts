@@ -5,6 +5,7 @@ import { isViolentPartId, reactViolentParts } from "@/content/effects/violent";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
+import { normalizedEntryIds, normalizedVisibleSourceIds } from "@/core/reels";
 import type {
   AttributionSource,
   Effect,
@@ -57,7 +58,7 @@ type InternalEffectHandlerRegistration = EffectHandlerRegistration & {
 
 interface PhysicalCell {
   readonly reel: ReelIndex;
-  readonly index: number;
+  readonly entryId: number;
   readonly symbol: SymbolId;
 }
 
@@ -111,6 +112,9 @@ interface QueuedEffect {
 interface WorkingState {
   grid: [SymbolId[], SymbolId[], SymbolId[]];
   strips: [SymbolId[], SymbolId[], SymbolId[]];
+  entryIds: [number[], number[], number[]];
+  visibleSourceIds: [[number, number, number], [number, number, number], [number, number, number]];
+  nextEntryIds: [number, number, number];
   temporaryEntries: [boolean[], boolean[], boolean[]];
   stops: [number, number, number];
   queue: QueuedEffect[];
@@ -144,7 +148,18 @@ function refreshGrid(working: WorkingState, reel?: ReelIndex): void {
   const reels: readonly ReelIndex[] = reel === undefined ? [0, 1, 2] : [reel];
   for (const reelIndex of reels) {
     working.grid[reelIndex] = windowAt(working.strips[reelIndex], working.stops[reelIndex]);
+    const ids = working.entryIds[reelIndex];
+    const start = modulo(working.stops[reelIndex], ids.length);
+    working.visibleSourceIds[reelIndex] = [
+      ids[start]!,
+      ids[(start + 1) % ids.length]!,
+      ids[(start + 2) % ids.length]!
+    ];
   }
+}
+
+function entryIndex(working: WorkingState, reel: ReelIndex, entryId: number): number {
+  return working.entryIds[reel].indexOf(entryId);
 }
 
 function boundedStructuralCount(value: number): number | undefined {
@@ -325,15 +340,17 @@ function dispatchSignal(
           for (const reel of [0, 1, 2] as const) {
             for (const row of [0, 1, 2] as const) {
               if (working.grid[reel][row] !== symbol) continue;
-              const index = modulo(working.stops[reel] + row, working.strips[reel].length);
-              if (working.strips[reel][index] === symbol) cells.add(`${reel}:${index}`);
+              const entryId = working.visibleSourceIds[reel][row];
+              const index = entryIndex(working, reel, entryId);
+              if (index >= 0 && working.strips[reel][index] === symbol) cells.add(`${reel}:${entryId}`);
             }
           }
           return cells.size;
         },
         physicalCell(reel: ReelIndex, row: RowIndex): PhysicalCell {
-          const index = modulo(working.stops[reel] + row, working.strips[reel].length);
-          return Object.freeze({ reel, index, symbol: working.strips[reel][index]! });
+          const entryId = working.visibleSourceIds[reel][row];
+          const index = entryIndex(working, reel, entryId);
+          return Object.freeze({ reel, entryId, symbol: working.strips[reel][index]! });
         },
         claimMotorOrdinal(): number | null {
           if (signal.type !== "EFFECT_APPLIED" || appliedOrigin === registration || appliedMotorGenerated) return null;
@@ -384,7 +401,9 @@ function awardNewLines(
   currentBet: number,
   buffMultiplier: number,
   working: WorkingState,
-  registrations: readonly InternalEffectHandlerRegistration[]
+  registrations: readonly InternalEffectHandlerRegistration[],
+  appliedOrigin?: InternalEffectHandlerRegistration,
+  appliedMotorGenerated = false
 ): void {
   const wins = evaluateBaseWins(working.grid as unknown as Grid, BASE_PAYTABLE);
   for (const win of wins) {
@@ -393,7 +412,15 @@ function awardNewLines(
     if (working.awardedWinKeys.has(key)) continue;
     working.awardedWinKeys.add(key);
     addPayout(working, win.multiplier * currentBet, "base", buffMultiplier, "line", win);
-    dispatchSignal(state, currentBet, working, registrations, { type: "LINE_AWARDED", win });
+    dispatchSignal(
+      state,
+      currentBet,
+      working,
+      registrations,
+      { type: "LINE_AWARDED", win },
+      appliedOrigin,
+      appliedMotorGenerated
+    );
   }
 }
 
@@ -406,8 +433,10 @@ function removeIndices(working: WorkingState, reel: ReelIndex, indices: readonly
   const oldStop = working.stops[reel];
   const removedBeforeStop = [...unique].filter((index) => index < oldStop).length;
   const remaining = working.strips[reel].filter((_symbol, index) => !unique.has(index));
+  const remainingEntryIds = working.entryIds[reel].filter((_entryId, index) => !unique.has(index));
   const remainingTemporaryEntries = working.temporaryEntries[reel].filter((_temporary, index) => !unique.has(index));
   working.strips[reel] = remaining.length > 0 ? remaining : ["blank"];
+  working.entryIds[reel] = remaining.length > 0 ? remainingEntryIds : [working.nextEntryIds[reel]++];
   working.temporaryEntries[reel] = remaining.length > 0 ? remainingTemporaryEntries : [false];
   working.stops[reel] = modulo(oldStop - removedBeforeStop, working.strips[reel].length);
   refreshGrid(working, reel);
@@ -427,13 +456,23 @@ function disablePart(
   currentBet: number,
   working: WorkingState,
   registrations: readonly InternalEffectHandlerRegistration[],
-  slot: number
+  slot: number,
+  appliedOrigin?: InternalEffectHandlerRegistration,
+  appliedMotorGenerated = false
 ): void {
   const part = state.partSlots[slot];
   if (part === null || part === undefined || working.disabledSlots.has(slot)) return;
   working.disabledSlots.add(slot);
   working.drafts.push({ type: "PART_DISABLED", partId: part.id, slot });
-  dispatchSignal(state, currentBet, working, registrations, { type: "PART_DISABLED", partId: part.id });
+  dispatchSignal(
+    state,
+    currentBet,
+    working,
+    registrations,
+    { type: "PART_DISABLED", partId: part.id },
+    appliedOrigin,
+    appliedMotorGenerated
+  );
 }
 
 function triggerOverload(currentBet: number, working: WorkingState): void {
@@ -450,7 +489,9 @@ function applyEffect(
   buffMultiplier: number,
   working: WorkingState,
   registrations: readonly InternalEffectHandlerRegistration[],
-  effect: Effect
+  effect: Effect,
+  appliedOrigin?: InternalEffectHandlerRegistration,
+  appliedMotorGenerated = false
 ): void {
   switch (effect.type) {
     case "ADD_PAYOUT":
@@ -459,9 +500,15 @@ function applyEffect(
     case "TRANSFORM_CELL": {
       const from = working.grid[effect.reel][effect.row];
       if (from !== effect.symbol) {
-        const sourceIndex = modulo(working.stops[effect.reel] + effect.row, working.strips[effect.reel].length);
+        const sourceId = working.visibleSourceIds[effect.reel][effect.row];
+        const sourceIndex = entryIndex(working, effect.reel, sourceId);
+        if (sourceIndex < 0) break;
         working.strips[effect.reel][sourceIndex] = effect.symbol;
-        refreshGrid(working, effect.reel);
+        for (const row of [0, 1, 2] as const) {
+          if (working.visibleSourceIds[effect.reel][row] === sourceId) {
+            working.grid[effect.reel][row] = effect.symbol;
+          }
+        }
         working.drafts.push({
           type: "SYMBOL_CHANGED",
           reel: effect.reel,
@@ -479,8 +526,10 @@ function applyEffect(
         break;
       }
       for (let index = 0; index < count; index += 1) working.strips[effect.reel].push(effect.symbol);
+      for (let index = 0; index < count; index += 1) {
+        working.entryIds[effect.reel].push(working.nextEntryIds[effect.reel]++);
+      }
       for (let index = 0; index < count; index += 1) working.temporaryEntries[effect.reel].push(false);
-      refreshGrid(working, effect.reel);
       break;
     }
     case "REMOVE_FROM_REEL": {
@@ -495,14 +544,25 @@ function applyEffect(
     case "REMOVE_PHYSICAL_CELLS": {
       for (const reel of [0, 1, 2] as const) {
         const indices = effect.cells
-          .filter((cell) => cell.reel === reel && working.strips[reel][cell.index] === cell.symbol)
-          .map((cell) => cell.index);
+          .filter((cell) => cell.reel === reel)
+          .flatMap((cell) => {
+            const index = entryIndex(working, reel, cell.entryId);
+            return index >= 0 && working.strips[reel][index] === cell.symbol ? [index] : [];
+          });
         removeIndices(working, reel, indices);
       }
       break;
     }
     case "DISABLE_PART":
-      disablePart(state, currentBet, working, registrations, effect.slot);
+      disablePart(
+        state,
+        currentBet,
+        working,
+        registrations,
+        effect.slot,
+        appliedOrigin,
+        appliedMotorGenerated
+      );
       break;
     case "GRANT_FREE_SPIN": {
       const count = finiteInteger(effect.count);
@@ -513,7 +573,15 @@ function applyEffect(
       break;
     }
     case "REEVALUATE_LINES":
-      awardNewLines(state, currentBet, buffMultiplier, working, registrations);
+      awardNewLines(
+        state,
+        currentBet,
+        buffMultiplier,
+        working,
+        registrations,
+        appliedOrigin,
+        appliedMotorGenerated
+      );
       break;
     case "INCREMENT_COUNTER": {
       const amount = Number.isFinite(effect.amount) ? Math.trunc(effect.amount) : 0;
@@ -559,7 +627,16 @@ function drainEffects(
     const queued = working.queue.shift()!;
     const effect = queued.effect;
     working.effectCount += 1;
-    applyEffect(state, currentBet, buffMultiplier, working, registrations, effect);
+    applyEffect(
+      state,
+      currentBet,
+      buffMultiplier,
+      working,
+      registrations,
+      effect,
+      queued.origin,
+      queued.motorGenerated
+    );
     if (working.overloaded) return;
     if (working.effectCount >= EFFECT_LIMIT) {
       triggerOverload(currentBet, working);
@@ -588,8 +665,8 @@ function consumeVisibleFood(
     const foodIndices = working.grid[reel]
       .map((symbol, row) => ({ symbol, row: row as RowIndex }))
       .filter(({ symbol }) => symbol === "food")
-      .map(({ row }) => modulo(working.stops[reel] + row, working.strips[reel].length))
-      .filter((index) => working.strips[reel][index] === "food");
+      .map(({ row }) => entryIndex(working, reel, working.visibleSourceIds[reel][row]))
+      .filter((index) => index >= 0 && working.strips[reel][index] === "food");
     const consumedCount = removeIndices(working, reel, foodIndices);
     for (let consumed = 0; consumed < consumedCount; consumed += 1) {
       granted.push({ id: "food", spinsRemaining: 3, additivePayout: 0.25 });
@@ -663,9 +740,14 @@ export function resolveSpin(
     AttributionSource,
     number
   >;
+  const initialEntryIds = normalizedEntryIds(draw);
+  const initialVisibleSourceIds = normalizedVisibleSourceIds(draw, initialEntryIds);
   const working: WorkingState = {
     grid: draw.grid.map((reel) => [...reel]) as [SymbolId[], SymbolId[], SymbolId[]],
     strips: draw.strips.map((strip) => [...strip]) as [SymbolId[], SymbolId[], SymbolId[]],
+    entryIds: initialEntryIds.map((ids) => [...ids]) as [number[], number[], number[]],
+    visibleSourceIds: initialVisibleSourceIds.map((ids) => [...ids]) as WorkingState["visibleSourceIds"],
+    nextEntryIds: initialEntryIds.map((ids) => Math.max(-1, ...ids) + 1) as [number, number, number],
     temporaryEntries: temporaryEntryMarkers(state, draw),
     stops: [...draw.stops],
     queue: [],
@@ -788,7 +870,11 @@ export function resolveSpin(
   const reels = permanentReels(working);
   const grid = immutableGrid(working);
   const stops = [...working.stops] as StopSet;
-  const resolvedDraw: ReelDraw = { ...draw, strips: resolvedReels, stops, grid };
+  const entryIds = working.entryIds.map((ids) => [...ids]) as unknown as NonNullable<ReelDraw["entryIds"]>;
+  const visibleSourceIds = working.visibleSourceIds.map((ids) => [...ids]) as unknown as NonNullable<
+    ReelDraw["visibleSourceIds"]
+  >;
+  const resolvedDraw: ReelDraw = { ...draw, strips: resolvedReels, stops, grid, entryIds, visibleSourceIds };
   const cumulativeAttribution = { ...state.attribution };
   for (const source of ATTRIBUTION_SOURCES) {
     cumulativeAttribution[source] = safeMoney(cumulativeAttribution[source] + working.attribution[source]);

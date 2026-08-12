@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nextInt } from "@/core/random";
-import { advanceReel, drawReels } from "@/core/reels";
-import type { ReelSet } from "@/core/types";
+import { advanceReel, drawReels, normalizedEntryIds, normalizedVisibleSourceIds } from "@/core/reels";
+import type { ReelDraw, ReelSet } from "@/core/types";
 
 const strips: ReelSet = [
   ["cherry", "lemon", "bell", "seven"],
@@ -17,6 +17,8 @@ describe("drawReels", () => {
 
     expect(draw).toMatchObject({ stops: [0, 0, 2], grid: [["cherry", "cherry", "cherry"], ["lemon", "lemon", "lemon"], ["cherry", "bell", "seven"]] });
     expect(draw.strips).toEqual([["cherry"], ["lemon"], ["bell", "seven", "cherry"]]);
+    expect(draw.entryIds).toEqual([[0], [0], [0, 1, 2]]);
+    expect(draw.visibleSourceIds).toEqual([[0, 0, 0], [0, 0, 0], [2, 0, 1]]);
   });
 
   it("consumes exactly three random draws", () => {
@@ -44,6 +46,7 @@ describe("advanceReel", () => {
     expect(advanced.grid[0]).toEqual(["lemon", "bell", "seven"]);
     expect(advanced.grid[1]).toEqual(draw.grid[1]);
     expect(advanced.grid[2]).toEqual(draw.grid[2]);
+    expect(advanced.visibleSourceIds?.[0]).toEqual([1, 2, 3]);
   });
 
   it("uses the full selected strip to reveal the preceding symbol for negative steps", () => {
@@ -52,5 +55,25 @@ describe("advanceReel", () => {
 
     expect(advanced.stops[0]).toBe(3);
     expect(advanced.grid[0]).toEqual(["seven", "cherry", "lemon"]);
+  });
+
+  it("canonicalizes duplicate serialized entry IDs and invalid visible references", () => {
+    const draw: ReelDraw = {
+      strips,
+      stops: [1, 0, 0],
+      grid: [
+        ["lemon", "bell", "seven"],
+        ["lemon", "bell", "seven"],
+        ["bell", "seven", "cherry"]
+      ],
+      rng: { value: 9 },
+      entryIds: [[4, 4, 5, 6], [0, 1, 2, 3], [0, 1, 2, 3]],
+      visibleSourceIds: [[99, 99, 99], [0, 1, 2], [0, 1, 2]]
+    };
+
+    const entryIds = normalizedEntryIds(structuredClone(draw));
+
+    expect(entryIds[0]).toEqual([0, 1, 2, 3]);
+    expect(normalizedVisibleSourceIds(draw, entryIds)[0]).toEqual([1, 2, 3]);
   });
 });

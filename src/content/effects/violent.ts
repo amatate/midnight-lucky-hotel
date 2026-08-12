@@ -59,7 +59,6 @@ function blankCapacitor(part: PartInstance, context: ResolveContext, signal: Res
   if (authorized === undefined || !authorized.claimTrigger("blank-capacitor")) return [];
 
   const visible = authorized.visiblePhysicalCount("blank");
-  if (visible === 0) return [];
   const threshold = part.level === 1 ? 3 : 2;
   const total = Math.max(0, context.state.counters.blankCharge) + visible;
   const granted = Math.floor(total / threshold);

@@ -1,6 +1,6 @@
 import type { DispatchResult } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
-import { advanceReel } from "@/core/reels";
+import { advanceReel, normalizedEntryIds } from "@/core/reels";
 import type { ReelDraw, ReelIndex, ReelWindow, RunState, SymbolId } from "@/core/types";
 
 function rejected(
@@ -65,15 +65,23 @@ function insertPermanentCracks(
 ): { readonly draw: ReelDraw; readonly reels: RunState["reels"] } {
   const permanentLength = state.reels[reel].length;
   const cracks = Array.from({ length: count }, (): SymbolId => "crack");
+  const currentEntryIds = normalizedEntryIds(draw);
+  const nextEntryId = Math.max(-1, ...currentEntryIds[reel]) + 1;
+  const crackEntryIds = Array.from({ length: count }, (_unused, index) => nextEntryId + index);
   const strips = draw.strips.map((strip, index) =>
     index === reel
       ? [...strip.slice(0, permanentLength), ...cracks, ...strip.slice(permanentLength)]
       : [...strip]
   ) as unknown as ReelDraw["strips"];
+  const entryIds = currentEntryIds.map((ids, index) =>
+    index === reel
+      ? [...ids.slice(0, permanentLength), ...crackEntryIds, ...ids.slice(permanentLength)]
+      : [...ids]
+  ) as unknown as NonNullable<ReelDraw["entryIds"]>;
   const reels = state.reels.map((strip, index) =>
     index === reel ? [...strip, ...cracks] : [...strip]
   ) as unknown as RunState["reels"];
-  return { draw: { ...draw, strips }, reels };
+  return { draw: { ...draw, strips, entryIds }, reels };
 }
 
 /** Advances one selected pending reel deterministically and appends permanent crack damage. */

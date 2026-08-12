@@ -125,6 +125,56 @@ describe("scrap magnet", () => {
     expect(result.state.reels[0]).toContain("crack");
     expect(result.state.reels[2]).toContain("crack");
   });
+
+  it("removes captured crack identities after an earlier queued removal shifts numeric indices", () => {
+    const strips: ReelSet = [
+      ["crack", "blank", "cherry", "crack", "lemon", "bell"],
+      ["blank", "lemon", "cherry", "seven", "bell", "blank"],
+      ["blank", "bell", "cherry", "seven", "lemon", "blank"]
+    ];
+    const draw: ReelDraw = {
+      strips,
+      stops: [2, 2, 2],
+      grid: [
+        ["cherry", "crack", "lemon"],
+        ["cherry", "seven", "bell"],
+        ["cherry", "seven", "lemon"]
+      ],
+      rng: { value: 303 }
+    };
+    const createTopCrackLineThenShift: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED"
+        ? [
+            { type: "TRANSFORM_CELL", reel: 0, row: 0, symbol: "crack" },
+            { type: "TRANSFORM_CELL", reel: 1, row: 0, symbol: "crack" },
+            { type: "TRANSFORM_CELL", reel: 2, row: 0, symbol: "crack" },
+            { type: "REEVALUATE_LINES" },
+            { type: "REMOVE_FROM_REEL", reel: 0, symbol: "crack", count: 1 }
+          ]
+        : [];
+    const state = settlementState(draw, [
+      { id: "scrap-magnet", level: 1 },
+      null,
+      null,
+      null,
+      { id: "jam-jar", level: 1 }
+    ]);
+
+    const result = resolveSpin(state, draw, [
+      { kind: "system", handler: createTopCrackLineThenShift }
+    ]);
+
+    expect(result.attribution.part).toBe(20);
+    expect(result.state.reels[0].filter((symbol) => symbol === "crack")).toHaveLength(1);
+    expect(result.state.reels[0][1]).toBe("crack");
+    expect(result.state.reels[1].filter((symbol) => symbol === "crack")).toHaveLength(0);
+    expect(result.state.reels[2].filter((symbol) => symbol === "crack")).toHaveLength(0);
+    const resolvedDraw = result.state.pendingSpin?.draw as ReelDraw & {
+      readonly entryIds?: readonly (readonly number[])[];
+    };
+    expect(resolvedDraw.entryIds?.[0]).toContain(3);
+    expect(resolvedDraw.entryIds?.[0]).not.toContain(2);
+  });
 });
 
 describe("blank capacitor", () => {
@@ -174,6 +224,41 @@ describe("blank capacitor", () => {
       signal.type === "GRID_ACCEPTED" ? [{ type: "REEVALUATE_LINES" }] : [];
 
     const result = resolveSpin(state, draw, [{ kind: "system", handler: reevaluate }]);
+
+    expect(result.state.counters.blankCharge).toBe(1);
+    expect(result.state.freeSpinQueue).toBe(0);
+  });
+
+  it("settles stored charge against an upgraded threshold without requiring a newly visible blank", () => {
+    const draw = makeDraw([
+      ["cherry", "lemon", "bell"],
+      ["lemon", "bell", "seven"],
+      ["bell", "seven", "cherry"]
+    ]);
+    const charged = settlementState(draw, withPart({ id: "blank-capacitor", level: 2 }), {
+      counters: { ...createRun(1).counters, blankCharge: 2 }
+    });
+
+    const result = resolveSpin(charged, draw);
+
+    expect(result.state.counters.blankCharge).toBe(0);
+    expect(result.state.freeSpinQueue).toBe(1);
+    expect(result.events).toContainEqual(
+      expect.objectContaining({ type: "RESOURCE_CHANGED", resource: "freeSpins", delta: 1 })
+    );
+  });
+
+  it("does not grant a phantom free spin when stored charge remains below the threshold", () => {
+    const draw = makeDraw([
+      ["cherry", "lemon", "bell"],
+      ["lemon", "bell", "seven"],
+      ["bell", "seven", "cherry"]
+    ]);
+    const charged = settlementState(draw, withPart({ id: "blank-capacitor", level: 1 }), {
+      counters: { ...createRun(1).counters, blankCharge: 1 }
+    });
+
+    const result = resolveSpin(charged, draw);
 
     expect(result.state.counters.blankCharge).toBe(1);
     expect(result.state.freeSpinQueue).toBe(0);
@@ -308,6 +393,80 @@ describe("overload motor", () => {
     expect(result.attribution.part).toBe(2.5);
     expect(result.state.counters.cherryWinsThisShift).toBe(1);
     expect(result.effectCount).toBe(4);
+    expect(result.events.some((event) => event.type === "OVERLOAD")).toBe(false);
+  });
+
+  it("keeps motor ancestry through synchronous reevaluation and line-awarded descendants", () => {
+    const draw = makeDraw(deadGrid);
+    const initial: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED"
+        ? [
+            { type: "CHANGE_OMEN", amount: 0 },
+            { type: "CHANGE_OMEN", amount: 0 }
+          ]
+        : [];
+    const motorPayoutCreatesLine: EffectHandler = (_context, signal) =>
+      signal.type === "EFFECT_APPLIED" &&
+      signal.effect.type === "ADD_PAYOUT" &&
+      signal.effect.amount === 2.5
+        ? [
+            { type: "TRANSFORM_CELL", reel: 0, row: 0, symbol: "seven" },
+            { type: "TRANSFORM_CELL", reel: 1, row: 0, symbol: "seven" },
+            { type: "TRANSFORM_CELL", reel: 2, row: 0, symbol: "seven" },
+            { type: "REEVALUATE_LINES" }
+          ]
+        : [];
+    const linePart: EffectHandler = (_context, signal) =>
+      signal.type === "LINE_AWARDED" && signal.win.lineId === "top"
+        ? [{ type: "INCREMENT_COUNTER", counter: "cherryWinsThisShift", amount: 1 }]
+        : [];
+    const state = settlementState(draw, withPart({ id: "overload-motor", level: 1 }));
+
+    const result = resolveSpin(state, draw, [
+      { kind: "system", handler: initial },
+      { kind: "system", handler: motorPayoutCreatesLine },
+      { kind: "system", handler: linePart }
+    ]);
+
+    expect(result.attribution.part).toBe(2.5);
+    expect(result.state.counters.cherryWinsThisShift).toBe(1);
+    expect(result.state.reels.flat().filter((symbol) => symbol === "crack")).toHaveLength(0);
+    expect(result.events.some((event) => event.type === "OVERLOAD")).toBe(false);
+  });
+
+  it("keeps motor ancestry through synchronous part-disabled and warranty descendants", () => {
+    const draw = makeDraw(deadGrid);
+    const initial: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED"
+        ? [
+            { type: "CHANGE_OMEN", amount: 0 },
+            { type: "CHANGE_OMEN", amount: 0 }
+          ]
+        : [];
+    const motorPayoutDisables: EffectHandler = (_context, signal) =>
+      signal.type === "EFFECT_APPLIED" &&
+      signal.effect.type === "ADD_PAYOUT" &&
+      signal.effect.amount === 2.5
+        ? [{ type: "DISABLE_PART", slot: 4 }]
+        : [];
+    const parts: RunState["partSlots"] = [
+      { id: "overload-motor", level: 1 },
+      { id: "warranty-fraud", level: 1 },
+      null,
+      null,
+      { id: "jam-jar", level: 1 }
+    ];
+    const state = settlementState(draw, parts);
+
+    const result = resolveSpin(state, draw, [
+      { kind: "system", handler: initial },
+      { kind: "system", handler: motorPayoutDisables }
+    ]);
+
+    expect(result.attribution.part).toBe(32.5);
+    expect(result.state.shiftFlags.warrantyPaid).toBe(true);
+    expect(result.state.reels.flat().filter((symbol) => symbol === "crack")).toHaveLength(0);
+    expect(result.events.filter((event) => event.type === "PAYOUT_ADDED" && event.source === "part")).toHaveLength(2);
     expect(result.events.some((event) => event.type === "OVERLOAD")).toBe(false);
   });
 

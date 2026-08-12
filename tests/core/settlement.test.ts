@@ -214,6 +214,19 @@ describe("resolveSpin special symbols", () => {
 });
 
 describe("resolveSpin payout and queue behavior", () => {
+  it("keeps an ADD_TO_REEL symbol out of the already accepted visible grid", () => {
+    const draw = makeDraw(deadGrid);
+    const addFutureSymbol: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED"
+        ? [{ type: "ADD_TO_REEL", reel: 0, symbol: "crack", count: 1 }]
+        : [];
+
+    const result = resolveSpin(settlementState(draw), draw, [system(addFutureSymbol)]);
+
+    expect(result.state.reels[0].at(-1)).toBe("crack");
+    expect(result.state.pendingSpin?.draw.grid).toEqual(deadGrid);
+  });
+
   it("increments dead-spin agitation to five and never exceeds the cap", () => {
     const draw = makeDraw(deadGrid);
 
