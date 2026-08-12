@@ -29,16 +29,23 @@ export function entryIdsForStrips(strips: ReelSet): ReelEntryIdSet {
   return strips.map((strip) => strip.map((_symbol, index) => index)) as unknown as ReelEntryIdSet;
 }
 
-function validEntryIds(strips: ReelSet, candidate: ReelEntryIdSet | undefined): candidate is ReelEntryIdSet {
-  return candidate !== undefined && candidate.length === 3 && candidate.every((ids, reel) =>
-    ids.length === strips[reel]!.length &&
-    new Set(ids).size === ids.length &&
-    ids.every((id) => Number.isSafeInteger(id) && id >= 0 && id <= Number.MAX_SAFE_INTEGER - 101)
-  );
+function denseArray(value: unknown, length: number): value is readonly unknown[] {
+  if (!Array.isArray(value) || value.length !== length) return false;
+  for (let index = 0; index < length; index += 1) {
+    if (!Object.hasOwn(value, index)) return false;
+  }
+  return true;
 }
 
-export function normalizedEntryIds(draw: Pick<ReelDraw, "strips" | "entryIds">): ReelEntryIdSet {
-  return validEntryIds(draw.strips, draw.entryIds) ? draw.entryIds : entryIdsForStrips(draw.strips);
+function validSerializedEntryIds(strips: ReelSet, value: unknown): value is ReelEntryIdSet {
+  if (!denseArray(value, 3)) return false;
+  return value.every((candidate, reel) => {
+    const strip = strips[reel]!;
+    if (!denseArray(candidate, strip.length)) return false;
+    const ids = candidate as readonly unknown[];
+    return ids.every((id) => Number.isSafeInteger(id) && (id as number) >= 0) &&
+      new Set(ids).size === ids.length;
+  });
 }
 
 export function visibleSourceIdsAt(entryIds: ReelEntryIdSet, stops: StopSet): VisibleSourceIds {
@@ -48,20 +55,37 @@ export function visibleSourceIdsAt(entryIds: ReelEntryIdSet, stops: StopSet): Vi
   }) as unknown as VisibleSourceIds;
 }
 
-export function normalizedVisibleSourceIds(draw: ReelDraw, entryIds: ReelEntryIdSet): VisibleSourceIds {
-  if (
-    draw.visibleSourceIds !== undefined &&
-    draw.visibleSourceIds.length === 3 &&
-    draw.visibleSourceIds.every((sourceIds, reel) =>
-      sourceIds.length === 3 && sourceIds.every((id, row) => {
-        const index = entryIds[reel]!.indexOf(id);
-        return index >= 0 && draw.strips[reel]![index] === draw.grid[reel]![row];
-      })
-    )
-  ) {
-    return draw.visibleSourceIds;
+function rebaseValidVisibleSources(draw: ReelDraw, oldEntryIds: ReelEntryIdSet): VisibleSourceIds | null {
+  const value: unknown = draw.visibleSourceIds;
+  if (!denseArray(value, 3)) return null;
+  const rebased: number[][] = [];
+  for (let reel = 0; reel < 3; reel += 1) {
+    const candidate = value[reel];
+    if (!denseArray(candidate, 3)) return null;
+    const ids: number[] = [];
+    for (let row = 0; row < 3; row += 1) {
+      const oldId = candidate[row];
+      if (!Number.isSafeInteger(oldId) || (oldId as number) < 0) return null;
+      const sourceIndex = oldEntryIds[reel]!.indexOf(oldId as number);
+      if (sourceIndex < 0 || draw.strips[reel]![sourceIndex] !== draw.grid[reel]![row]) return null;
+      ids.push(sourceIndex);
+    }
+    rebased.push(ids);
   }
-  return visibleSourceIdsAt(entryIds, draw.stops);
+  return rebased as unknown as VisibleSourceIds;
+}
+
+export function normalizeDrawIdentity(draw: ReelDraw): {
+  readonly entryIds: ReelEntryIdSet;
+  readonly visibleSourceIds: VisibleSourceIds;
+} {
+  const entryIds = entryIdsForStrips(draw.strips);
+  const rawEntryIds: unknown = draw.entryIds;
+  if (validSerializedEntryIds(draw.strips, rawEntryIds)) {
+    const visibleSourceIds = rebaseValidVisibleSources(draw, rawEntryIds);
+    if (visibleSourceIds !== null) return { entryIds, visibleSourceIds };
+  }
+  return { entryIds, visibleSourceIds: visibleSourceIdsAt(entryIds, draw.stops) };
 }
 
 export function drawReels(strips: ReelSet, rng: RngState): ReelDraw {
@@ -90,8 +114,9 @@ export function advanceReel(draw: ReelDraw, reelIndex: ReelIndex, steps: number)
   const grid: [ReelWindow, ReelWindow, ReelWindow] = [...draw.grid];
   grid[reelIndex] = advancedWindow;
 
-  const entryIds = normalizedEntryIds(draw);
-  const visibleSourceIds = normalizedVisibleSourceIds(draw, entryIds).map((ids) => [...ids]) as [
+  const identity = normalizeDrawIdentity(draw);
+  const entryIds = identity.entryIds;
+  const visibleSourceIds = identity.visibleSourceIds.map((ids) => [...ids]) as [
       [number, number, number],
       [number, number, number],
       [number, number, number]

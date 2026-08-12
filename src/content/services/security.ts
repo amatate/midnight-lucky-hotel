@@ -1,6 +1,6 @@
 import type { DispatchResult } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
-import { advanceReel, normalizedEntryIds } from "@/core/reels";
+import { advanceReel, normalizeDrawIdentity } from "@/core/reels";
 import type { ReelDraw, ReelIndex, ReelWindow, RunState, SymbolId } from "@/core/types";
 
 function rejected(
@@ -65,7 +65,7 @@ function insertPermanentCracks(
 ): { readonly draw: ReelDraw; readonly reels: RunState["reels"] } {
   const permanentLength = state.reels[reel].length;
   const cracks = Array.from({ length: count }, (): SymbolId => "crack");
-  const currentEntryIds = normalizedEntryIds(draw);
+  const currentEntryIds = normalizeDrawIdentity(draw).entryIds;
   const nextEntryId = Math.max(-1, ...currentEntryIds[reel]) + 1;
   const crackEntryIds = Array.from({ length: count }, (_unused, index) => nextEntryId + index);
   const strips = draw.strips.map((strip, index) =>

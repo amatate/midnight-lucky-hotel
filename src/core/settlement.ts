@@ -5,7 +5,7 @@ import { isViolentPartId, reactViolentParts } from "@/content/effects/violent";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
-import { normalizedEntryIds, normalizedVisibleSourceIds } from "@/core/reels";
+import { normalizeDrawIdentity } from "@/core/reels";
 import type {
   AttributionSource,
   Effect,
@@ -740,8 +740,9 @@ export function resolveSpin(
     AttributionSource,
     number
   >;
-  const initialEntryIds = normalizedEntryIds(draw);
-  const initialVisibleSourceIds = normalizedVisibleSourceIds(draw, initialEntryIds);
+  const initialIdentity = normalizeDrawIdentity(draw);
+  const initialEntryIds = initialIdentity.entryIds;
+  const initialVisibleSourceIds = initialIdentity.visibleSourceIds;
   const working: WorkingState = {
     grid: draw.grid.map((reel) => [...reel]) as [SymbolId[], SymbolId[], SymbolId[]],
     strips: draw.strips.map((strip) => [...strip]) as [SymbolId[], SymbolId[], SymbolId[]],

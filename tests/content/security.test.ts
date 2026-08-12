@@ -272,4 +272,28 @@ describe("security kick", () => {
     expect(settled.state.reels[0]).toEqual(["crack"]);
     expect(settled.state.buffs).toHaveLength(1);
   });
+
+  it("canonicalizes malformed optional mapping metadata for preview, execution, and settlement", () => {
+    const base = readyKickState();
+    const malformed = {
+      ...base,
+      pendingSpin: {
+        ...base.pendingSpin!,
+        draw: {
+          ...base.pendingSpin!.draw,
+          entryIds: [null, { nope: true }, Array(4)],
+          visibleSourceIds: [Array(3), null, { nope: true }]
+        } as unknown as ReelDraw
+      }
+    };
+
+    expect(() => previewKick(malformed, 0)).not.toThrow();
+    const kicked = kickReel(malformed, 0);
+    expect(kicked.ok).toBe(true);
+    if (!kicked.ok) throw new Error(kicked.error.message);
+    expect(() => resolveSpin(kicked.state, kicked.state.pendingSpin!.draw)).not.toThrow();
+    expect(kicked.state.pendingSpin?.draw.entryIds?.every((ids) =>
+      ids.every((id) => Number.isSafeInteger(id))
+    )).toBe(true);
+  });
 });

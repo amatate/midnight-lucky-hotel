@@ -214,6 +214,54 @@ describe("resolveSpin special symbols", () => {
 });
 
 describe("resolveSpin payout and queue behavior", () => {
+  it("canonicalizes malformed optional mapping metadata at the settlement boundary", () => {
+    const draw = makeDraw(deadGrid);
+    const malformed = {
+      ...draw,
+      entryIds: [null, Array(draw.strips[1].length), { nope: true }],
+      visibleSourceIds: [{ nope: true }, null, Array(3)]
+    } as unknown as ReelDraw;
+
+    expect(() => resolveSpin(settlementState(malformed), malformed)).not.toThrow();
+    const result = resolveSpin(settlementState(malformed), malformed);
+    expect(result.state.pendingSpin?.draw.entryIds).toEqual(
+      draw.strips.map((strip) => strip.map((_symbol, index) => index))
+    );
+  });
+
+  it("rebases near-MAX_SAFE serialized IDs before the largest bounded structural chain", () => {
+    const draw = makeDraw(deadGrid);
+    const high = Number.MAX_SAFE_INTEGER - 200;
+    const serialized: ReelDraw = {
+      ...draw,
+      entryIds: draw.strips.map((strip, reel) =>
+        strip.map((_symbol, index) => high - reel * 100 - index)
+      ) as unknown as NonNullable<ReelDraw["entryIds"]>,
+      visibleSourceIds: [
+        [high, high - 1, high - 2],
+        [high - 100, high - 101, high - 102],
+        [high - 200, high - 201, high - 202]
+      ]
+    };
+    const additions = Array.from({ length: 99 }, (): Effect => ({
+      type: "ADD_TO_REEL",
+      reel: 0,
+      symbol: "blank",
+      count: 100
+    }));
+    const handler: EffectHandler = (_context, signal) => signal.type === "GRID_ACCEPTED" ? additions : [];
+
+    const result = resolveSpin(settlementState(serialized), serialized, [system(handler)]);
+    const ids = result.state.pendingSpin?.draw.entryIds?.[0] ?? [];
+    const visibleIds = result.state.pendingSpin?.draw.visibleSourceIds?.[0] ?? [];
+
+    expect(ids).toHaveLength(draw.strips[0].length + 9_900);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.every((id) => Number.isSafeInteger(id) && id >= 0)).toBe(true);
+    expect(visibleIds.every((id) => ids.includes(id))).toBe(true);
+    expect(result.effectCount).toBe(99);
+  });
+
   it("keeps an ADD_TO_REEL symbol out of the already accepted visible grid", () => {
     const draw = makeDraw(deadGrid);
     const addFutureSymbol: EffectHandler = (_context, signal) =>
