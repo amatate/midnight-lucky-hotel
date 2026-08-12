@@ -1,0 +1,45 @@
+:root {
+  color: #f9f5ff;
+  background: #100b1e;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at top, #2b1a47, #100b1e 65%);
+}
+
+button {
+  min-height: 44px;
+}
+
+.app-shell {
+  width: min(390px, 100%);
+  min-height: 100dvh;
+  padding: 48px 24px;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  background: rgba(16, 11, 30, 0.88);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #d6b7ff;
+  font-size: 0.875rem;
+  letter-spacing: 0.12em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 10vw, 2.75rem);
+  line-height: 1.1;
+}
