@@ -118,11 +118,67 @@ h3 {
 .parts-panel,
 .upgrade-picker,
 .run-summary,
-.service-chooser {
+.service-chooser,
+.presentation-panel {
   padding: 12px;
   border: 1px solid rgba(164, 128, 190, 0.28);
   border-radius: 16px;
   background: rgba(40, 27, 57, 0.66);
+}
+
+.presentation-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.presentation-panel header,
+.presentation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.event-card {
+  min-height: 64px;
+  padding: 14px;
+  display: grid;
+  place-items: center;
+  color: #ffd166;
+  border: 1px solid #87699a;
+  border-radius: 12px;
+  background: #1b1227;
+  text-align: center;
+}
+
+.presentation-actions > * { flex: 1; }
+
+.reduce-flash-setting {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reduce-flash-setting input { width: 20px; height: 20px; }
+
+.recovery-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  padding: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 5, 12, 0.82);
+}
+
+.recovery-dialog {
+  width: min(100%, 390px);
+  padding: 18px;
+  border: 1px solid #b88ddd;
+  border-radius: 18px;
+  background: #281b39;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
 .hud-primary,

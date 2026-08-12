@@ -108,9 +108,6 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
             <button className="primary-button" type="button" onClick={() => onCommand({ type: "ACCEPT_OUTCOME" })}>接受结果</button>
           </>
         )}
-        {state.phase === "RESOLVING_EFFECTS" && (
-          <button className="primary-button" type="button" onClick={() => onCommand({ type: "PRESENTATION_COMPLETE" })}>播放结算/继续</button>
-        )}
         {state.phase === "READY_TO_SPIN" && <p className="muted">拉动后可在停轮时干预</p>}
       </div>
     </section>

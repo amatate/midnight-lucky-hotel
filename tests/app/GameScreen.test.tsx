@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GameScreen } from "@/app/GameScreen";
 import { Hud } from "@/app/components/Hud";
 import { ActionBar } from "@/app/components/ActionBar";
@@ -11,6 +11,7 @@ import type { RunState, UpgradeId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
 
 afterEach(cleanup);
+beforeEach(() => localStorage.clear());
 
 async function chooseFirstService(): Promise<void> {
   const user = userEvent.setup();
@@ -23,7 +24,7 @@ async function completeSpin(): Promise<void> {
   await user.click(screen.getByRole("button", { name: "拉动老虎机" }));
   await user.click(screen.getByRole("button", { name: "停轮" }));
   await user.click(screen.getByRole("button", { name: "接受结果" }));
-  await user.click(screen.getByRole("button", { name: "播放结算/继续" }));
+  await user.click(screen.getByRole("button", { name: "直接结算" }));
 }
 
 function offeredState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
@@ -73,7 +74,7 @@ describe("GameScreen", () => {
 
     await user.click(screen.getByRole("button", { name: "接受结果" }));
     expect(screen.getByText("结算演出")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "播放结算/继续" }));
+    await user.click(screen.getByRole("button", { name: "直接结算" }));
     expect(screen.getByText("第 1 班 · 1/3")).toBeVisible();
   });
 

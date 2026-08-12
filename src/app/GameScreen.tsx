@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActionBar } from "@/app/components/ActionBar";
 import { Hud } from "@/app/components/Hud";
 import { PartsBar } from "@/app/components/PartsBar";
@@ -8,6 +8,10 @@ import { UpgradePicker } from "@/app/components/UpgradePicker";
 import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
 import type { RunState, ServiceId } from "@/core/types";
+import type { GameEvent } from "@/core/events";
+import { createPresentationQueue, type PresentationQueue } from "@/presentation/queue";
+import { playEventTone, unlockAudio } from "@/presentation/audio";
+import { vibrate } from "@/presentation/haptics";
 import type { MachineEstimate } from "@/sim/types";
 
 const SERVICES: Readonly<Record<ServiceId, { readonly name: string; readonly description: string }>> = {
@@ -29,6 +33,30 @@ const PHASE_LABELS = {
   RUN_LOST: "本局失败",
   AFTER_HOURS: "加班时间"
 } as const;
+
+const REDUCE_FLASH_KEY = "midnight-lucky-hotel.reduce-flash";
+
+function prefersReducedPresentation(): boolean {
+  try {
+    const stored = localStorage.getItem(REDUCE_FLASH_KEY);
+    if (stored !== null) return stored === "1";
+  } catch {
+    // Match the platform preference when settings storage is unavailable.
+  }
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function eventLabel(event: GameEvent): string {
+  switch (event.type) {
+    case "BET_PLACED": return `下注 ¥${event.amount}`;
+    case "LINE_WIN": return `${event.symbol} 连线 +¥${event.amount}`;
+    case "PAYOUT_ADDED": return `赔付增加 ¥${event.amount}`;
+    case "PAYOUT_COMPLETE": return `本次总赔付 ¥${event.total}`;
+    case "PART_TRIGGERED": return `部件触发：${event.partId}`;
+    case "RESOURCE_CHANGED": return `${event.resource} ${event.delta >= 0 ? "+" : ""}${event.delta}`;
+    default: return event.type.replaceAll("_", " ");
+  }
+}
 
 function PullControl({ onPull }: { readonly onPull: () => void }): React.JSX.Element {
   const pointer = useRef<{ readonly id: number; readonly y: number } | null>(null);
@@ -69,6 +97,14 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
   const { estimate, status: estimateStatus } = useEstimate(game.state);
   const [trajectory, setTrajectory] = useState<readonly MachineEstimate[]>([]);
   const lastEstimate = useRef<MachineEstimate | null>(null);
+  const queueRef = useRef<PresentationQueue | null>(null);
+  const completionSent = useRef(false);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [presentation, setPresentation] = useState<{ event: GameEvent; index: number; total: number; done: boolean } | null>(null);
+  const [accelerated, setAccelerated] = useState(false);
+  const [documentHidden, setDocumentHidden] = useState(() => typeof document !== "undefined" && document.hidden);
+  const [recoveryOpen, setRecoveryOpen] = useState(game.wasRecovered);
+  const [reduceFlash, setReduceFlash] = useState(prefersReducedPresentation);
 
   useEffect(() => {
     if (estimate === null || estimate === lastEstimate.current) return;
@@ -76,12 +112,81 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
     setTrajectory((current) => [...current, estimate]);
   }, [estimate]);
 
+  useEffect(() => {
+    const onVisibility = () => setDocumentHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (game.state.phase !== "RESOLVING_EFFECTS") {
+      queueRef.current = null;
+      completionSent.current = false;
+      setPresentation(null);
+      return;
+    }
+    const source = game.events.length > 0 ? game.events : game.state.pendingEvents;
+    const queue = createPresentationQueue(source);
+    queueRef.current = queue;
+    completionSent.current = false;
+    setAccelerated(false);
+    const first = queue.next();
+    setPresentation(first === null ? null : { event: first, index: 1, total: source.length, done: queue.done });
+    return () => { queueRef.current = null; };
+  }, [game.state.phase, game.events]);
+
+  useEffect(() => {
+    if (presentation === null || presentation.done || recoveryOpen || documentHidden) return;
+    const timer = setTimeout(() => {
+      const queue = queueRef.current;
+      const next = queue?.next() ?? null;
+      if (next === null || queue === null) {
+        setPresentation((current) => current === null ? null : { ...current, done: true });
+        return;
+      }
+      playEventTone(next);
+      if (!reduceFlash) vibrate(12);
+      setPresentation((current) => current === null ? null : {
+        event: next,
+        index: current.index + 1,
+        total: current.total,
+        done: queue.done
+      });
+    }, reduceFlash ? 0 : accelerated ? 50 : 350);
+    return () => clearTimeout(timer);
+  }, [accelerated, documentHidden, presentation, recoveryOpen, reduceFlash]);
+
+  useEffect(() => () => {
+    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+  }, []);
+
+  const completePresentation = useCallback(() => {
+    if (completionSent.current || game.state.phase !== "RESOLVING_EFFECTS") return;
+    completionSent.current = true;
+    game.send({ type: "PRESENTATION_COMPLETE" });
+  }, [game]);
+
+  const speedUp = () => {
+    unlockAudio();
+    queueRef.current?.speedUp();
+    setAccelerated(true);
+  };
+
+  const skipPresentation = () => {
+    unlockAudio();
+    queueRef.current?.skip();
+    setPresentation((current) => current === null ? null : { ...current, index: current.total, done: true });
+    completePresentation();
+  };
+
   const restartSameSeed = () => {
+    setRecoveryOpen(false);
     setTrajectory([]);
     lastEstimate.current = null;
     game.restartSameSeed();
   };
   const restartNextSeed = () => {
+    setRecoveryOpen(false);
     setTrajectory([]);
     lastEstimate.current = null;
     game.restartNextSeed();
@@ -115,6 +220,33 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
       <SlotMachine state={game.state} />
       <PartsBar state={game.state} />
 
+      {game.state.phase === "RESOLVING_EFFECTS" && presentation !== null && (
+        <section className={`presentation-panel${reduceFlash ? " reduce-flash" : ""}`} aria-label="结算演出队列">
+          <header><strong>结算事件</strong><span>事件 {presentation.index}/{presentation.total}</span></header>
+          <div className="event-card" aria-live="polite">{eventLabel(presentation.event)}</div>
+          <div className="presentation-actions">
+            {!presentation.done && <button
+              type="button"
+              onClick={speedUp}
+              onPointerDown={() => {
+                holdTimer.current = setTimeout(speedUp, 400);
+              }}
+              onPointerUp={() => {
+                if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+                holdTimer.current = null;
+              }}
+              onPointerCancel={() => {
+                if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+                holdTimer.current = null;
+              }}
+            >加速演出</button>}
+            {!presentation.done
+              ? <button className="primary-button" type="button" onClick={skipPresentation}>直接结算</button>
+              : <button className="primary-button" type="button" onClick={completePresentation}>完成结算</button>}
+          </div>
+        </section>
+      )}
+
       {game.state.phase !== "CHOOSING_SERVICE" && (!isRunSummary || game.state.phase === "SHIFT_COMPLETE") && (
         <ActionBar state={game.state} onCommand={game.send} />
       )}
@@ -135,10 +267,34 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
       )}
       {game.state.phase === "READY_TO_SPIN" && <PullControl onPull={() => game.send({ type: "SPIN" })} />}
 
+      <label className="reduce-flash-setting">
+        <input type="checkbox" checked={reduceFlash} onChange={(event) => {
+          const checked = event.target.checked;
+          setReduceFlash(checked);
+          try { localStorage.setItem(REDUCE_FLASH_KEY, checked ? "1" : "0"); } catch { /* optional setting */ }
+        }} />
+        减少闪烁
+      </label>
+
       <div className="game-feedback" aria-live="assertive">
         {game.error !== null ? `${game.error.code}: ${game.error.message}` : ""}
       </div>
       {game.events.length > 0 && <p className="event-status" aria-live="polite">已记录 {game.events.length} 个新事件</p>}
+      {recoveryOpen && (
+        <div className="recovery-backdrop">
+          <section className="recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
+            <h2 id="recovery-title">恢复上次进度</h2>
+            <p>规则状态已经保存。你可以从演出位置继续，或直接进入已结算后的状态。</p>
+            <div className="summary-actions">
+              <button type="button" onClick={() => setRecoveryOpen(false)}>继续演出</button>
+              <button className="primary-button" type="button" onClick={() => {
+                setRecoveryOpen(false);
+                if (game.state.phase === "RESOLVING_EFFECTS") skipPresentation();
+              }}>直接结算</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="午夜好运酒店图标">
+  <rect width="192" height="192" rx="38" fill="#17191f"/>
+  <rect x="30" y="36" width="132" height="120" rx="22" fill="#38244c" stroke="#ffd166" stroke-width="8"/>
+  <circle cx="64" cy="88" r="18" fill="#d6b7ff"/>
+  <circle cx="128" cy="88" r="18" fill="#d6b7ff"/>
+  <path d="M68 130h56M96 52v96" stroke="#ffd166" stroke-width="9" stroke-linecap="round"/>
+  <path d="m53 88 11 12 18-28m28 16 11 12 18-28" fill="none" stroke="#8ff0bc" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
