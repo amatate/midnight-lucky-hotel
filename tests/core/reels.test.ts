@@ -16,6 +16,7 @@ describe("drawReels", () => {
     });
 
     expect(draw).toMatchObject({ stops: [0, 0, 2], grid: [["cherry", "cherry", "cherry"], ["lemon", "lemon", "lemon"], ["cherry", "bell", "seven"]] });
+    expect(draw.strips).toEqual([["cherry"], ["lemon"], ["bell", "seven", "cherry"]]);
   });
 
   it("consumes exactly three random draws", () => {
@@ -32,22 +33,24 @@ describe("drawReels", () => {
 });
 
 describe("advanceReel", () => {
-  it("changes only its selected stop modulo that reel length without consuming RNG", () => {
-    const draw = drawReels(strips, { value: 22 });
-    const advanced = advanceReel(draw, 1, 5);
+  it("advances through the full selected strip and reveals its fourth symbol without consuming RNG", () => {
+    const draw = drawReels(strips, { value: 7 });
+    const advanced = advanceReel(draw, 0, 1);
 
-    expect(advanced.stops).toEqual([draw.stops[0], (draw.stops[1] + 5) % 3, draw.stops[2]]);
+    expect(draw.stops[0]).toBe(0);
+    expect(advanced.stops).toEqual([1, draw.stops[1], draw.stops[2]]);
     expect(advanced.rng).toEqual(draw.rng);
-    expect(advanced.grid[0]).toEqual(draw.grid[0]);
+    expect(advanced.strips).toBe(draw.strips);
+    expect(advanced.grid[0]).toEqual(["lemon", "bell", "seven"]);
+    expect(advanced.grid[1]).toEqual(draw.grid[1]);
     expect(advanced.grid[2]).toEqual(draw.grid[2]);
-    expect(advanced.grid[1]).toEqual([draw.grid[1][2], draw.grid[1][0], draw.grid[1][1]]);
   });
 
-  it("wraps negative steps into the selected reel range", () => {
-    const draw = drawReels(strips, { value: 22 });
+  it("uses the full selected strip to reveal the preceding symbol for negative steps", () => {
+    const draw = drawReels(strips, { value: 7 });
     const advanced = advanceReel(draw, 0, -1);
 
-    expect(advanced.stops[0]).toBe((draw.stops[0] + 2) % 3);
-    expect(advanced.grid[0]).toEqual([draw.grid[0][2], draw.grid[0][0], draw.grid[0][1]]);
+    expect(advanced.stops[0]).toBe(3);
+    expect(advanced.grid[0]).toEqual(["seven", "cherry", "lemon"]);
   });
 });

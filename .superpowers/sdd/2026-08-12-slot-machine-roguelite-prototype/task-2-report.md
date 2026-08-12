@@ -71,3 +71,36 @@ Result: exit code `0`.
 ## Concern
 
 `ReelDraw` is specified as only `stops`, `grid`, and `rng`, while `advanceReel` is also specified without a `ReelSet` argument. Therefore a serialized draw cannot recover a source strip's full length or its unseen symbols. This implementation advances the self-contained visible three-cell window and normalizes stops against that length. If later work requires an advance across arbitrary full strips, the public data contract needs a serializable reel-length/strip reference or an explicit `ReelSet` parameter; neither was added because this task requires the supplied interface exactly.
+
+## Fix Round 1
+
+### Root cause and resolution
+
+The prior `advanceReel` used `draw.grid[reelIndex].length`, which is always three, as the modulo base and rotated only the visible tuple. It could never reveal a fourth (or preceding) symbol from a physical reel strip.
+
+Resolution A adds `readonly strips: ReelSet` to the serializable `ReelDraw`. `drawReels` retains the exact input `ReelSet`; `advanceReel` now uses `draw.strips[reelIndex].length`, rebuilds the advanced three-cell window from that full source strip, preserves the other reels and the exact strips/RNG references, and supports normalized negative steps.
+
+### Regression RED
+
+Updated `tests/core/reels.test.ts` with a four-symbol strip and ran:
+
+```text
+npm test -- tests/core/reels.test.ts
+```
+
+Result: `1` test file failed with `3` failed / `1` passed tests. The failures showed exactly the defect: missing retained `draw.strips`, an advance from `[cherry, lemon, bell]` producing `[lemon, bell, cherry]` instead of `[lemon, bell, seven]`, and a negative step yielding stop `2` instead of physical-strip stop `3`.
+
+### Regression GREEN
+
+Ran:
+
+```text
+npm test -- tests/core/random.test.ts tests/core/reels.test.ts tests/core/paylines.test.ts
+npm run typecheck
+```
+
+Result: `3` focused test files and `14` tests passed; strict typecheck passed.
+
+### Fix-round verification
+
+`npm run verify` was run before the fix-round commit; its exit code was `0`, with typecheck, all Vitest tests, and the production Vite build passing.

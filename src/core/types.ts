@@ -31,6 +31,7 @@ export interface RandomIntResult {
 }
 
 export interface ReelDraw {
+  readonly strips: ReelSet;
   readonly stops: StopSet;
   readonly grid: Grid;
   readonly rng: RngState;
