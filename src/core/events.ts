@@ -28,6 +28,14 @@ export type GameEvent =
       readonly source: AttributionSource;
     }
   | { readonly sequence: number; readonly type: "PART_TRIGGERED"; readonly partId: PartId; readonly level: 1 | 2 }
+  | { readonly sequence: number; readonly type: "PART_DISABLED"; readonly partId: PartId; readonly slot: number }
+  | { readonly sequence: number; readonly type: "FOOD_CONSUMED"; readonly reel: ReelIndex }
+  | {
+      readonly sequence: number;
+      readonly type: "PAYOUT_ADDED";
+      readonly amount: number;
+      readonly source: AttributionSource;
+    }
   | {
       readonly sequence: number;
       readonly type: "SYMBOL_CHANGED";

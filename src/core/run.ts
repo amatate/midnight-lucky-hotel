@@ -1,10 +1,10 @@
-import { BASE_PAYTABLE, BASE_REELS } from "@/content/base-machine";
+import { BASE_REELS } from "@/content/base-machine";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
-import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet, roundMoney } from "@/core/progression";
 import { nextInt } from "@/core/random";
 import { advanceReel, drawReels } from "@/core/reels";
+import { resolveSpin } from "@/core/settlement";
 import type { ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId } from "@/core/types";
 
 const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security"];
@@ -221,25 +221,9 @@ function acceptOutcome(state: RunState, command: Extract<GameCommand, { type: "A
   if (!supportsPhase(state, "AWAITING_INTERVENTION")) return invalidPhase(state, command);
   if (state.pendingSpin === null) return rejected(state, "INVALID_TARGET", "there is no pending spin");
 
-  const bet = getCurrentBet(state);
-  const wins = evaluateBaseWins(state.pendingSpin.draw.grid, BASE_PAYTABLE);
-  const lineEvents: GameEventDraft[] = wins.map((win) => ({
-    type: "LINE_WIN",
-    lineId: win.lineId,
-    symbol: win.symbol,
-    amount: roundMoney(win.multiplier * bet),
-    source: "base"
-  }));
-  const total = roundMoney(
-    lineEvents.reduce((sum, event) => sum + (event.type === "LINE_WIN" ? event.amount : 0), 0)
-  );
-  const events = sequenceEvents(state, [...lineEvents, { type: "PAYOUT_COMPLETE", total }]);
-
-  return accepted(state, command, events, {
+  const settlement = resolveSpin(state, state.pendingSpin.draw);
+  return accepted(settlement.state, command, settlement.events, {
     phase: "RESOLVING_EFFECTS",
-    bankroll: roundMoney(state.bankroll + total),
-    shiftPayout: roundMoney(state.shiftPayout + total),
-    attribution: { ...state.attribution, base: roundMoney(state.attribution.base + total) }
   });
 }
 

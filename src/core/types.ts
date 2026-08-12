@@ -109,6 +109,41 @@ export type ContractId = "combination" | "discipline" | "rescue";
 export type CounterId = "blankCharge" | "cherryWinsThisShift";
 export type ExpenseSource = "wagers" | "kitchen" | "chapel" | "repair";
 
+export type Effect =
+  | { readonly type: "ADD_PAYOUT"; readonly amount: number; readonly source: AttributionSource }
+  | { readonly type: "TRANSFORM_CELL"; readonly reel: ReelIndex; readonly row: RowIndex; readonly symbol: SymbolId }
+  | { readonly type: "ADD_TO_REEL"; readonly reel: ReelIndex; readonly symbol: SymbolId; readonly count: number }
+  | { readonly type: "REMOVE_FROM_REEL"; readonly reel: ReelIndex; readonly symbol: SymbolId; readonly count: number }
+  | { readonly type: "DISABLE_PART"; readonly slot: number }
+  | { readonly type: "GRANT_FREE_SPIN"; readonly count: number }
+  | { readonly type: "REEVALUATE_LINES" }
+  | { readonly type: "INCREMENT_COUNTER"; readonly counter: CounterId; readonly amount: number };
+
+export type ResolveSignal =
+  | { readonly type: "GRID_ACCEPTED" }
+  | { readonly type: "LINE_AWARDED"; readonly win: LineWin }
+  | { readonly type: "EFFECT_APPLIED"; readonly effect: Effect }
+  | { readonly type: "PART_DISABLED"; readonly partId: PartId }
+  | { readonly type: "FOOD_CONSUMED"; readonly reel: ReelIndex };
+
+export interface ResolveContext {
+  readonly state: RunState;
+  readonly grid: Grid;
+  readonly currentBet: number;
+  readonly queue: readonly Effect[];
+  readonly triggeredKeys: ReadonlySet<string>;
+  readonly awardedWinKeys: ReadonlySet<string>;
+  readonly eventCount: number;
+}
+
+export interface SettlementResult {
+  readonly state: RunState;
+  readonly events: readonly GameEvent[];
+  readonly payout: number;
+  readonly attribution: Readonly<Record<AttributionSource, number>>;
+  readonly effectCount: number;
+}
+
 export interface CandidateSet {
   readonly synergy: UpgradeId;
   readonly pivot: UpgradeId;
