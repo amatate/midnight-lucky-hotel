@@ -1,11 +1,12 @@
 import { BASE_PAYTABLE } from "@/content/base-machine";
-import { createFruitPartHandler, isFruitPartId } from "@/content/effects/fruit";
+import { isFruitPartId, reactFruitParts } from "@/content/effects/fruit";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
 import type {
   AttributionSource,
   Effect,
+  FruitPartResolveContext,
   Grid,
   LineWin,
   PartInstance,
@@ -42,6 +43,16 @@ export type EffectHandlerRegistration =
   | { readonly kind: "system"; readonly handler: EffectHandler }
   | { readonly kind: "part"; readonly slot: number; readonly partId: PartId; readonly handler: EffectHandler };
 
+type InternalEffectHandlerRegistration = EffectHandlerRegistration & { readonly fruitSlot?: number };
+
+interface FruitRuntime {
+  readonly initialCherryWins: number;
+  cherryWinsSeen: number;
+  readonly initialReturnedFoodCount: number;
+  returnedFoodsSeen: number;
+  plannedFoodAdds: [number, number, number];
+}
+
 interface WorkingState {
   grid: [SymbolId[], SymbolId[], SymbolId[]];
   strips: [SymbolId[], SymbolId[], SymbolId[]];
@@ -58,6 +69,7 @@ interface WorkingState {
   freeSpinQueue: number;
   counters: { blankCharge: number; cherryWinsThisShift: number };
   shiftFlags: ShiftFlags;
+  fruitRuntimes: Map<number, FruitRuntime>;
 }
 
 function modulo(value: number, length: number): number {
@@ -108,7 +120,8 @@ function activePartState(state: RunState, disabledSlots: ReadonlySet<number>): R
 function createContext(
   state: RunState,
   currentBet: number,
-  working: WorkingState
+  working: WorkingState,
+  registration?: InternalEffectHandlerRegistration
 ): ResolveContext {
   const reels = immutableReels(working);
   const grid = immutableGrid(working);
@@ -134,7 +147,7 @@ function createContext(
     },
     working.disabledSlots
   );
-  return {
+  const context: ResolveContext = {
     state: structuredClone(contextState),
     grid: structuredClone(grid),
     currentBet,
@@ -143,12 +156,44 @@ function createContext(
     awardedWinKeys: new Set(working.awardedWinKeys),
     eventCount: working.effectCount
   };
+  const slot = registration?.fruitSlot;
+  const part = slot === undefined ? undefined : state.partSlots[slot];
+  const runtime = slot === undefined ? undefined : working.fruitRuntimes.get(slot);
+  if (slot === undefined || part === undefined || part === null || runtime === undefined) return context;
+
+  const fruitPart: FruitPartResolveContext = Object.freeze({
+    slot,
+    part: Object.freeze({ ...part }),
+    claimTrigger(key: string): boolean {
+      if (working.triggeredKeys.has(key)) return false;
+      working.triggeredKeys.add(key);
+      return true;
+    },
+    observeCherryLine(): number {
+      const prior = runtime.initialCherryWins + runtime.cherryWinsSeen;
+      runtime.cherryWinsSeen += 1;
+      return prior;
+    },
+    claimFoodReturn(limit: number): ReelIndex | null {
+      if (runtime.initialReturnedFoodCount + runtime.returnedFoodsSeen >= limit) return null;
+      let shortest: ReelIndex = 0;
+      for (const reel of [1, 2] as const) {
+        const reelLength = working.strips[reel].length + runtime.plannedFoodAdds[reel];
+        const shortestLength = working.strips[shortest].length + runtime.plannedFoodAdds[shortest];
+        if (reelLength < shortestLength) shortest = reel;
+      }
+      runtime.returnedFoodsSeen += 1;
+      runtime.plannedFoodAdds[shortest] += 1;
+      return shortest;
+    }
+  });
+  return { ...context, fruitPart };
 }
 
 function registrationIsActive(
   state: RunState,
   disabledSlots: ReadonlySet<number>,
-  registration: EffectHandlerRegistration
+  registration: InternalEffectHandlerRegistration
 ): boolean {
   if (registration.kind === "system") return true;
   if (disabledSlots.has(registration.slot)) return false;
@@ -167,13 +212,13 @@ function dispatchSignal(
   state: RunState,
   currentBet: number,
   working: WorkingState,
-  registrations: readonly EffectHandlerRegistration[],
+  registrations: readonly InternalEffectHandlerRegistration[],
   signal: ResolveSignal
 ): void {
   if (working.overloaded) return;
   for (const registration of registrations) {
     if (!registrationIsActive(state, working.disabledSlots, registration)) continue;
-    const effects = registration.handler(createContext(state, currentBet, working), cloneSignal(signal));
+    const effects = registration.handler(createContext(state, currentBet, working, registration), cloneSignal(signal));
     enqueueEffects(working, effects);
   }
 }
@@ -210,7 +255,7 @@ function awardNewLines(
   currentBet: number,
   buffMultiplier: number,
   working: WorkingState,
-  registrations: readonly EffectHandlerRegistration[]
+  registrations: readonly InternalEffectHandlerRegistration[]
 ): void {
   const wins = evaluateBaseWins(working.grid as unknown as Grid, BASE_PAYTABLE);
   for (const win of wins) {
@@ -250,7 +295,7 @@ function disablePart(
   state: RunState,
   currentBet: number,
   working: WorkingState,
-  registrations: readonly EffectHandlerRegistration[],
+  registrations: readonly InternalEffectHandlerRegistration[],
   slot: number
 ): void {
   const part = state.partSlots[slot];
@@ -273,7 +318,7 @@ function applyEffect(
   currentBet: number,
   buffMultiplier: number,
   working: WorkingState,
-  registrations: readonly EffectHandlerRegistration[],
+  registrations: readonly InternalEffectHandlerRegistration[],
   effect: Effect
 ): void {
   switch (effect.type) {
@@ -354,7 +399,7 @@ function drainEffects(
   currentBet: number,
   buffMultiplier: number,
   working: WorkingState,
-  registrations: readonly EffectHandlerRegistration[]
+  registrations: readonly InternalEffectHandlerRegistration[]
 ): void {
   while (working.queue.length > 0) {
     const effect = working.queue.shift()!;
@@ -373,7 +418,7 @@ function consumeVisibleFood(
   state: RunState,
   currentBet: number,
   working: WorkingState,
-  registrations: readonly EffectHandlerRegistration[]
+  registrations: readonly InternalEffectHandlerRegistration[]
 ): readonly TimedBuff[] {
   const granted: TimedBuff[] = [];
   for (const reel of [0, 1, 2] as const) {
@@ -455,15 +500,31 @@ export function resolveSpin(
     overloaded: false,
     freeSpinQueue: state.freeSpinQueue,
     counters: { ...state.counters },
-    shiftFlags: { ...state.shiftFlags }
+    shiftFlags: { ...state.shiftFlags },
+    fruitRuntimes: new Map(
+      state.partSlots.flatMap((part, slot) =>
+        part !== null && isFruitPartId(part.id)
+          ? [[slot, {
+              initialCherryWins: state.counters.cherryWinsThisShift,
+              cherryWinsSeen: 0,
+              initialReturnedFoodCount: state.shiftFlags.returnedFoodCount,
+              returnedFoodsSeen: 0,
+              plannedFoodAdds: [0, 0, 0]
+            } satisfies FruitRuntime] as const]
+          : []
+      )
+    )
   };
 
-  const fruitRegistrations: EffectHandlerRegistration[] = state.partSlots.flatMap((part, slot) =>
+  const fruitRegistrations: InternalEffectHandlerRegistration[] = state.partSlots.flatMap((part, slot) =>
     part !== null && isFruitPartId(part.id)
-      ? [{ kind: "part", slot, partId: part.id, handler: createFruitPartHandler(slot, part, working.triggeredKeys) }]
+      ? [{ kind: "part", slot, partId: part.id, handler: reactFruitParts, fruitSlot: slot }]
       : []
   );
-  const registrations = [...fruitRegistrations, ...handlers.map((registration) => ({ ...registration }))];
+  const registrations: InternalEffectHandlerRegistration[] = [
+    ...fruitRegistrations,
+    ...handlers.map((registration) => ({ ...registration }))
+  ];
 
   const crackCount = countVisible(working.grid, "crack");
   const occupiedSlots = state.partSlots

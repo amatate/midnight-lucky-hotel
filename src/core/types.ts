@@ -130,6 +130,15 @@ export type ResolveSignal =
   | { readonly type: "PART_DISABLED"; readonly partId: PartId }
   | { readonly type: "FOOD_CONSUMED"; readonly reel: ReelIndex };
 
+/** Settlement-owned, resolve-local capabilities for one exact fruit-part registration. */
+export interface FruitPartResolveContext {
+  readonly slot: number;
+  readonly part: PartInstance;
+  readonly claimTrigger: (key: string) => boolean;
+  readonly observeCherryLine: () => number;
+  readonly claimFoodReturn: (limit: number) => ReelIndex | null;
+}
+
 export interface ResolveContext {
   readonly state: RunState;
   readonly grid: Grid;
@@ -138,6 +147,7 @@ export interface ResolveContext {
   readonly triggeredKeys: ReadonlySet<string>;
   readonly awardedWinKeys: ReadonlySet<string>;
   readonly eventCount: number;
+  readonly fruitPart?: FruitPartResolveContext;
 }
 
 export interface SettlementResult {

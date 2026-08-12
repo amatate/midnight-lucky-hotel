@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { reactFruitParts } from "@/content/effects/fruit";
 import { applyUpgrade } from "@/core/upgrades";
 import { createRun } from "@/core/run";
 import { resolveSpin, type EffectHandler } from "@/core/settlement";
@@ -6,7 +7,10 @@ import type {
   Grid,
   PartInstance,
   ReelDraw,
+  ReelIndex,
   ReelSet,
+  ResolveContext,
+  ResolveSignal,
   RunState,
   UpgradeId,
   UpgradeTarget
@@ -50,6 +54,128 @@ function acquireReelModification(id: UpgradeId, target: UpgradeTarget, patch: Pa
   if (!result.ok) throw new Error(result.error.message);
   return result.state;
 }
+
+function publicSequenceContext(part: PartInstance, grid: Grid, patch: Partial<RunState> = {}): ResolveContext {
+  const state: RunState = {
+    ...createRun(123),
+    partSlots: [part, null, null, null, null],
+    ...patch
+  };
+  const triggered = new Set<string>();
+  let cherryWinsSeen = 0;
+  let returnedFoodsSeen = 0;
+  const plannedFoodAdds = [0, 0, 0];
+  return {
+    state,
+    grid,
+    currentBet: 10,
+    queue: [],
+    triggeredKeys: triggered,
+    awardedWinKeys: new Set(),
+    eventCount: 0,
+    fruitPart: Object.freeze({
+      slot: 0,
+      part,
+      claimTrigger(key: string): boolean {
+        if (triggered.has(key)) return false;
+        triggered.add(key);
+        return true;
+      },
+      observeCherryLine(): number {
+        const prior = state.counters.cherryWinsThisShift + cherryWinsSeen;
+        cherryWinsSeen += 1;
+        return prior;
+      },
+      claimFoodReturn(limit: number): ReelIndex | null {
+        if (state.shiftFlags.returnedFoodCount + returnedFoodsSeen >= limit) return null;
+        const reelLengths = state.reels.map((strip) => strip.length);
+        let shortest: ReelIndex = 0;
+        for (const reel of [1, 2] as const) {
+          if (reelLengths[reel]! + plannedFoodAdds[reel]! < reelLengths[shortest]! + plannedFoodAdds[shortest]!) {
+            shortest = reel;
+          }
+        }
+        returnedFoodsSeen += 1;
+        plannedFoodAdds[shortest]! += 1;
+        return shortest;
+      }
+    })
+  } as ResolveContext;
+}
+
+describe("reactFruitParts public sequence contract", () => {
+  const lemonWin = {
+    lineId: "middle",
+    symbol: "lemon",
+    cells: [[0, 1], [1, 1], [2, 1]],
+    multiplier: 1.2
+  } as const;
+  const cherryWin = {
+    lineId: "top",
+    symbol: "cherry",
+    cells: [[0, 0], [1, 0], [2, 0]],
+    multiplier: 0.8
+  } as const;
+
+  it("claims lemon infection once across sequential awarded-line signals and starts fresh in a new resolve", () => {
+    const grid: Grid = [
+      ["lemon", "lemon", "bell"],
+      ["cherry", "lemon", "blank"],
+      ["lemon", "lemon", "seven"]
+    ];
+    const firstResolve = publicSequenceContext({ id: "lemon-infection", level: 1 }, grid);
+    const signal = { type: "LINE_AWARDED", win: lemonWin } as const satisfies ResolveSignal;
+
+    expect(reactFruitParts(firstResolve, signal)).toEqual([
+      { type: "TRANSFORM_CELL", reel: 1, row: 0, symbol: "lemon" },
+      { type: "REEVALUATE_LINES" }
+    ]);
+    expect(reactFruitParts(firstResolve, signal)).toEqual([]);
+
+    const nextResolve = publicSequenceContext({ id: "lemon-infection", level: 1 }, grid);
+    expect(reactFruitParts(nextResolve, signal)).toHaveLength(2);
+  });
+
+  it("prices sequential cherry lines with an increasing same-resolve prior count", () => {
+    const context = publicSequenceContext({ id: "jam-jar", level: 1 }, [
+      ["cherry", "blank", "blank"],
+      ["cherry", "blank", "blank"],
+      ["cherry", "blank", "blank"]
+    ]);
+    const signal = { type: "LINE_AWARDED", win: cherryWin } as const satisfies ResolveSignal;
+
+    expect(reactFruitParts(context, signal)).toEqual([
+      { type: "INCREMENT_COUNTER", counter: "cherryWinsThisShift", amount: 1 }
+    ]);
+    expect(reactFruitParts(context, signal)).toEqual([
+      { type: "ADD_PAYOUT", amount: 5, source: "part" },
+      { type: "INCREMENT_COUNTER", counter: "cherryWinsThisShift", amount: 1 }
+    ]);
+  });
+
+  it.each([
+    { level: 1 as const, expectedReturns: 1 },
+    { level: 2 as const, expectedReturns: 2 }
+  ])("limits sequential food-consumed returns to level $level for the shift", ({ level, expectedReturns }) => {
+    const context = publicSequenceContext({ id: "leftovers", level }, [
+      ["blank", "blank", "blank"],
+      ["blank", "blank", "blank"],
+      ["food", "food", "blank"]
+    ]);
+    const signal = { type: "FOOD_CONSUMED", reel: 2 } as const satisfies ResolveSignal;
+
+    const effects = [
+      reactFruitParts(context, signal),
+      reactFruitParts(context, signal),
+      reactFruitParts(context, signal)
+    ];
+
+    expect(effects.filter((result) => result.some((effect) => effect.type === "ADD_TO_REEL"))).toHaveLength(
+      expectedReturns
+    );
+    expect(effects.at(-1)).toEqual([]);
+  });
+});
 
 describe("fruit reel modifications", () => {
   it("adds two lemons to each selected reel for every lemon-crate acquisition", () => {
