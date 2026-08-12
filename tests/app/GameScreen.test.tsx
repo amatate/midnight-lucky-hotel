@@ -134,6 +134,20 @@ describe("GameScreen", () => {
     expect(screen.getByText("破产风险 8.0%")).toBeInTheDocument();
   });
 
+  it("shows acquired upgrades as a persistent observable recovery surface", () => {
+    render(<GameScreen seed={12} initialState={{
+      ...createRun(12),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      acquiredUpgrades: ["calculator", "jam-jar"],
+      partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null]
+    }} />);
+
+    const acquired = screen.getByRole("region", { name: "已获得升级" });
+    expect(within(acquired).getByText("计算器")).toBeVisible();
+    expect(within(acquired).getByText("果酱罐")).toBeVisible();
+  });
+
   it("offers boundary crack removal only for reels containing literal permanent cracks", () => {
     const state: RunState = {
       ...createRun(14),
@@ -187,7 +201,7 @@ describe("GameScreen", () => {
     await user.click(screen.getByRole("button", { name: "获取过载马达" }));
 
     expect(screen.getByText("准备拉动")).toBeVisible();
-    expect(screen.getByText("过载马达")).toBeVisible();
+    expect(screen.getAllByText("过载马达")).toHaveLength(2);
     expect(screen.queryByText("午夜钟声")).not.toBeInTheDocument();
   });
 

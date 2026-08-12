@@ -7,6 +7,7 @@ import { SlotMachine } from "@/app/components/SlotMachine";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
 import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
+import { UPGRADES } from "@/content/upgrades";
 import type { RunState, ServiceId } from "@/core/types";
 import type { GameEvent } from "@/core/events";
 import { createPresentationQueue, type PresentationQueue } from "@/presentation/queue";
@@ -36,13 +37,15 @@ const PHASE_LABELS = {
 
 const REDUCE_FLASH_KEY = "midnight-lucky-hotel.reduce-flash";
 
-function prefersReducedPresentation(): boolean {
+function storedReduceFlash(): boolean {
   try {
-    const stored = localStorage.getItem(REDUCE_FLASH_KEY);
-    if (stored !== null) return stored === "1";
+    return localStorage.getItem(REDUCE_FLASH_KEY) === "1";
   } catch {
-    // Match the platform preference when settings storage is unavailable.
+    return false;
   }
+}
+
+function systemReducedMotion(): boolean {
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
@@ -104,7 +107,9 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
   const [accelerated, setAccelerated] = useState(false);
   const [documentHidden, setDocumentHidden] = useState(() => typeof document !== "undefined" && document.hidden);
   const [recoveryOpen, setRecoveryOpen] = useState(game.wasRecovered);
-  const [reduceFlash, setReduceFlash] = useState(prefersReducedPresentation);
+  const [reduceFlash, setReduceFlash] = useState(storedReduceFlash);
+  const [osReducedMotion, setOsReducedMotion] = useState(systemReducedMotion);
+  const effectiveReducedMotion = reduceFlash || osReducedMotion;
 
   useEffect(() => {
     if (estimate === null || estimate === lastEstimate.current) return;
@@ -116,6 +121,15 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
     const onVisibility = () => setDocumentHidden(document.hidden);
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = (event: MediaQueryListEvent) => setOsReducedMotion(event.matches);
+    setOsReducedMotion(media.matches);
+    media.addEventListener?.("change", onChange);
+    return () => media.removeEventListener?.("change", onChange);
   }, []);
 
   useEffect(() => {
@@ -145,16 +159,16 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         return;
       }
       playEventTone(next);
-      if (!reduceFlash) vibrate(12);
+      if (!effectiveReducedMotion) vibrate(12);
       setPresentation((current) => current === null ? null : {
         event: next,
         index: current.index + 1,
         total: current.total,
         done: queue.done
       });
-    }, reduceFlash ? 0 : accelerated ? 50 : 350);
+    }, effectiveReducedMotion ? 0 : accelerated ? 50 : 350);
     return () => clearTimeout(timer);
-  }, [accelerated, documentHidden, presentation, recoveryOpen, reduceFlash]);
+  }, [accelerated, documentHidden, effectiveReducedMotion, presentation, recoveryOpen]);
 
   useEffect(() => () => {
     if (holdTimer.current !== null) clearTimeout(holdTimer.current);
@@ -195,7 +209,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
     game.state.phase === "RUN_LOST" || (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates === null);
 
   return (
-    <div className="game-screen">
+    <div className={`game-screen${effectiveReducedMotion ? " reduce-motion" : ""}`} data-reduced-motion={effectiveReducedMotion}>
       <header className="game-header">
         <div>
           <p className="eyebrow">功能原型</p>
@@ -219,9 +233,15 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
 
       <SlotMachine state={game.state} />
       <PartsBar state={game.state} />
+      {game.state.acquiredUpgrades.length > 0 && (
+        <section className="acquired-upgrades" aria-label="已获得升级">
+          <h2>已获得升级</h2>
+          <ul>{game.state.acquiredUpgrades.map((id, index) => <li key={`${id}-${index}`}>{UPGRADES[id].name}</li>)}</ul>
+        </section>
+      )}
 
       {game.state.phase === "RESOLVING_EFFECTS" && presentation !== null && (
-        <section className={`presentation-panel${reduceFlash ? " reduce-flash" : ""}`} aria-label="结算演出队列">
+        <section className={`presentation-panel${effectiveReducedMotion ? " reduce-flash" : ""}`} aria-label="结算演出队列">
           <header><strong>结算事件</strong><span>事件 {presentation.index}/{presentation.total}</span></header>
           <div className="event-card" aria-live="polite">{eventLabel(presentation.event)}</div>
           <div className="presentation-actions">
@@ -284,13 +304,26 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         <div className="recovery-backdrop">
           <section className="recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
             <h2 id="recovery-title">恢复上次进度</h2>
-            <p>规则状态已经保存。你可以从演出位置继续，或直接进入已结算后的状态。</p>
+            <p>规则状态已经保存。请选择如何继续当前阶段。</p>
             <div className="summary-actions">
-              <button type="button" onClick={() => setRecoveryOpen(false)}>继续演出</button>
-              <button className="primary-button" type="button" onClick={() => {
-                setRecoveryOpen(false);
-                if (game.state.phase === "RESOLVING_EFFECTS") skipPresentation();
-              }}>直接结算</button>
+              <button type="button" onClick={() => setRecoveryOpen(false)}>{
+                game.state.phase === "RESOLVING_EFFECTS" ? "继续演出"
+                  : game.state.phase === "SPINNING" ? "继续停轮"
+                    : game.state.phase === "AWAITING_INTERVENTION" ? "继续干预"
+                      : "继续游戏"
+              }</button>
+              {game.state.phase === "RESOLVING_EFFECTS" && (
+                <button className="primary-button" type="button" onClick={() => {
+                  setRecoveryOpen(false);
+                  skipPresentation();
+                }}>直接结算</button>
+              )}
+              {game.state.phase === "AWAITING_INTERVENTION" && (
+                <button className="primary-button" type="button" onClick={() => {
+                  setRecoveryOpen(false);
+                  game.send({ type: "ACCEPT_OUTCOME" });
+                }}>接受结果</button>
+              )}
             </div>
           </section>
         </div>

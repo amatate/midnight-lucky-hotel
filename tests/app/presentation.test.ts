@@ -49,16 +49,19 @@ describe("presentation queue", () => {
     expect(queue.next()).toBeNull();
   });
 
-  it("never mutates committed rule state when played or skipped", () => {
-    const committed = Object.freeze({ phase: "RESOLVING_EFFECTS", bankroll: 115 });
-    const before = JSON.stringify(committed);
-
-    const played = createPresentationQueue(events);
+  it("produces identical final rule state after full presentation and skip", () => {
+    const committed = resolvingState(77);
+    const before = structuredClone(committed);
+    const played = createPresentationQueue(committed.pendingEvents);
     while (!played.done) played.next();
-    const skipped = createPresentationQueue(events);
-    skipped.skip();
+    const playedResult = accept(dispatchCommand(committed, { type: "PRESENTATION_COMPLETE" })).state;
 
-    expect(JSON.stringify(committed)).toBe(before);
+    const skipped = createPresentationQueue(committed.pendingEvents);
+    skipped.skip();
+    const skippedResult = accept(dispatchCommand(committed, { type: "PRESENTATION_COMPLETE" })).state;
+
+    expect(committed).toEqual(before);
+    expect(skippedResult).toEqual(playedResult);
   });
 });
 
@@ -75,12 +78,47 @@ function resolvingState(seed: number) {
   return accept(dispatchCommand(state, { type: "ACCEPT_OUTCOME" })).state;
 }
 
+function spinningState(seed: number) {
+  let state = createRun(seed);
+  state = accept(dispatchCommand(state, { type: "SELECT_SERVICE", serviceId: state.serviceCandidates[0] })).state;
+  return accept(dispatchCommand(state, { type: "SPIN" })).state;
+}
+
+function awaitingState(seed: number) {
+  return accept(dispatchCommand(spinningState(seed), { type: "REELS_STOPPED" })).state;
+}
+
+function installMotionPreference(initial: boolean) {
+  let matches = initial;
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const media = {
+    get matches() { return matches; },
+    media: "(prefers-reduced-motion: reduce)",
+    onchange: null,
+    addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.add(listener),
+    removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => listeners.delete(listener),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  } as unknown as MediaQueryList;
+  vi.stubGlobal("matchMedia", vi.fn(() => media));
+  return {
+    listenerCount: () => listeners.size,
+    set(value: boolean) {
+      matches = value;
+      const event = { matches, media: media.media } as MediaQueryListEvent;
+      listeners.forEach((listener) => listener(event));
+    }
+  };
+}
+
 describe("presentation recovery UI", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("offers recovery before resuming a saved mid-presentation run", async () => {
@@ -92,6 +130,50 @@ describe("presentation recovery UI", () => {
     expect(within(dialog).getByRole("button", { name: "继续演出" })).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "直接结算" })).toBeVisible();
     expect(screen.getByText(`余额 ¥${saved.bankroll}`)).toBeVisible();
+  });
+
+  it("recovers SPINNING by closing into the explicit stop control without dispatching early", async () => {
+    const user = userEvent.setup();
+    const saved = spinningState(201);
+    localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(saved));
+    render(createElement(GameScreen, { seed: 999 }));
+
+    const dialog = screen.getByRole("dialog", { name: "恢复上次进度" });
+    expect(within(dialog).getByRole("button", { name: "继续停轮" })).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "直接结算" })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "继续停轮" }));
+    expect(screen.getByRole("button", { name: "停轮" })).toBeVisible();
+    expect(JSON.parse(localStorage.getItem(RUN_STORAGE_KEY)!).commandHistory).toHaveLength(saved.commandHistory.length);
+  });
+
+  it("recovers AWAITING_INTERVENTION with an explicit accept that starts presentation once", async () => {
+    const user = userEvent.setup();
+    const saved = awaitingState(202);
+    localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(saved));
+    render(createElement(GameScreen, { seed: 999 }));
+
+    const dialog = screen.getByRole("dialog", { name: "恢复上次进度" });
+    expect(within(dialog).getByRole("button", { name: "继续干预" })).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "接受结果" }));
+
+    expect(screen.getByRole("region", { name: "结算演出队列" })).toBeVisible();
+    const commands = JSON.parse(localStorage.getItem(RUN_STORAGE_KEY)!).commandHistory;
+    expect(commands.filter((command: { type: string }) => command.type === "ACCEPT_OUTCOME")).toHaveLength(1);
+    expect(commands.filter((command: { type: string }) => command.type === "PRESENTATION_COMPLETE")).toHaveLength(0);
+  });
+
+  it("uses a generic single recovery action outside active spin phases", async () => {
+    const user = userEvent.setup();
+    const saved = accept(dispatchCommand(createRun(203), {
+      type: "SELECT_SERVICE", serviceId: createRun(203).serviceCandidates[0]
+    })).state;
+    localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(saved));
+    render(createElement(GameScreen, { seed: 999 }));
+
+    const dialog = screen.getByRole("dialog", { name: "恢复上次进度" });
+    expect(within(dialog).getAllByRole("button")).toHaveLength(1);
+    await user.click(within(dialog).getByRole("button", { name: "继续游戏" }));
+    expect(screen.getByRole("button", { name: "拉动老虎机" })).toBeVisible();
   });
 
   it("an explicit initial state bypasses saved recovery", () => {
@@ -127,14 +209,49 @@ describe("presentation recovery UI", () => {
 
   it("pauses automatic advancement while the document is hidden", async () => {
     vi.useFakeTimers();
-    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    let isHidden = false;
+    vi.spyOn(document, "hidden", "get").mockImplementation(() => isHidden);
     render(createElement(GameScreen, { seed: 86, initialState: resolvingState(86) }));
     const before = screen.getByText(/事件 1\/\d+/).textContent;
 
-    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    isHidden = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => vi.advanceTimersByTimeAsync(500));
     expect(screen.getByText(/事件 1\/\d+/).textContent).toBe(before);
 
-    hidden.mockRestore();
-    vi.useRealTimers();
+    isHidden = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => vi.advanceTimersByTimeAsync(350));
+    expect(screen.getByText(/事件 2\/\d+/)).toBeVisible();
+  });
+
+  it("treats OS reduced motion as mandatory even when the stored setting is false", async () => {
+    localStorage.setItem("midnight-lucky-hotel.reduce-flash", "0");
+    installMotionPreference(true);
+    const { container } = render(createElement(GameScreen, { seed: 204, initialState: spinningState(204) }));
+
+    expect(container.querySelector(".game-screen.reduce-motion")).toHaveAttribute("data-reduced-motion", "true");
+    expect(screen.getByRole("checkbox", { name: "减少闪烁" })).not.toBeChecked();
+  });
+
+  it("subscribes to OS motion changes and removes the listener on unmount", () => {
+    const motion = installMotionPreference(false);
+    const { container, unmount } = render(createElement(GameScreen, { seed: 205, initialState: spinningState(205) }));
+    expect(motion.listenerCount()).toBe(1);
+    expect(container.querySelector(".game-screen.reduce-motion")).toBeNull();
+
+    act(() => motion.set(true));
+    expect(container.querySelector(".game-screen.reduce-motion")).toBeInTheDocument();
+    unmount();
+    expect(motion.listenerCount()).toBe(0);
+  });
+
+  it("uses zero-delay presentation when effective reduced motion is active", async () => {
+    vi.useFakeTimers();
+    installMotionPreference(true);
+    render(createElement(GameScreen, { seed: 206, initialState: resolvingState(206) }));
+    expect(screen.getByText(/事件 1\/\d+/)).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+    expect(screen.queryByText(/事件 1\/\d+/)).not.toBeInTheDocument();
   });
 });

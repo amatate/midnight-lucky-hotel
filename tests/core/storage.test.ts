@@ -1,6 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createRun } from "@/core/run";
+import { createRun, dispatchCommand } from "@/core/run";
+import type { RunState } from "@/core/types";
 import { clearRun, loadRun, RUN_STORAGE_KEY, saveRun } from "@/persistence/storage";
+
+function accept(state: RunState, command: Parameters<typeof dispatchCommand>[1]): RunState {
+  const result = dispatchCommand(state, command);
+  if (!result.ok) throw new Error(`${command.type} fixture failed`);
+  return result.state;
+}
+
+function resolvingState(seed = 101): RunState {
+  let state = createRun(seed);
+  state = accept(state, { type: "SELECT_SERVICE", serviceId: state.serviceCandidates[0] });
+  state = accept(state, { type: "SPIN" });
+  state = accept(state, { type: "REELS_STOPPED" });
+  return accept(state, { type: "ACCEPT_OUTCOME" });
+}
+
+function upgradeBoundaryState(seed = 102): RunState {
+  let state = createRun(seed);
+  state = accept(state, { type: "SELECT_SERVICE", serviceId: state.serviceCandidates[0] });
+  for (let spin = 0; spin < 3; spin += 1) {
+    state = accept(state, { type: "SPIN" });
+    state = accept(state, { type: "REELS_STOPPED" });
+    state = accept(state, { type: "ACCEPT_OUTCOME" });
+    state = accept(state, { type: "PRESENTATION_COMPLETE" });
+  }
+  if (state.phase !== "CHOOSING_UPGRADE") throw new Error("upgrade boundary fixture failed");
+  return state;
+}
+
+function expectInvalid(value: unknown): void {
+  localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(value));
+  expect(loadRun()).toEqual({ ok: false, reason: "INVALID_SNAPSHOT" });
+}
 
 describe("run storage", () => {
   beforeEach(() => localStorage.clear());
@@ -49,6 +82,78 @@ describe("run storage", () => {
       localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify({ ...createRun(2), ...patch }));
       expect(loadRun()).toEqual({ ok: false, reason: "INVALID_SNAPSHOT" });
     }
+  });
+
+  it("rejects a snapshot missing any required root field", () => {
+    const valid = createRun(7);
+    for (const key of Object.keys(valid)) {
+      const copy = structuredClone(valid) as unknown as Record<string, unknown>;
+      delete copy[key];
+      expectInvalid(copy);
+    }
+  });
+
+  it("accepts a real ended state that retains boundary candidates after cash out", () => {
+    const boundary = { ...upgradeBoundaryState(), exitUnlocked: true };
+    const won = accept(boundary, { type: "CASH_OUT" });
+    expect(won.phase).toBe("RUN_WON");
+    expect(won.currentCandidates).not.toBeNull();
+
+    saveRun(won);
+    const loaded = loadRun();
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.state).toEqual(won);
+  });
+
+  it.each([
+    ["contract omitted during resolution", () => {
+      const state = resolvingState();
+      const copy = { ...state } as unknown as Record<string, unknown>;
+      delete copy.contract;
+      return copy;
+    }],
+    ["partial contract", () => ({ ...createRun(8), contract: { id: "discipline", target: 1 } })],
+    ["invalid food buff", () => ({ ...createRun(8), buffs: [{ id: "luck", spinsRemaining: 1, additivePayout: 2 }] })],
+    ["invalid shift snapshot", () => ({ ...createRun(8), shiftHistory: [{ shift: 1, bankroll: 20 }] })],
+    ["duplicate candidates", () => ({
+      ...createRun(8), phase: "CHOOSING_UPGRADE", service: "repair",
+      currentCandidates: { synergy: "jam-jar", pivot: "jam-jar", wildcard: "calculator" }
+    })],
+    ["upgrade phase without candidates", () => ({
+      ...createRun(8), phase: "CHOOSING_UPGRADE", service: "repair", currentCandidates: null
+    })],
+    ["ready phase with pending spin", () => ({
+      ...resolvingState(8), phase: "READY_TO_SPIN"
+    })],
+    ["non-increasing event sequences", () => ({
+      ...createRun(8), pendingEvents: [
+        { sequence: 2, type: "PAYOUT_COMPLETE", total: 1 },
+        { sequence: 2, type: "SHIFT_CHANGED", shift: 2 }
+      ]
+    })],
+    ["malformed event variant", () => ({
+      ...createRun(8), pendingEvents: [{ sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "dragon", amount: 1, source: "base" }]
+    })],
+    ["malformed command variant", () => ({
+      ...createRun(8), commandHistory: [{ type: "RESPIN_REEL", reelIndex: 7 }]
+    })]
+  ])("rejects %s", (_label, snapshot) => expectInvalid(snapshot()))
+
+  it("bounds serialized and collection sizes before recovery", () => {
+    localStorage.setItem(RUN_STORAGE_KEY, " ".repeat(1_000_001));
+    expect(loadRun()).toEqual({ ok: false, reason: "INVALID_SNAPSHOT" });
+
+    expectInvalid({ ...createRun(9), reels: [Array(10_001).fill("cherry"), ["lemon"], ["bell"]] });
+    expectInvalid({ ...createRun(9), commandHistory: Array(10_001).fill({ type: "SPIN" }) });
+  });
+
+  it("rejects dangerous object keys and non-plain nested records", () => {
+    const serialized = JSON.stringify(createRun(10)).replace(
+      '"counters":{"blankCharge":0',
+      '"counters":{"__proto__":{"polluted":true},"blankCharge":0'
+    );
+    localStorage.setItem(RUN_STORAGE_KEY, serialized);
+    expect(loadRun()).toEqual({ ok: false, reason: "INVALID_SNAPSHOT" });
   });
 
   it("save and clear tolerate localStorage security failures", () => {

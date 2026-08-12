@@ -119,12 +119,16 @@ h3 {
 .upgrade-picker,
 .run-summary,
 .service-chooser,
+.acquired-upgrades,
 .presentation-panel {
   padding: 12px;
   border: 1px solid rgba(164, 128, 190, 0.28);
   border-radius: 16px;
   background: rgba(40, 27, 57, 0.66);
 }
+
+.acquired-upgrades h2 { color: #d6b7ff; font-size: 0.78rem; }
+.acquired-upgrades ul { margin: 0; padding-left: 20px; color: #ffd166; font-size: 0.78rem; }
 
 .presentation-panel {
   display: grid;
@@ -598,4 +602,12 @@ select {
   .is-spinning .symbol {
     animation: none;
   }
+}
+
+.game-screen.reduce-motion *,
+.game-screen.reduce-motion *::before,
+.game-screen.reduce-motion *::after {
+  animation: none !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
