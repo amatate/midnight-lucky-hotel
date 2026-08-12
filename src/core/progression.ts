@@ -15,3 +15,8 @@ export function getCurrentBet(state: RunState): number {
   const afterHoursScale = 1.25 ** state.afterHoursLevel;
   return roundMoney(state.baseBet * BET_MULTIPLIER[state.betMode] * afterHoursScale);
 }
+
+/** Lowest paid pull available for the current normal or after-hours level. */
+export function getMinimumBet(state: RunState): number {
+  return roundMoney(state.baseBet * BET_MULTIPLIER.conservative * 1.25 ** state.afterHoursLevel);
+}

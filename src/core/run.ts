@@ -9,7 +9,7 @@ import { generateCandidates } from "@/core/candidates";
 import { generateContract, updateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
-import { getCurrentBet, roundMoney } from "@/core/progression";
+import { getCurrentBet, getMinimumBet, roundMoney } from "@/core/progression";
 import { evaluateBaseWins } from "@/core/paylines";
 import { nextInt } from "@/core/random";
 import { advanceReel, drawReels, normalizeDrawIdentity } from "@/core/reels";
@@ -83,10 +83,6 @@ function invalidPhase(state: RunState, command: GameCommand): DispatchResult {
 
 function supportsPhase(state: RunState, phase: RunPhase): boolean {
   return state.phase === phase;
-}
-
-function getMinimumBet(state: RunState): number {
-  return roundMoney(state.baseBet * 0.5 * 1.25 ** state.afterHoursLevel);
 }
 
 function safetyFuseRescue(state: RunState): {

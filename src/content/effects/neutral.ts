@@ -1,4 +1,4 @@
-import { roundMoney } from "@/core/progression";
+import { getMinimumBet, roundMoney } from "@/core/progression";
 import type { BaseSymbolId, ReelIndex, ReelSet, RunState, SymbolId } from "@/core/types";
 
 const BASE_SYMBOLS = new Set<SymbolId>(["cherry", "lemon", "bell", "seven"]);
@@ -33,15 +33,20 @@ export interface SafetyFuseResult {
   readonly payout: number;
 }
 
+/** Returns the leftmost fuse's rescue payout without consuming or mutating it. */
+export function getSafetyFuseRescuePayout(state: RunState): number {
+  if (state.bankroll >= getMinimumBet(state)) return 0;
+  const fuse = state.partSlots.find((part) => part?.id === "safety-fuse");
+  return fuse === undefined || fuse === null ? 0 : fuse.level === 2 ? 40 : 20;
+}
+
 /** Consumes the leftmost safety fuse once when bankroll is strictly below the minimum bet. */
 export function consumeSafetyFuse(state: RunState): SafetyFuseResult {
-  const minimumBet = roundMoney(state.baseBet * 0.5 * 1.25 ** state.afterHoursLevel);
-  if (state.bankroll >= minimumBet) return { state, consumed: false, payout: 0 };
+  const payout = getSafetyFuseRescuePayout(state);
+  if (payout === 0) return { state, consumed: false, payout: 0 };
 
   const slot = state.partSlots.findIndex((part) => part?.id === "safety-fuse");
   if (slot < 0) return { state, consumed: false, payout: 0 };
-  const fuse = state.partSlots[slot]!;
-  const payout = fuse.level === 2 ? 40 : 20;
   const partSlots = state.partSlots.map((part, index) => (index === slot ? null : part)) as unknown as RunState["partSlots"];
   return {
     consumed: true,

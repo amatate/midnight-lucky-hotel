@@ -1,7 +1,8 @@
 import { BASE_PAYTABLE } from "@/content/base-machine";
+import { getSafetyFuseRescuePayout } from "@/content/effects/neutral";
 import type { GameEvent } from "@/core/events";
 import { evaluateBaseWins, PAYLINES } from "@/core/paylines";
-import { getCurrentBet, roundMoney } from "@/core/progression";
+import { getCurrentBet, getMinimumBet, roundMoney } from "@/core/progression";
 import { nextInt } from "@/core/random";
 import type {
   BaseSymbolId,
@@ -44,6 +45,29 @@ const MAX_EXACT_REPAIR_TRANSITIONS = 100_000;
 
 function remainingBaseSpins(state: RunState): number {
   return Math.max(0, 3 - state.baseSpinsInShift);
+}
+
+function hasPlayableFuturePull(state: RunState): boolean {
+  if (state.freeSpinQueue > 0) return true;
+  const minimumBet = getMinimumBet(state);
+  if (state.bankroll >= minimumBet) return true;
+  const fusePayout = getSafetyFuseRescuePayout(state);
+  return fusePayout > 0 && roundMoney(state.bankroll + fusePayout) >= minimumBet;
+}
+
+function inertContract(state: RunState, rng: RngState): ContractResult {
+  return {
+    contract: {
+      id: "discipline",
+      target: 0,
+      progress: 0,
+      completed: true,
+      rewardClaimed: true,
+      startBankroll: state.bankroll,
+      interventionsUsed: 0
+    },
+    rng
+  };
 }
 
 function windowAt(strip: ReelStrip, stop: number): ReelWindow {
@@ -239,20 +263,9 @@ export const CONTRACT_TEMPLATES = [
 /** Selects one concretely witnessed contract while consuming exactly one RNG draw. */
 export function generateContract(state: RunState): ContractResult {
   const remaining = remainingBaseSpins(state);
-  if (remaining === 0) {
+  if (remaining === 0 || !hasPlayableFuturePull(state)) {
     const selected = nextInt(state.rng, 1);
-    return {
-      contract: {
-        id: "discipline",
-        target: 0,
-        progress: 0,
-        completed: true,
-        rewardClaimed: true,
-        startBankroll: state.bankroll,
-        interventionsUsed: 0
-      },
-      rng: selected.rng
-    };
+    return inertContract(state, selected.rng);
   }
 
   const witnesses = findContractWitnesses(state);

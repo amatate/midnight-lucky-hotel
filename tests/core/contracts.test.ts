@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CONTRACT_TEMPLATES, generateContract, updateContract } from "@/core/contracts";
+import { getMinimumBet } from "@/core/progression";
 import { nextInt } from "@/core/random";
 import { createRun, dispatchCommand } from "@/core/run";
 import type { GameEvent } from "@/core/events";
@@ -157,6 +158,74 @@ describe("contract generation", () => {
     };
     expect(CONTRACT_TEMPLATES.find((template) => template.id === "discipline")!.canGenerate(state)).toBe(false);
     expect(CONTRACT_TEMPLATES.find((template) => template.id === "rescue")!.canGenerate(state)).toBe(false);
+  });
+
+  it("returns an inert sentinel when no future pull is playable despite winning geometry", () => {
+    const state: RunState = {
+      ...createRun(80),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 0,
+      freeSpinQueue: 0,
+      partSlots: [null, null, null, null, null],
+      baseSpinsInShift: 0,
+      reels: [["cherry"], ["cherry"], ["cherry"]]
+    };
+    const snapshot = structuredClone(state);
+    const result = generateContract(state);
+
+    expect(result.contract).toMatchObject({ target: 0, completed: true, rewardClaimed: true });
+    expect(result.rng).toEqual(nextInt(state.rng, 1).rng);
+    expect(state).toEqual(snapshot);
+  });
+
+  it("allows an active witnessed contract when a free pull is queued", () => {
+    const state: RunState = {
+      ...createRun(81),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 0,
+      freeSpinQueue: 1,
+      baseSpinsInShift: 0,
+      reels: [["cherry"], ["cherry"], ["cherry"]]
+    };
+    expect(generateContract(state).contract).toMatchObject({ target: 1, completed: false, rewardClaimed: false });
+  });
+
+  it("allows a non-consuming level-one fuse witness only when its rescue reaches the scaled minimum", () => {
+    const state: RunState = {
+      ...createRun(82),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 0,
+      freeSpinQueue: 0,
+      partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null],
+      baseSpinsInShift: 0,
+      reels: [["cherry"], ["cherry"], ["cherry"]]
+    };
+    const snapshot = structuredClone(state);
+    expect(getMinimumBet(state)).toBe(5);
+    expect(generateContract(state).contract.completed).toBe(false);
+    expect(state).toEqual(snapshot);
+
+    const expensive = { ...state, afterHoursLevel: 7 };
+    expect(getMinimumBet(expensive)).toBeGreaterThan(20);
+    expect(generateContract(expensive).contract).toMatchObject({ target: 0, completed: true, rewardClaimed: true });
+    expect(expensive.partSlots[0]).toEqual({ id: "safety-fuse", level: 1 });
+    expect(expensive.bankroll).toBe(0);
+  });
+
+  it("allows an active contract when bankroll equals the authoritative minimum bet", () => {
+    const base: RunState = {
+      ...createRun(83),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      afterHoursLevel: 2,
+      baseSpinsInShift: 0,
+      reels: [["cherry"], ["cherry"], ["cherry"]]
+    };
+    const state = { ...base, bankroll: getMinimumBet(base) };
+    expect(generateContract(state).contract).toMatchObject({ target: 1, completed: false, rewardClaimed: false });
   });
 });
 
