@@ -216,6 +216,7 @@ function advanceShift(original: RunState, acquired: RunState, choice: UpgradeCho
       nextShiftFocusBonus: 0,
       interventionUsedThisSpin: false,
       temporaryReelAdditions: [[], [], []],
+      pendingPrayer: null,
       pendingSpin: null,
       currentCandidates: null,
       counters: { ...acquired.counters, cherryWinsThisShift: 0 },

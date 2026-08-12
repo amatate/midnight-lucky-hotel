@@ -121,6 +121,7 @@ export type Effect =
   | { readonly type: "GRANT_FREE_SPIN"; readonly count: number }
   | { readonly type: "REEVALUATE_LINES" }
   | { readonly type: "INCREMENT_COUNTER"; readonly counter: CounterId; readonly amount: number }
+  | { readonly type: "CHANGE_OMEN"; readonly amount: number }
   | { readonly type: "INCREMENT_SHIFT_FLAG"; readonly flag: "returnedFoodCount"; readonly amount: number };
 
 export type ResolveSignal =
@@ -139,6 +140,13 @@ export interface FruitPartResolveContext {
   readonly claimFoodReturn: (limit: number) => ReelIndex | null;
 }
 
+/** Settlement-owned, resolve-local capabilities for one exact chapel-part registration. */
+export interface ChapelPartResolveContext {
+  readonly slot: number;
+  readonly part: PartInstance;
+  readonly claimTrigger: (key: string) => boolean;
+}
+
 export interface ResolveContext {
   readonly state: RunState;
   readonly grid: Grid;
@@ -148,6 +156,7 @@ export interface ResolveContext {
   readonly awardedWinKeys: ReadonlySet<string>;
   readonly eventCount: number;
   readonly fruitPart?: FruitPartResolveContext;
+  readonly chapelPart?: ChapelPartResolveContext;
 }
 
 export interface SettlementResult {
@@ -253,6 +262,7 @@ export interface RunState {
   readonly interventionUsedThisSpin: boolean;
   readonly reels: ReelSet;
   readonly temporaryReelAdditions: ReelSet;
+  readonly pendingPrayer: BaseSymbolId | null;
   readonly pendingSpin: { readonly draw: ReelDraw; readonly isFree: boolean } | null;
   readonly freeSpinQueue: number;
   readonly service: ServiceId | null;

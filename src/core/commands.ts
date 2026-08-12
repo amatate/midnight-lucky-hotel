@@ -1,10 +1,12 @@
 import type { GameEvent } from "@/core/events";
-import type { BetMode, CommandError, ReelIndex, RunState, ServiceId, UpgradeChoice } from "@/core/types";
+import type { BaseSymbolId, BetMode, CommandError, ReelIndex, RunState, ServiceId, UpgradeChoice } from "@/core/types";
 
 export type GameCommand =
   | { readonly type: "SELECT_SERVICE"; readonly serviceId: ServiceId }
   | { readonly type: "SET_BET_MODE"; readonly mode: BetMode }
   | { readonly type: "BUY_FOOD"; readonly reelIndex: ReelIndex }
+  | { readonly type: "PRAY"; readonly symbol: BaseSymbolId }
+  | { readonly type: "ENABLE_MARTYR" }
   | { readonly type: "SPIN" }
   | { readonly type: "REELS_STOPPED" }
   | { readonly type: "RESPIN_REEL"; readonly reelIndex: ReelIndex }

@@ -1,10 +1,12 @@
 import { BASE_PAYTABLE } from "@/content/base-machine";
+import { isChapelPartId, reactChapelParts } from "@/content/effects/chapel";
 import { isFruitPartId, reactFruitParts } from "@/content/effects/fruit";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
 import type {
   AttributionSource,
+  ChapelPartResolveContext,
   Effect,
   FruitPartResolveContext,
   Grid,
@@ -44,9 +46,11 @@ export type EffectHandlerRegistration =
   | { readonly kind: "part"; readonly slot: number; readonly partId: PartId; readonly handler: EffectHandler };
 
 const INTERNAL_FRUIT_REGISTRATION: unique symbol = Symbol("internal-fruit-registration");
+const INTERNAL_CHAPEL_REGISTRATION: unique symbol = Symbol("internal-chapel-registration");
 
 type InternalEffectHandlerRegistration = EffectHandlerRegistration & {
   readonly [INTERNAL_FRUIT_REGISTRATION]?: number;
+  readonly [INTERNAL_CHAPEL_REGISTRATION]?: number;
 };
 
 interface FruitRuntime {
@@ -60,6 +64,7 @@ interface FruitRuntime {
 interface WorkingState {
   grid: [SymbolId[], SymbolId[], SymbolId[]];
   strips: [SymbolId[], SymbolId[], SymbolId[]];
+  temporaryEntries: [boolean[], boolean[], boolean[]];
   stops: [number, number, number];
   queue: Effect[];
   drafts: GameEventDraft[];
@@ -73,6 +78,7 @@ interface WorkingState {
   freeSpinQueue: number;
   counters: { blankCharge: number; cherryWinsThisShift: number };
   shiftFlags: ShiftFlags;
+  omen: number;
   fruitRuntimes: Map<number, FruitRuntime>;
 }
 
@@ -145,6 +151,7 @@ function createContext(
         draw: { ...state.pendingSpin.draw, strips: reels, stops, grid }
       },
       freeSpinQueue: working.freeSpinQueue,
+      omen: working.omen,
       counters: { ...working.counters },
       shiftFlags: { ...working.shiftFlags },
       attribution
@@ -160,38 +167,53 @@ function createContext(
     awardedWinKeys: new Set(working.awardedWinKeys),
     eventCount: working.effectCount
   };
-  const slot = registration?.[INTERNAL_FRUIT_REGISTRATION];
-  const part = slot === undefined ? undefined : state.partSlots[slot];
-  const runtime = slot === undefined ? undefined : working.fruitRuntimes.get(slot);
-  if (slot === undefined || part === undefined || part === null || runtime === undefined) return context;
-
-  const fruitPart: FruitPartResolveContext = Object.freeze({
-    slot,
-    part: Object.freeze({ ...part }),
-    claimTrigger(key: string): boolean {
-      if (working.triggeredKeys.has(key)) return false;
-      working.triggeredKeys.add(key);
-      return true;
-    },
-    observeCherryLine(): number {
-      const prior = runtime.initialCherryWins + runtime.cherryWinsSeen;
-      runtime.cherryWinsSeen += 1;
-      return prior;
-    },
-    claimFoodReturn(limit: number): ReelIndex | null {
-      if (runtime.initialReturnedFoodCount + runtime.returnedFoodsSeen >= limit) return null;
-      let shortest: ReelIndex = 0;
-      for (const reel of [1, 2] as const) {
-        const reelLength = working.strips[reel].length + runtime.plannedFoodAdds[reel];
-        const shortestLength = working.strips[shortest].length + runtime.plannedFoodAdds[shortest];
-        if (reelLength < shortestLength) shortest = reel;
+  const fruitSlot = registration?.[INTERNAL_FRUIT_REGISTRATION];
+  const fruitPartInstance = fruitSlot === undefined ? undefined : state.partSlots[fruitSlot];
+  const runtime = fruitSlot === undefined ? undefined : working.fruitRuntimes.get(fruitSlot);
+  if (fruitSlot !== undefined && fruitPartInstance !== undefined && fruitPartInstance !== null && runtime !== undefined) {
+    const fruitPart: FruitPartResolveContext = Object.freeze({
+      slot: fruitSlot,
+      part: Object.freeze({ ...fruitPartInstance }),
+      claimTrigger(key: string): boolean {
+        if (working.triggeredKeys.has(key)) return false;
+        working.triggeredKeys.add(key);
+        return true;
+      },
+      observeCherryLine(): number {
+        const prior = runtime.initialCherryWins + runtime.cherryWinsSeen;
+        runtime.cherryWinsSeen += 1;
+        return prior;
+      },
+      claimFoodReturn(limit: number): ReelIndex | null {
+        if (runtime.initialReturnedFoodCount + runtime.returnedFoodsSeen >= limit) return null;
+        let shortest: ReelIndex = 0;
+        for (const reel of [1, 2] as const) {
+          const reelLength = working.strips[reel].length + runtime.plannedFoodAdds[reel];
+          const shortestLength = working.strips[shortest].length + runtime.plannedFoodAdds[shortest];
+          if (reelLength < shortestLength) shortest = reel;
+        }
+        runtime.returnedFoodsSeen += 1;
+        runtime.plannedFoodAdds[shortest] += 1;
+        return shortest;
       }
-      runtime.returnedFoodsSeen += 1;
-      runtime.plannedFoodAdds[shortest] += 1;
-      return shortest;
+    });
+    return { ...context, fruitPart };
+  }
+
+  const chapelSlot = registration?.[INTERNAL_CHAPEL_REGISTRATION];
+  const chapelPartInstance = chapelSlot === undefined ? undefined : state.partSlots[chapelSlot];
+  if (chapelSlot === undefined || chapelPartInstance === undefined || chapelPartInstance === null) return context;
+  const chapelPart: ChapelPartResolveContext = Object.freeze({
+    slot: chapelSlot,
+    part: Object.freeze({ ...chapelPartInstance }),
+    claimTrigger(key: string): boolean {
+      const scopedKey = `chapel:${chapelSlot}:${key}`;
+      if (working.triggeredKeys.has(scopedKey)) return false;
+      working.triggeredKeys.add(scopedKey);
+      return true;
     }
   });
-  return { ...context, fruitPart };
+  return { ...context, chapelPart };
 }
 
 function registrationIsActive(
@@ -281,7 +303,9 @@ function removeIndices(working: WorkingState, reel: ReelIndex, indices: readonly
   const oldStop = working.stops[reel];
   const removedBeforeStop = [...unique].filter((index) => index < oldStop).length;
   const remaining = working.strips[reel].filter((_symbol, index) => !unique.has(index));
+  const remainingTemporaryEntries = working.temporaryEntries[reel].filter((_temporary, index) => !unique.has(index));
   working.strips[reel] = remaining.length > 0 ? remaining : ["blank"];
+  working.temporaryEntries[reel] = remaining.length > 0 ? remainingTemporaryEntries : [false];
   working.stops[reel] = modulo(oldStop - removedBeforeStop, working.strips[reel].length);
   refreshGrid(working, reel);
   return unique.size;
@@ -352,6 +376,7 @@ function applyEffect(
         break;
       }
       for (let index = 0; index < count; index += 1) working.strips[effect.reel].push(effect.symbol);
+      for (let index = 0; index < count; index += 1) working.temporaryEntries[effect.reel].push(false);
       refreshGrid(working, effect.reel);
       break;
     }
@@ -381,6 +406,16 @@ function applyEffect(
     case "INCREMENT_COUNTER": {
       const amount = Number.isFinite(effect.amount) ? Math.trunc(effect.amount) : 0;
       working.counters[effect.counter] += amount;
+      break;
+    }
+    case "CHANGE_OMEN": {
+      const amount = Number.isFinite(effect.amount) ? Math.trunc(effect.amount) : 0;
+      const nextOmen = Math.max(0, working.omen + amount);
+      const delta = nextOmen - working.omen;
+      if (delta !== 0) {
+        working.omen = nextOmen;
+        working.drafts.push({ type: "RESOURCE_CHANGED", resource: "omen", delta });
+      }
       break;
     }
     case "INCREMENT_SHIFT_FLAG": {
@@ -468,6 +503,20 @@ function immutableGrid(working: WorkingState): Grid {
   ];
 }
 
+function permanentReels(working: WorkingState): ReelSet {
+  return working.strips.map((strip, reel) =>
+    strip.filter((_symbol, index) => !working.temporaryEntries[reel]![index])
+  ) as unknown as ReelSet;
+}
+
+function temporaryEntryMarkers(state: RunState, draw: ReelDraw): [boolean[], boolean[], boolean[]] {
+  return draw.strips.map((strip, reel) => {
+    const permanentLength = state.reels[reel]!.length;
+    const temporaryLength = state.temporaryReelAdditions[reel]!.length;
+    return strip.map((_symbol, index) => index >= permanentLength && index < permanentLength + temporaryLength);
+  }) as [boolean[], boolean[], boolean[]];
+}
+
 /** Resolves one accepted draw without mutating the input state or draw. */
 export function resolveSpin(
   state: RunState,
@@ -492,6 +541,7 @@ export function resolveSpin(
   const working: WorkingState = {
     grid: draw.grid.map((reel) => [...reel]) as [SymbolId[], SymbolId[], SymbolId[]],
     strips: draw.strips.map((strip) => [...strip]) as [SymbolId[], SymbolId[], SymbolId[]],
+    temporaryEntries: temporaryEntryMarkers(state, draw),
     stops: [...draw.stops],
     queue: [],
     drafts: [],
@@ -505,6 +555,7 @@ export function resolveSpin(
     freeSpinQueue: state.freeSpinQueue,
     counters: { ...state.counters },
     shiftFlags: { ...state.shiftFlags },
+    omen: state.omen,
     fruitRuntimes: new Map(
       state.partSlots.flatMap((part, slot) =>
         part !== null && isFruitPartId(part.id)
@@ -530,8 +581,19 @@ export function resolveSpin(
       [INTERNAL_FRUIT_REGISTRATION]: slot
     }];
   });
+  const chapelRegistrations: InternalEffectHandlerRegistration[] = state.partSlots.flatMap((part, slot) => {
+    if (part === null || !isChapelPartId(part.id)) return [];
+    return [{
+      kind: "part",
+      slot,
+      partId: part.id,
+      handler: reactChapelParts,
+      [INTERNAL_CHAPEL_REGISTRATION]: slot
+    }];
+  });
   const registrations: InternalEffectHandlerRegistration[] = [
     ...fruitRegistrations,
+    ...chapelRegistrations,
     ...handlers.map((registration): EffectHandlerRegistration =>
       registration.kind === "system"
         ? { kind: "system", handler: registration.handler }
@@ -560,6 +622,13 @@ export function resolveSpin(
   const grantedBuffs = consumeVisibleFood(state, currentBet, working, registrations);
   drainEffects(state, currentBet, buffMultiplier, working, registrations);
 
+  const prayerSucceeded = state.pendingPrayer !== null && evaluateBaseWins(immutableGrid(working), BASE_PAYTABLE)
+    .some((win) => win.symbol === state.pendingPrayer && working.awardedWinKeys.has(lineWinKey(win)));
+  if (state.pendingPrayer !== null && !prayerSucceeded) {
+    working.omen += 1;
+    working.drafts.push({ type: "RESOURCE_CHANGED", resource: "omen", delta: 1 });
+  }
+
   const preAgitationPayout = working.payout;
   let agitation = state.agitation;
   if (preAgitationPayout > 0 && agitation > 0) {
@@ -572,10 +641,11 @@ export function resolveSpin(
   }
 
   working.drafts.push({ type: "PAYOUT_COMPLETE", total: working.payout });
-  const reels = immutableReels(working);
+  const resolvedReels = immutableReels(working);
+  const reels = permanentReels(working);
   const grid = immutableGrid(working);
   const stops = [...working.stops] as StopSet;
-  const resolvedDraw: ReelDraw = { ...draw, strips: reels, stops, grid };
+  const resolvedDraw: ReelDraw = { ...draw, strips: resolvedReels, stops, grid };
   const cumulativeAttribution = { ...state.attribution };
   for (const source of ATTRIBUTION_SOURCES) {
     cumulativeAttribution[source] = safeMoney(cumulativeAttribution[source] + working.attribution[source]);
@@ -585,9 +655,12 @@ export function resolveSpin(
     bankroll: safeMoney(state.bankroll + working.payout),
     shiftPayout: safeMoney(state.shiftPayout + working.payout),
     reels,
+    temporaryReelAdditions: [[], [], []],
+    pendingPrayer: null,
     pendingSpin: state.pendingSpin === null ? null : { ...state.pendingSpin, draw: resolvedDraw },
     freeSpinQueue: working.freeSpinQueue,
     agitation,
+    omen: working.omen,
     counters: working.counters,
     shiftFlags: working.shiftFlags,
     buffs: [...existingBuffsAfterSpin(state.buffs), ...grantedBuffs],

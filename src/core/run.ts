@@ -1,5 +1,6 @@
 import { BASE_REELS } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
+import { enableMartyr, pray } from "@/content/services/chapel";
 import { buyFood } from "@/content/services/kitchen";
 import { generateCandidates } from "@/core/candidates";
 import type { DispatchResult, GameCommand } from "@/core/commands";
@@ -15,6 +16,14 @@ const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security
 
 function cloneReels(reels: ReelSet): ReelSet {
   return [[...reels[0]], [...reels[1]], [...reels[2]]];
+}
+
+function reelsForNextDraw(state: RunState): ReelSet {
+  return [
+    [...state.reels[0], ...state.temporaryReelAdditions[0]],
+    [...state.reels[1], ...state.temporaryReelAdditions[1]],
+    [...state.reels[2], ...state.temporaryReelAdditions[2]]
+  ];
 }
 
 function chooseServiceCandidates(rng: RngState): {
@@ -112,6 +121,7 @@ export function createRun(seed: number): RunState {
     interventionUsedThisSpin: false,
     reels: cloneReels(BASE_REELS),
     temporaryReelAdditions: [[], [], []],
+    pendingPrayer: null,
     pendingSpin: null,
     freeSpinQueue: 0,
     service: null,
@@ -175,7 +185,7 @@ function spin(state: RunState, command: Extract<GameCommand, { type: "SPIN" }>):
     return rejected(state, "INSUFFICIENT_FUNDS", "bankroll is below the current bet");
   }
 
-  const draw = drawReels(state.reels, state.rng);
+  const draw = drawReels(reelsForNextDraw(state), state.rng);
   const drafts: GameEventDraft[] = isFree
     ? [
         { type: "RESOURCE_CHANGED", resource: "freeSpins", delta: -1 },
@@ -194,7 +204,7 @@ function spin(state: RunState, command: Extract<GameCommand, { type: "SPIN" }>):
     shiftWager: isFree ? state.shiftWager : roundMoney(state.shiftWager + bet),
     freeSpinQueue: isFree ? state.freeSpinQueue - 1 : state.freeSpinQueue,
     pendingSpin: { draw, isFree },
-    interventionUsedThisSpin: false,
+    interventionUsedThisSpin: state.interventionUsedThisSpin,
     expenses: isFree ? state.expenses : { ...state.expenses, wagers: roundMoney(state.expenses.wagers + bet) }
   });
 }
@@ -306,6 +316,10 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return setBetMode(state, command);
     case "BUY_FOOD":
       return buyFood(state, command.reelIndex);
+    case "PRAY":
+      return pray(state, command.symbol);
+    case "ENABLE_MARTYR":
+      return enableMartyr(state);
     case "SPIN":
       return spin(state, command);
     case "REELS_STOPPED":

@@ -43,6 +43,7 @@ describe("createRun", () => {
       maxInterventionPoints: 2,
       nextShiftFocusBonus: 0,
       interventionUsedThisSpin: false,
+      pendingPrayer: null,
       pendingSpin: null,
       freeSpinQueue: 0,
       service: null,

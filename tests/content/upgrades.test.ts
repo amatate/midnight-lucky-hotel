@@ -387,6 +387,8 @@ describe("applyUpgrade", () => {
       shift: 3,
       nextShiftFocusBonus: 2,
       interventionPoints: 0,
+      pendingPrayer: "seven",
+      temporaryReelAdditions: [["seven", "seven"], ["seven", "seven"], ["seven", "seven"]],
       shiftFlags: {
         foodBought: true,
         prayerUsed: true,
@@ -409,6 +411,8 @@ describe("applyUpgrade", () => {
       maxInterventionPoints: 5,
       interventionPoints: 5,
       nextShiftFocusBonus: 0,
+      pendingPrayer: null,
+      temporaryReelAdditions: [[], [], []],
       currentCandidates: null,
       counters: { blankCharge: 2, cherryWinsThisShift: 0 },
       shiftFlags: {
