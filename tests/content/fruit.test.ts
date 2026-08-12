@@ -177,6 +177,59 @@ describe("reactFruitParts public sequence contract", () => {
   });
 });
 
+describe("fruit resolve capability isolation", () => {
+  const cherryGrid: Grid = [
+    ["cherry", "cherry", "cherry"],
+    ["cherry", "cherry", "cherry"],
+    ["cherry", "cherry", "cherry"]
+  ];
+
+  it("does not give a system registration fruit capabilities through spoofed extra metadata", () => {
+    const draw = makeDraw(cherryGrid);
+    const state = settlementState(draw, { id: "jam-jar", level: 1 });
+    let capabilitySeen = false;
+    const malicious = {
+      kind: "system",
+      fruitSlot: 0,
+      handler(context: ResolveContext): readonly [] {
+        capabilitySeen ||= context.fruitPart !== undefined;
+        context.fruitPart?.observeCherryLine();
+        context.fruitPart?.claimTrigger("lemon-infection");
+        return [];
+      }
+    } as const;
+
+    const result = resolveSpin(state, draw, [malicious]);
+
+    expect(capabilitySeen).toBe(false);
+    expect(result.attribution.part).toBe(50);
+    expect(result.state.counters.cherryWinsThisShift).toBe(5);
+  });
+
+  it("does not give an external part registration the central fruit capability for the same slot", () => {
+    const draw = makeDraw(cherryGrid);
+    const state = settlementState(draw, { id: "jam-jar", level: 1 });
+    let capabilitySeen = false;
+    const malicious = {
+      kind: "part",
+      slot: 0,
+      partId: "jam-jar",
+      fruitSlot: 0,
+      handler(context: ResolveContext): readonly [] {
+        capabilitySeen ||= context.fruitPart !== undefined;
+        context.fruitPart?.observeCherryLine();
+        return [];
+      }
+    } as const;
+
+    const result = resolveSpin(state, draw, [malicious]);
+
+    expect(capabilitySeen).toBe(false);
+    expect(result.attribution.part).toBe(50);
+    expect(result.state.counters.cherryWinsThisShift).toBe(5);
+  });
+});
+
 describe("fruit reel modifications", () => {
   it("adds two lemons to each selected reel for every lemon-crate acquisition", () => {
     const first = acquireReelModification("lemon-crate", { kind: "two-reels", reels: [0, 2] });

@@ -43,7 +43,11 @@ export type EffectHandlerRegistration =
   | { readonly kind: "system"; readonly handler: EffectHandler }
   | { readonly kind: "part"; readonly slot: number; readonly partId: PartId; readonly handler: EffectHandler };
 
-type InternalEffectHandlerRegistration = EffectHandlerRegistration & { readonly fruitSlot?: number };
+const INTERNAL_FRUIT_REGISTRATION: unique symbol = Symbol("internal-fruit-registration");
+
+type InternalEffectHandlerRegistration = EffectHandlerRegistration & {
+  readonly [INTERNAL_FRUIT_REGISTRATION]?: number;
+};
 
 interface FruitRuntime {
   readonly initialCherryWins: number;
@@ -156,7 +160,7 @@ function createContext(
     awardedWinKeys: new Set(working.awardedWinKeys),
     eventCount: working.effectCount
   };
-  const slot = registration?.fruitSlot;
+  const slot = registration?.[INTERNAL_FRUIT_REGISTRATION];
   const part = slot === undefined ? undefined : state.partSlots[slot];
   const runtime = slot === undefined ? undefined : working.fruitRuntimes.get(slot);
   if (slot === undefined || part === undefined || part === null || runtime === undefined) return context;
@@ -516,14 +520,28 @@ export function resolveSpin(
     )
   };
 
-  const fruitRegistrations: InternalEffectHandlerRegistration[] = state.partSlots.flatMap((part, slot) =>
-    part !== null && isFruitPartId(part.id)
-      ? [{ kind: "part", slot, partId: part.id, handler: reactFruitParts, fruitSlot: slot }]
-      : []
-  );
+  const fruitRegistrations: InternalEffectHandlerRegistration[] = state.partSlots.flatMap((part, slot) => {
+    if (part === null || !isFruitPartId(part.id)) return [];
+    return [{
+      kind: "part",
+      slot,
+      partId: part.id,
+      handler: reactFruitParts,
+      [INTERNAL_FRUIT_REGISTRATION]: slot
+    }];
+  });
   const registrations: InternalEffectHandlerRegistration[] = [
     ...fruitRegistrations,
-    ...handlers.map((registration) => ({ ...registration }))
+    ...handlers.map((registration): EffectHandlerRegistration =>
+      registration.kind === "system"
+        ? { kind: "system", handler: registration.handler }
+        : {
+            kind: "part",
+            slot: registration.slot,
+            partId: registration.partId,
+            handler: registration.handler
+          }
+    )
   ];
 
   const crackCount = countVisible(working.grid, "crack");
