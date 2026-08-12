@@ -1,7 +1,7 @@
-import { BASE_PAYTABLE } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
 import { UPGRADES } from "@/content/upgrades";
-import { evaluateBaseWins } from "@/core/paylines";
+import { resolveBaseMachineSpin } from "@/core/base-settlement";
+import { MAX_MONEY } from "@/core/money";
 import { roundMoney } from "@/core/progression";
 import { nextInt } from "@/core/random";
 import { drawReels } from "@/core/reels";
@@ -15,7 +15,6 @@ const SYMBOL_IDS = ["cherry", "lemon", "bell", "seven", "wild", "blank", "food",
 const MAX_HORIZON_SPINS = 10_000;
 const MAX_SAMPLE_COUNT = 100_000;
 const MAX_SIMULATED_SPINS = 1_000_000;
-const MAX_MONEY = Number.MAX_SAFE_INTEGER / 100;
 
 interface ValidatedRequest extends Omit<EstimateRequest, "reels" | "parts"> {
   readonly reels: ReelSet;
@@ -34,20 +33,30 @@ function validatePositiveInteger(name: string, value: number, maximum: number): 
   }
 }
 
+function isDenseArray(value: unknown, length: number): value is readonly unknown[] {
+  if (!Array.isArray(value) || value.length !== length) return false;
+  for (let index = 0; index < length; index += 1) {
+    if (!Object.hasOwn(value, index)) return false;
+  }
+  return true;
+}
+
 function normalizeRequestReels(value: unknown): ReelSet {
-  if (!Array.isArray(value) || value.length !== 3) {
+  if (!isDenseArray(value, 3)) {
     throw new RangeError("reels must contain exactly three nonempty symbol strips");
   }
-  value.forEach((candidate) => {
-    if (!Array.isArray(candidate) || candidate.length === 0) {
+  for (const candidate of value) {
+    if (!Array.isArray(candidate) || candidate.length === 0 || !isDenseArray(candidate, candidate.length)) {
       throw new RangeError("reels must contain exactly three nonempty symbol strips");
     }
-  });
+  }
   return drawReels(value as unknown as ReelSet, { value: 0 }).strips;
 }
 
 function validateParts(parts: readonly PartInstance[]): readonly PartInstance[] {
-  if (!Array.isArray(parts) || parts.length > 5) throw new RangeError("parts must contain at most five parts");
+  if (!Array.isArray(parts) || parts.length > 5 || !isDenseArray(parts, parts.length)) {
+    throw new RangeError("parts must be a dense array containing at most five parts");
+  }
   const seen = new Set<string>();
   return parts.map((part) => {
     if (
@@ -147,7 +156,7 @@ function simulateGeneral(request: ValidatedRequest, sampleIndex: number): Trajec
   while (completedSpins < request.horizonSpins) {
     const rescue = attemptFuse(state, request.bet);
     state = rescue.state;
-    totalPayout = roundMoney(totalPayout + rescue.payout);
+    totalPayout = state.shiftPayout;
     const isFree = state.freeSpinQueue > 0;
     if (!isFree && state.bankroll < request.bet) {
       ruined = true;
@@ -170,8 +179,8 @@ function simulateGeneral(request: ValidatedRequest, sampleIndex: number): Trajec
       pendingSpin: { draw, isFree }
     };
     const settlement = resolveSpin(settlementState, draw);
-    totalPayout = roundMoney(totalPayout + settlement.payout);
     state = { ...settlement.state, phase: "READY_TO_SPIN", pendingSpin: null };
+    totalPayout = state.shiftPayout;
     completedSpins += 1;
   }
 
@@ -184,18 +193,25 @@ function simulateBase(request: ValidatedRequest, sampleIndex: number): Trajector
   let totalWager = 0;
   let totalPayout = 0;
   let completedSpins = 0;
+  let shiftPayout = 0;
+  let agitation = 0;
 
   while (completedSpins < request.horizonSpins && bankroll >= request.bet) {
     bankroll = roundMoney(bankroll - request.bet);
     totalWager = roundMoney(totalWager + request.bet);
     const draw = drawReels(request.reels, rng);
     rng = draw.rng;
-    const payout = evaluateBaseWins(draw.grid, BASE_PAYTABLE).reduce(
-      (total, win) => roundMoney(total + win.multiplier * request.bet),
-      0
-    );
-    bankroll = roundMoney(bankroll + payout);
-    totalPayout = roundMoney(totalPayout + payout);
+    const settlement = resolveBaseMachineSpin({
+      grid: draw.grid,
+      currentBet: request.bet,
+      bankroll,
+      shiftPayout,
+      agitation
+    });
+    bankroll = settlement.bankroll;
+    totalPayout = settlement.shiftPayout;
+    shiftPayout = settlement.shiftPayout;
+    agitation = settlement.agitation;
     completedSpins += 1;
   }
 

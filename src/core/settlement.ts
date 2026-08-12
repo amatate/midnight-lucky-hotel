@@ -3,6 +3,7 @@ import { isChapelPartId, reactChapelParts } from "@/content/effects/chapel";
 import { isFruitPartId, reactFruitParts } from "@/content/effects/fruit";
 import { isViolentPartId, reactViolentParts } from "@/content/effects/violent";
 import type { GameEvent, GameEventDraft } from "@/core/events";
+import { safeMoney, safePayout } from "@/core/money";
 import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
 import { normalizeDrawIdentity } from "@/core/reels";
@@ -31,7 +32,6 @@ import type {
 
 const EFFECT_LIMIT = 100;
 const MAX_STRUCTURAL_COUNT = 100;
-const MAX_MONEY = Number.MAX_SAFE_INTEGER / 100;
 const ATTRIBUTION_SOURCES: readonly AttributionSource[] = [
   "base",
   "part",
@@ -168,17 +168,6 @@ function boundedStructuralCount(value: number): number | undefined {
 
 function finiteInteger(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
-}
-
-function safePayout(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) return 0;
-  return safeMoney(value);
-}
-
-function safeMoney(value: number): number {
-  if (Number.isNaN(value)) return 0;
-  const bounded = Math.min(MAX_MONEY, Math.max(-MAX_MONEY, value));
-  return Math.round(bounded * 100) / 100;
 }
 
 function lineWinKey(win: LineWin): string {
