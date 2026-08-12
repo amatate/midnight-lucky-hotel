@@ -8,6 +8,7 @@ import type {
   Grid,
   LineWin,
   PartInstance,
+  PartId,
   ReelDraw,
   ReelIndex,
   ReelSet,
@@ -23,6 +24,7 @@ import type {
 } from "@/core/types";
 
 const EFFECT_LIMIT = 100;
+const MAX_STRUCTURAL_COUNT = 100;
 const MAX_MONEY = Number.MAX_SAFE_INTEGER / 100;
 const ATTRIBUTION_SOURCES: readonly AttributionSource[] = [
   "base",
@@ -34,6 +36,9 @@ const ATTRIBUTION_SOURCES: readonly AttributionSource[] = [
 ];
 
 export type EffectHandler = (context: ResolveContext, signal: ResolveSignal) => readonly Effect[];
+export type EffectHandlerRegistration =
+  | { readonly kind: "system"; readonly handler: EffectHandler }
+  | { readonly kind: "part"; readonly slot: number; readonly partId: PartId; readonly handler: EffectHandler };
 
 interface WorkingState {
   grid: [SymbolId[], SymbolId[], SymbolId[]];
@@ -67,6 +72,10 @@ function refreshGrid(working: WorkingState, reel?: ReelIndex): void {
   for (const reelIndex of reels) {
     working.grid[reelIndex] = windowAt(working.strips[reelIndex], working.stops[reelIndex]);
   }
+}
+
+function boundedStructuralCount(value: number): number | undefined {
+  return Number.isSafeInteger(value) && value >= 0 && value <= MAX_STRUCTURAL_COUNT ? value : undefined;
 }
 
 function finiteInteger(value: number): number {
@@ -105,42 +114,63 @@ function createContext(
   for (const source of ATTRIBUTION_SOURCES) {
     attribution[source] = safeMoney(attribution[source] + working.attribution[source]);
   }
-  return {
-    state: activePartState(
-      {
-        ...state,
-        bankroll: safeMoney(state.bankroll + working.payout),
-        shiftPayout: safeMoney(state.shiftPayout + working.payout),
-        reels,
-        pendingSpin: state.pendingSpin === null ? null : {
-          ...state.pendingSpin,
-          draw: { ...state.pendingSpin.draw, strips: reels, stops, grid }
-        },
-        freeSpinQueue: working.freeSpinQueue,
-        counters: { ...working.counters },
-        attribution
+  const contextState = activePartState(
+    {
+      ...state,
+      bankroll: safeMoney(state.bankroll + working.payout),
+      shiftPayout: safeMoney(state.shiftPayout + working.payout),
+      reels,
+      pendingSpin: state.pendingSpin === null ? null : {
+        ...state.pendingSpin,
+        draw: { ...state.pendingSpin.draw, strips: reels, stops, grid }
       },
-      working.disabledSlots
-    ),
-    grid,
+      freeSpinQueue: working.freeSpinQueue,
+      counters: { ...working.counters },
+      attribution
+    },
+    working.disabledSlots
+  );
+  return {
+    state: structuredClone(contextState),
+    grid: structuredClone(grid),
     currentBet,
-    queue: working.queue,
-    triggeredKeys: working.triggeredKeys,
-    awardedWinKeys: working.awardedWinKeys,
+    queue: working.queue.map((effect) => ({ ...effect })),
+    triggeredKeys: new Set(working.triggeredKeys),
+    awardedWinKeys: new Set(working.awardedWinKeys),
     eventCount: working.effectCount
   };
+}
+
+function registrationIsActive(
+  state: RunState,
+  disabledSlots: ReadonlySet<number>,
+  registration: EffectHandlerRegistration
+): boolean {
+  if (registration.kind === "system") return true;
+  if (disabledSlots.has(registration.slot)) return false;
+  return state.partSlots[registration.slot]?.id === registration.partId;
+}
+
+function cloneSignal(signal: ResolveSignal): ResolveSignal {
+  return structuredClone(signal);
+}
+
+function enqueueEffects(working: WorkingState, effects: readonly Effect[]): void {
+  for (const effect of effects) working.queue.push({ ...effect });
 }
 
 function dispatchSignal(
   state: RunState,
   currentBet: number,
   working: WorkingState,
-  handlers: readonly EffectHandler[],
+  registrations: readonly EffectHandlerRegistration[],
   signal: ResolveSignal
 ): void {
   if (working.overloaded) return;
-  for (const handler of handlers) {
-    working.queue.push(...handler(createContext(state, currentBet, working), signal));
+  for (const registration of registrations) {
+    if (!registrationIsActive(state, working.disabledSlots, registration)) continue;
+    const effects = registration.handler(createContext(state, currentBet, working), cloneSignal(signal));
+    enqueueEffects(working, effects);
   }
 }
 
@@ -176,7 +206,7 @@ function awardNewLines(
   currentBet: number,
   buffMultiplier: number,
   working: WorkingState,
-  handlers: readonly EffectHandler[]
+  registrations: readonly EffectHandlerRegistration[]
 ): void {
   const wins = evaluateBaseWins(working.grid as unknown as Grid, BASE_PAYTABLE);
   for (const win of wins) {
@@ -184,22 +214,23 @@ function awardNewLines(
     if (working.awardedWinKeys.has(key)) continue;
     working.awardedWinKeys.add(key);
     addPayout(working, win.multiplier * currentBet, "base", buffMultiplier, "line", win);
-    dispatchSignal(state, currentBet, working, handlers, { type: "LINE_AWARDED", win });
+    dispatchSignal(state, currentBet, working, registrations, { type: "LINE_AWARDED", win });
   }
 }
 
-function removeIndices(working: WorkingState, reel: ReelIndex, indices: readonly number[]): void {
-  const uniqueDescending = [...new Set(indices)].sort((left, right) => right - left);
-  if (uniqueDescending.length === 0) return;
+function removeIndices(working: WorkingState, reel: ReelIndex, indices: readonly number[]): number {
+  const stripLength = working.strips[reel].length;
+  const unique = new Set(
+    indices.filter((index) => Number.isInteger(index) && index >= 0 && index < stripLength)
+  );
+  if (unique.size === 0) return 0;
   const oldStop = working.stops[reel];
-  let removedBeforeStop = 0;
-  for (const index of uniqueDescending) {
-    if (working.strips[reel].length <= 1) break;
-    if (index < oldStop) removedBeforeStop += 1;
-    working.strips[reel].splice(index, 1);
-  }
+  const removedBeforeStop = [...unique].filter((index) => index < oldStop).length;
+  const remaining = working.strips[reel].filter((_symbol, index) => !unique.has(index));
+  working.strips[reel] = remaining.length > 0 ? remaining : ["blank"];
   working.stops[reel] = modulo(oldStop - removedBeforeStop, working.strips[reel].length);
   refreshGrid(working, reel);
+  return unique.size;
 }
 
 function removeSymbol(working: WorkingState, reel: ReelIndex, symbol: SymbolId, count: number): void {
@@ -214,14 +245,22 @@ function disablePart(
   state: RunState,
   currentBet: number,
   working: WorkingState,
-  handlers: readonly EffectHandler[],
+  registrations: readonly EffectHandlerRegistration[],
   slot: number
 ): void {
   const part = state.partSlots[slot];
   if (part === null || part === undefined || working.disabledSlots.has(slot)) return;
   working.disabledSlots.add(slot);
   working.drafts.push({ type: "PART_DISABLED", partId: part.id, slot });
-  dispatchSignal(state, currentBet, working, handlers, { type: "PART_DISABLED", partId: part.id });
+  dispatchSignal(state, currentBet, working, registrations, { type: "PART_DISABLED", partId: part.id });
+}
+
+function triggerOverload(currentBet: number, working: WorkingState): void {
+  if (working.overloaded) return;
+  working.queue.length = 0;
+  working.overloaded = true;
+  working.effectCount += 1;
+  addPayout(working, 25 * currentBet, "overload", 1, "overload");
 }
 
 function applyEffect(
@@ -229,7 +268,7 @@ function applyEffect(
   currentBet: number,
   buffMultiplier: number,
   working: WorkingState,
-  handlers: readonly EffectHandler[],
+  registrations: readonly EffectHandlerRegistration[],
   effect: Effect
 ): void {
   switch (effect.type) {
@@ -253,16 +292,26 @@ function applyEffect(
       break;
     }
     case "ADD_TO_REEL": {
-      const count = finiteInteger(effect.count);
+      const count = boundedStructuralCount(effect.count);
+      if (count === undefined) {
+        triggerOverload(currentBet, working);
+        break;
+      }
       for (let index = 0; index < count; index += 1) working.strips[effect.reel].push(effect.symbol);
       refreshGrid(working, effect.reel);
       break;
     }
-    case "REMOVE_FROM_REEL":
-      removeSymbol(working, effect.reel, effect.symbol, finiteInteger(effect.count));
+    case "REMOVE_FROM_REEL": {
+      const count = boundedStructuralCount(effect.count);
+      if (count === undefined) {
+        triggerOverload(currentBet, working);
+        break;
+      }
+      removeSymbol(working, effect.reel, effect.symbol, count);
       break;
+    }
     case "DISABLE_PART":
-      disablePart(state, currentBet, working, handlers, effect.slot);
+      disablePart(state, currentBet, working, registrations, effect.slot);
       break;
     case "GRANT_FREE_SPIN": {
       const count = finiteInteger(effect.count);
@@ -273,7 +322,7 @@ function applyEffect(
       break;
     }
     case "REEVALUATE_LINES":
-      awardNewLines(state, currentBet, buffMultiplier, working, handlers);
+      awardNewLines(state, currentBet, buffMultiplier, working, registrations);
       break;
     case "INCREMENT_COUNTER": {
       const amount = Number.isFinite(effect.amount) ? Math.trunc(effect.amount) : 0;
@@ -288,20 +337,18 @@ function drainEffects(
   currentBet: number,
   buffMultiplier: number,
   working: WorkingState,
-  handlers: readonly EffectHandler[]
+  registrations: readonly EffectHandlerRegistration[]
 ): void {
   while (working.queue.length > 0) {
-    if (working.effectCount >= EFFECT_LIMIT) {
-      working.queue.length = 0;
-      working.overloaded = true;
-      working.effectCount += 1;
-      addPayout(working, 25 * currentBet, "overload", 1, "overload");
-      return;
-    }
     const effect = working.queue.shift()!;
     working.effectCount += 1;
-    applyEffect(state, currentBet, buffMultiplier, working, handlers, effect);
-    dispatchSignal(state, currentBet, working, handlers, { type: "EFFECT_APPLIED", effect });
+    applyEffect(state, currentBet, buffMultiplier, working, registrations, effect);
+    if (working.overloaded) return;
+    if (working.effectCount >= EFFECT_LIMIT) {
+      triggerOverload(currentBet, working);
+      return;
+    }
+    dispatchSignal(state, currentBet, working, registrations, { type: "EFFECT_APPLIED", effect });
   }
 }
 
@@ -309,19 +356,20 @@ function consumeVisibleFood(
   state: RunState,
   currentBet: number,
   working: WorkingState,
-  handlers: readonly EffectHandler[]
+  registrations: readonly EffectHandlerRegistration[]
 ): readonly TimedBuff[] {
   const granted: TimedBuff[] = [];
   for (const reel of [0, 1, 2] as const) {
-    const foodRows = working.grid[reel]
+    const foodIndices = working.grid[reel]
       .map((symbol, row) => ({ symbol, row: row as RowIndex }))
-      .filter(({ symbol }) => symbol === "food");
-    const indices = foodRows.map(({ row }) => modulo(working.stops[reel] + row, working.strips[reel].length));
-    removeIndices(working, reel, indices);
-    for (const _food of foodRows) {
+      .filter(({ symbol }) => symbol === "food")
+      .map(({ row }) => modulo(working.stops[reel] + row, working.strips[reel].length))
+      .filter((index) => working.strips[reel][index] === "food");
+    const consumedCount = removeIndices(working, reel, foodIndices);
+    for (let consumed = 0; consumed < consumedCount; consumed += 1) {
       granted.push({ id: "food", spinsRemaining: 3, additivePayout: 0.25 });
       working.drafts.push({ type: "FOOD_CONSUMED", reel });
-      dispatchSignal(state, currentBet, working, handlers, { type: "FOOD_CONSUMED", reel });
+      dispatchSignal(state, currentBet, working, registrations, { type: "FOOD_CONSUMED", reel });
     }
   }
   return granted;
@@ -358,8 +406,9 @@ function immutableGrid(working: WorkingState): Grid {
 export function resolveSpin(
   state: RunState,
   draw: ReelDraw,
-  handlers: readonly EffectHandler[] = []
+  handlers: readonly EffectHandlerRegistration[] = []
 ): SettlementResult {
+  const registrations = handlers.map((registration) => ({ ...registration }));
   let currentBet: number;
   try {
     currentBet = safeMoney(getCurrentBet(state));
@@ -398,15 +447,15 @@ export function resolveSpin(
     .filter((entry): entry is { part: PartInstance; slot: number } => entry.part !== null)
     .sort((left, right) => right.slot - left.slot);
   for (const { slot } of occupiedSlots.slice(0, crackCount)) {
-    disablePart(state, currentBet, working, handlers, slot);
+    disablePart(state, currentBet, working, registrations, slot);
   }
 
-  dispatchSignal(state, currentBet, working, handlers, { type: "GRID_ACCEPTED" });
-  awardNewLines(state, currentBet, buffMultiplier, working, handlers);
-  drainEffects(state, currentBet, buffMultiplier, working, handlers);
+  dispatchSignal(state, currentBet, working, registrations, { type: "GRID_ACCEPTED" });
+  awardNewLines(state, currentBet, buffMultiplier, working, registrations);
+  drainEffects(state, currentBet, buffMultiplier, working, registrations);
 
-  const grantedBuffs = consumeVisibleFood(state, currentBet, working, handlers);
-  drainEffects(state, currentBet, buffMultiplier, working, handlers);
+  const grantedBuffs = consumeVisibleFood(state, currentBet, working, registrations);
+  drainEffects(state, currentBet, buffMultiplier, working, registrations);
 
   const preAgitationPayout = working.payout;
   let agitation = state.agitation;

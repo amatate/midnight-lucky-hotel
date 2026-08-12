@@ -54,7 +54,7 @@ describe("effect settlement properties", () => {
       fc.property(fc.integer(), (seed) => {
         const { state } = resolveSyntheticSpin(seed, []);
         const draw = state.pendingSpin!.draw;
-        const result = resolveSpin(state, draw, [cyclic]);
+        const result = resolveSpin(state, draw, [{ kind: "system", handler: cyclic }]);
         expect(result.effectCount).toBe(101);
         expect(result.events.filter((event) => event.type === "OVERLOAD")).toHaveLength(1);
         expect(result.attribution.overload).toBe(250);

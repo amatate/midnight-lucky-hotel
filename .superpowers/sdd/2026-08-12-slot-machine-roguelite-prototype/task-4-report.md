@@ -103,3 +103,62 @@ Observed:
 ## Concerns
 
 No blocking concerns. Later route tasks will need to register their content handlers with the optional handler path (or replace it with a central registry) and may extend settlement-owned trigger-key bookkeeping; no Task 6–8 part behavior was implemented here.
+
+## Fix Round 1
+
+This section supersedes the original overload-boundary and handler-context notes above where they differ.
+
+### Findings resolved
+
+- Structural-effect counts are validated before iteration. `ADD_TO_REEL` and `REMOVE_FROM_REEL` accept only safe integer counts from 0 through 100; invalid or oversized counts discard queued work and enter the same one-time overload stop without performing structural work or dispatching another handler signal.
+- Handler registration is now explicit: `{ kind: "system", handler }` for non-part reactions and `{ kind: "part", slot, partId, handler }` for equipped-part reactions. Every signal dispatch verifies the slot still contains that part and is not crack-disabled. System handlers remain active.
+- Every handler invocation receives fresh defensive copies of state, grid, queue, triggered keys, awarded-win keys, and signal. Returned effects are copied into the engine-owned FIFO; mutations of a provided context cannot reorder work or clear settlement-owned dedupe guards.
+- Food consumption now deduplicates wrapped visible rows by source-strip index and grants exactly one event/buff per physical symbol removed. Removing every symbol from a reel deterministically installs one blank, keeping stops/windows valid.
+- The overload controller boundary now fires immediately after the 100th ordinary effect, even when that effect emptied the queue. The overload is counted as effect 101, is unbuffed, produces one event/attribution, discards remaining work, and never re-enters handlers. Effect 99 remains below the boundary.
+
+### RED evidence
+
+Command:
+
+```text
+npm test -- tests/core/settlement.test.ts tests/core/effect-properties.test.ts
+```
+
+Observed: 13 failures. The relevant failures showed wrapped one-symbol food producing three rewards, registration objects rejected as non-functions, and the previous effect boundary/property behavior no longer satisfying the controller ruling.
+
+### GREEN focused and integration evidence
+
+Command:
+
+```text
+npm run typecheck && npm test -- tests/core/settlement.test.ts tests/core/effect-properties.test.ts tests/core/run.test.ts tests/core/progression.test.ts
+```
+
+Observed: typecheck passed; 4 files passed, 38 tests passed. This includes settlement/property coverage plus Task 3 run-command integration.
+
+### Full verification
+
+Command:
+
+```text
+git diff --check && npm run verify
+```
+
+Observed:
+
+- diff check: passed
+- typecheck: passed
+- tests: 8 files passed, 53 tests passed
+- production build: passed (Vite 8.2.1, 16 modules transformed)
+
+### Added regressions
+
+- huge finite `ADD_TO_REEL` and `REMOVE_FROM_REEL` counts terminate through one overload without changing reel length;
+- a rightmost crack-disabled part cannot fire, while an enabled part and a system registration both fire;
+- hostile mutations of queue, both dedupe sets, grid, counters, and nested shift flags do not affect settlement;
+- one-symbol food, two-symbol food/blank, and two-symbol food/food wrapping reward each physical food exactly once and leave a valid blank reel after full consumption;
+- 99 effects do not overload; exactly 100 ordinary effects trigger one overload with no 100th-effect handler re-entry.
+
+### Fix-round concerns
+
+No blocking concerns. Task 6–8 part routes must construct slot-aware part registrations; using an explicit system registration is reserved for non-part settlement logic that should not be disabled by cracks.

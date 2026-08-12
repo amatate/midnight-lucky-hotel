@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { resolveSpin, type EffectHandler } from "@/core/settlement";
+import { resolveSpin, type EffectHandler, type EffectHandlerRegistration } from "@/core/settlement";
 import { createRun } from "@/core/run";
-import type { Grid, PartInstance, ReelDraw, ReelSet, RunState } from "@/core/types";
+import type { Effect, Grid, PartInstance, ReelDraw, ReelSet, RunState } from "@/core/types";
 
 const filler = ["blank", "cherry", "lemon"] as const;
 
@@ -23,6 +23,10 @@ function settlementState(draw: ReelDraw, patch: Partial<RunState> = {}): RunStat
     pendingSpin: { draw, isFree: false },
     ...patch
   };
+}
+
+function system(handler: EffectHandler): EffectHandlerRegistration {
+  return { kind: "system", handler };
 }
 
 const deadGrid: Grid = [
@@ -135,6 +139,78 @@ describe("resolveSpin special symbols", () => {
     expect(result.events.filter((event) => event.type === "FOOD_CONSUMED")).toHaveLength(2);
     expect(result.events.some((event) => event.type === "PART_DISABLED")).toBe(false);
   });
+
+  it("rewards each wrapped physical food once and leaves one- and two-symbol reels usable", () => {
+    const oneSymbol: ReelSet = [["food"], ["blank", "cherry"], ["lemon", "blank"]];
+    const oneDraw: ReelDraw = {
+      strips: oneSymbol,
+      stops: [0, 0, 0],
+      grid: [["food", "food", "food"], ["blank", "cherry", "blank"], ["lemon", "blank", "lemon"]],
+      rng: { value: 1 }
+    };
+    const twoSymbol: ReelSet = [["food", "blank"], ["blank", "cherry"], ["lemon", "blank"]];
+    const twoDraw: ReelDraw = {
+      strips: twoSymbol,
+      stops: [0, 0, 0],
+      grid: [["food", "blank", "food"], ["blank", "cherry", "blank"], ["lemon", "blank", "lemon"]],
+      rng: { value: 2 }
+    };
+    const twoFoods: ReelSet = [["food", "food"], ["blank", "cherry"], ["lemon", "blank"]];
+    const twoFoodsDraw: ReelDraw = {
+      strips: twoFoods,
+      stops: [0, 0, 0],
+      grid: [["food", "food", "food"], ["blank", "cherry", "blank"], ["lemon", "blank", "lemon"]],
+      rng: { value: 3 }
+    };
+
+    const one = resolveSpin(settlementState(oneDraw), oneDraw);
+    const two = resolveSpin(settlementState(twoDraw), twoDraw);
+    const both = resolveSpin(settlementState(twoFoodsDraw), twoFoodsDraw);
+
+    expect(one.events.filter((event) => event.type === "FOOD_CONSUMED")).toHaveLength(1);
+    expect(one.state.buffs).toHaveLength(1);
+    expect(one.state.reels[0]).toEqual(["blank"]);
+    expect(one.state.pendingSpin?.draw.grid[0]).toEqual(["blank", "blank", "blank"]);
+    expect(two.events.filter((event) => event.type === "FOOD_CONSUMED")).toHaveLength(1);
+    expect(two.state.buffs).toHaveLength(1);
+    expect(two.state.reels[0]).toEqual(["blank"]);
+    expect(two.state.pendingSpin?.draw.grid[0]).toEqual(["blank", "blank", "blank"]);
+    expect(both.events.filter((event) => event.type === "FOOD_CONSUMED")).toHaveLength(2);
+    expect(both.state.buffs).toHaveLength(2);
+    expect(both.state.reels[0]).toEqual(["blank"]);
+  });
+
+  it("suppresses a crack-disabled part registration while enabled parts and system handlers still fire", () => {
+    const draw = makeDraw([
+      ["crack", "blank", "blank"],
+      ["blank", "cherry", "lemon"],
+      ["lemon", "blank", "cherry"]
+    ]);
+    const state = settlementState(draw, {
+      partSlots: [
+        { id: "jam-jar", level: 1 },
+        null,
+        null,
+        null,
+        { id: "overload-motor", level: 1 }
+      ]
+    });
+    const enabled: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED" ? [{ type: "ADD_PAYOUT", amount: 2, source: "part" }] : [];
+    const disabled: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED" ? [{ type: "ADD_PAYOUT", amount: 100, source: "intervention" }] : [];
+    const systemHandler: EffectHandler = (_context, signal) =>
+      signal.type === "GRID_ACCEPTED" ? [{ type: "ADD_PAYOUT", amount: 3, source: "service" }] : [];
+
+    const result = resolveSpin(state, draw, [
+      { kind: "part", slot: 0, partId: "jam-jar", handler: enabled },
+      { kind: "part", slot: 4, partId: "overload-motor", handler: disabled },
+      system(systemHandler)
+    ]);
+
+    expect(result.attribution).toMatchObject({ part: 2, intervention: 0, service: 3 });
+    expect(result.payout).toBe(5);
+  });
 });
 
 describe("resolveSpin payout and queue behavior", () => {
@@ -178,7 +254,7 @@ describe("resolveSpin payout and queue behavior", () => {
       buffs: [{ id: "food", spinsRemaining: 2, additivePayout: 0.25 }]
     });
 
-    const result = resolveSpin(state, draw, [handler]);
+    const result = resolveSpin(state, draw, [system(handler)]);
 
     expect(result.attribution).toEqual({
       base: 15,
@@ -207,7 +283,7 @@ describe("resolveSpin payout and queue behavior", () => {
       return [];
     };
 
-    const result = resolveSpin(settlementState(draw), draw, [handler]);
+    const result = resolveSpin(settlementState(draw), draw, [system(handler)]);
 
     expect(
       result.events.filter((event) => event.type === "PAYOUT_ADDED").map((event) => event.amount)
@@ -225,7 +301,7 @@ describe("resolveSpin payout and queue behavior", () => {
       return [];
     };
 
-    resolveSpin(settlementState(draw), draw, [handler]);
+    resolveSpin(settlementState(draw), draw, [system(handler)]);
 
     expect(observedCounters).toEqual([1]);
   });
@@ -241,7 +317,7 @@ describe("resolveSpin payout and queue behavior", () => {
           ]
         : [];
 
-    const result = resolveSpin(settlementState(draw), draw, [handler]);
+    const result = resolveSpin(settlementState(draw), draw, [system(handler)]);
 
     expect(Number.isFinite(result.payout)).toBe(true);
     expect(Number.isSafeInteger(result.payout * 100)).toBe(true);
@@ -256,7 +332,7 @@ describe("resolveSpin payout and queue behavior", () => {
     const handler: EffectHandler = (_context, signal) =>
       signal.type === "GRID_ACCEPTED" ? [{ type: "REEVALUATE_LINES" }] : [];
 
-    const result = resolveSpin(settlementState(draw), draw, [handler]);
+    const result = resolveSpin(settlementState(draw), draw, [system(handler)]);
 
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toEqual([
       { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", amount: 12, source: "base" }
@@ -264,41 +340,100 @@ describe("resolveSpin payout and queue behavior", () => {
     expect(result.payout).toBe(12);
   });
 
-  it("allows exactly 100 finite effects without overload", () => {
+  it("does not overload at effect 99", () => {
     const draw = makeDraw(deadGrid);
-    const handler: EffectHandler = (context, signal) => {
-      if (signal.type === "GRID_ACCEPTED" || (signal.type === "EFFECT_APPLIED" && context.eventCount < 100)) {
-        return [{ type: "INCREMENT_COUNTER", counter: "blankCharge", amount: 1 }];
-      }
-      return [];
-    };
+    const effects = Array.from({ length: 99 }, (): Effect => ({
+      type: "INCREMENT_COUNTER",
+      counter: "blankCharge",
+      amount: 1
+    }));
+    const handler: EffectHandler = (_context, signal) => signal.type === "GRID_ACCEPTED" ? effects : [];
 
-    const result = resolveSpin(settlementState(draw), draw, [handler]);
+    const result = resolveSpin(settlementState(draw), draw, [system(handler)]);
 
-    expect(result.effectCount).toBe(100);
-    expect(result.state.counters.blankCharge).toBe(100);
+    expect(result.effectCount).toBe(99);
+    expect(result.state.counters.blankCharge).toBe(99);
     expect(result.attribution.overload).toBe(0);
     expect(result.events.some((event) => event.type === "OVERLOAD")).toBe(false);
   });
 
-  it("replaces work beyond 100 effects with one exact unbuffed overload award and never re-enters handlers", () => {
+  it("overloads exactly after effect 100 even when the ordinary queue becomes empty", () => {
     const draw = makeDraw(deadGrid);
-    const handler: EffectHandler = (_context, signal) =>
-      signal.type === "GRID_ACCEPTED" || signal.type === "EFFECT_APPLIED"
-        ? [{ type: "INCREMENT_COUNTER", counter: "blankCharge", amount: 1 }]
-        : [];
+    const effects = Array.from({ length: 100 }, (): Effect => ({
+      type: "INCREMENT_COUNTER",
+      counter: "blankCharge",
+      amount: 1
+    }));
+    let appliedSignals = 0;
+    const handler: EffectHandler = (_context, signal) => {
+      if (signal.type === "GRID_ACCEPTED") return effects;
+      if (signal.type === "EFFECT_APPLIED") appliedSignals += 1;
+      return [];
+    };
     const state = settlementState(draw, {
       buffs: [{ id: "food", spinsRemaining: 1, additivePayout: 0.25 }]
     });
 
-    const result = resolveSpin(state, draw, [handler]);
+    const result = resolveSpin(state, draw, [system(handler)]);
 
     expect(result.effectCount).toBe(101);
     expect(result.state.counters.blankCharge).toBe(100);
+    expect(appliedSignals).toBe(99);
     expect(result.payout).toBe(250);
     expect(result.attribution.overload).toBe(250);
     expect(result.events.filter((event) => event.type === "OVERLOAD")).toEqual([
       { sequence: 1, type: "OVERLOAD", amount: 250 }
     ]);
+  });
+
+  it.each(["ADD_TO_REEL", "REMOVE_FROM_REEL"] as const)(
+    "turns an oversized %s count into the same deterministic overload stop",
+    (type) => {
+      const draw = makeDraw(deadGrid);
+      let appliedSignals = 0;
+      const structural: Effect = { type, reel: 0, symbol: "cherry", count: Number.MAX_VALUE };
+      const handler: EffectHandler = (_context, signal) => {
+        if (signal.type === "GRID_ACCEPTED") return [structural];
+        if (signal.type === "EFFECT_APPLIED") appliedSignals += 1;
+        return [];
+      };
+
+      const result = resolveSpin(settlementState(draw), draw, [system(handler)]);
+
+      expect(result.effectCount).toBe(2);
+      expect(result.events.filter((event) => event.type === "OVERLOAD")).toHaveLength(1);
+      expect(result.attribution.overload).toBe(250);
+      expect(appliedSignals).toBe(0);
+      expect(result.state.reels[0].length).toBe(draw.strips[0].length);
+    }
+  );
+
+  it("isolates queue, dedupe sets, grid, and nested state from malicious handler mutations", () => {
+    const draw = makeDraw(lemonLineGrid);
+    const state = settlementState(draw);
+    let attacked = false;
+    const handler: EffectHandler = (context, signal) => {
+      if (signal.type === "GRID_ACCEPTED") return [{ type: "REEVALUATE_LINES" }];
+      if (signal.type === "EFFECT_APPLIED" && !attacked) {
+        attacked = true;
+        (context.queue as Effect[]).push({ type: "ADD_PAYOUT", amount: 999, source: "service" });
+        (context.awardedWinKeys as Set<string>).clear();
+        (context.triggeredKeys as Set<string>).add("forged");
+        (context.grid[0] as unknown as string[])[1] = "blank";
+        (context.state.counters as { blankCharge: number }).blankCharge = 999;
+        (context.state.shiftFlags as { foodBought: boolean }).foodBought = true;
+        return [{ type: "REEVALUATE_LINES" }];
+      }
+      return [];
+    };
+
+    const result = resolveSpin(state, draw, [system(handler)]);
+
+    expect(result.payout).toBe(12);
+    expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(1);
+    expect(result.effectCount).toBe(2);
+    expect(result.state.counters.blankCharge).toBe(0);
+    expect(result.state.shiftFlags.foodBought).toBe(false);
+    expect(result.state.pendingSpin?.draw.grid).toEqual(lemonLineGrid);
   });
 });
