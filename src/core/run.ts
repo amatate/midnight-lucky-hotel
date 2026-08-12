@@ -2,6 +2,7 @@ import { BASE_REELS } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
 import { enableMartyr, pray } from "@/content/services/chapel";
 import { buyFood } from "@/content/services/kitchen";
+import { kickReel } from "@/content/services/security";
 import { generateCandidates } from "@/core/candidates";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
@@ -326,6 +327,8 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return reelsStopped(state, command);
     case "RESPIN_REEL":
       return respinReel(state, command);
+    case "KICK_REEL":
+      return kickReel(state, command.reelIndex);
     case "ACCEPT_OUTCOME":
       return acceptOutcome(state, command);
     case "PRESENTATION_COMPLETE":

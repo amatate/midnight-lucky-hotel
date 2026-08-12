@@ -10,6 +10,7 @@ export type GameCommand =
   | { readonly type: "SPIN" }
   | { readonly type: "REELS_STOPPED" }
   | { readonly type: "RESPIN_REEL"; readonly reelIndex: ReelIndex }
+  | { readonly type: "KICK_REEL"; readonly reelIndex: ReelIndex }
   | { readonly type: "ACCEPT_OUTCOME" }
   | { readonly type: "PRESENTATION_COMPLETE" }
   | { readonly type: "CHOOSE_UPGRADE"; readonly choice: UpgradeChoice }

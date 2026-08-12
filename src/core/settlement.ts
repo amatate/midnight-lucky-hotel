@@ -1,6 +1,7 @@
 import { BASE_PAYTABLE } from "@/content/base-machine";
 import { isChapelPartId, reactChapelParts } from "@/content/effects/chapel";
 import { isFruitPartId, reactFruitParts } from "@/content/effects/fruit";
+import { isViolentPartId, reactViolentParts } from "@/content/effects/violent";
 import type { GameEvent, GameEventDraft } from "@/core/events";
 import { evaluateBaseWins } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
@@ -46,11 +47,35 @@ export type EffectHandlerRegistration =
 
 const INTERNAL_FRUIT_REGISTRATION: unique symbol = Symbol("internal-fruit-registration");
 const INTERNAL_CHAPEL_REGISTRATION: unique symbol = Symbol("internal-chapel-registration");
+const INTERNAL_VIOLENT_REGISTRATION: unique symbol = Symbol("internal-violent-registration");
 
 type InternalEffectHandlerRegistration = EffectHandlerRegistration & {
   readonly [INTERNAL_FRUIT_REGISTRATION]?: number;
   readonly [INTERNAL_CHAPEL_REGISTRATION]?: number;
+  readonly [INTERNAL_VIOLENT_REGISTRATION]?: number;
 };
+
+interface PhysicalCell {
+  readonly reel: ReelIndex;
+  readonly index: number;
+  readonly symbol: SymbolId;
+}
+
+interface AuthorizedViolentPart {
+  readonly slot: number;
+  readonly part: PartInstance;
+  readonly claimTrigger: (key: string) => boolean;
+  readonly visiblePhysicalCount: (symbol: SymbolId) => number;
+  readonly physicalCell: (reel: ReelIndex, row: RowIndex) => PhysicalCell;
+  readonly claimMotorOrdinal: () => number | null;
+}
+
+const AUTHORIZED_VIOLENT_CONTEXTS = new WeakMap<ResolveContext, AuthorizedViolentPart>();
+
+/** Reads settlement-private violent-route data only for the exact currently executing central context. */
+export function readAuthorizedViolentPart(context: ResolveContext): AuthorizedViolentPart | undefined {
+  return AUTHORIZED_VIOLENT_CONTEXTS.get(context);
+}
 
 interface AuthorizedChapelPart {
   readonly slot: number;
@@ -73,12 +98,22 @@ interface FruitRuntime {
   plannedFoodAdds: [number, number, number];
 }
 
+interface ViolentRuntime {
+  coreEffectsSeen: number;
+}
+
+interface QueuedEffect {
+  readonly effect: Effect;
+  readonly origin?: InternalEffectHandlerRegistration;
+  readonly motorGenerated: boolean;
+}
+
 interface WorkingState {
   grid: [SymbolId[], SymbolId[], SymbolId[]];
   strips: [SymbolId[], SymbolId[], SymbolId[]];
   temporaryEntries: [boolean[], boolean[], boolean[]];
   stops: [number, number, number];
-  queue: Effect[];
+  queue: QueuedEffect[];
   drafts: GameEventDraft[];
   triggeredKeys: Set<string>;
   awardedWinKeys: Set<string>;
@@ -92,6 +127,7 @@ interface WorkingState {
   shiftFlags: ShiftFlags;
   omen: number;
   fruitRuntimes: Map<number, FruitRuntime>;
+  violentRuntimes: Map<number, ViolentRuntime>;
 }
 
 function modulo(value: number, length: number): number {
@@ -174,7 +210,7 @@ function createContext(
     state: structuredClone(contextState),
     grid: structuredClone(grid),
     currentBet,
-    queue: working.queue.map((effect) => ({ ...effect })),
+    queue: working.queue.map(({ effect }) => ({ ...effect })),
     triggeredKeys: new Set(working.triggeredKeys),
     awardedWinKeys: new Set(working.awardedWinKeys),
     eventCount: working.effectCount
@@ -229,8 +265,19 @@ function cloneSignal(signal: ResolveSignal): ResolveSignal {
   return structuredClone(signal);
 }
 
-function enqueueEffects(working: WorkingState, effects: readonly Effect[]): void {
-  for (const effect of effects) working.queue.push({ ...effect });
+function enqueueEffects(
+  working: WorkingState,
+  effects: readonly Effect[],
+  origin: InternalEffectHandlerRegistration,
+  inheritedMotorGenerated: boolean
+): void {
+  const fromMotor =
+    origin.kind === "part" &&
+    origin.partId === "overload-motor" &&
+    origin[INTERNAL_VIOLENT_REGISTRATION] !== undefined;
+  for (const effect of effects) {
+    working.queue.push({ effect: { ...effect }, origin, motorGenerated: inheritedMotorGenerated || fromMotor });
+  }
 }
 
 function dispatchSignal(
@@ -238,7 +285,9 @@ function dispatchSignal(
   currentBet: number,
   working: WorkingState,
   registrations: readonly InternalEffectHandlerRegistration[],
-  signal: ResolveSignal
+  signal: ResolveSignal,
+  appliedOrigin?: InternalEffectHandlerRegistration,
+  appliedMotorGenerated = false
 ): void {
   if (working.overloaded) return;
   for (const registration of registrations) {
@@ -258,11 +307,47 @@ function dispatchSignal(
         }
       }));
     }
+    const violentSlot = registration[INTERNAL_VIOLENT_REGISTRATION];
+    const violentPart = violentSlot === undefined ? undefined : state.partSlots[violentSlot];
+    const violentRuntime = violentSlot === undefined ? undefined : working.violentRuntimes.get(violentSlot);
+    if (violentSlot !== undefined && violentPart !== undefined && violentPart !== null && violentRuntime !== undefined) {
+      AUTHORIZED_VIOLENT_CONTEXTS.set(context, Object.freeze({
+        slot: violentSlot,
+        part: Object.freeze({ ...violentPart }),
+        claimTrigger(key: string): boolean {
+          const scopedKey = `violent:${violentSlot}:${key}`;
+          if (working.triggeredKeys.has(scopedKey)) return false;
+          working.triggeredKeys.add(scopedKey);
+          return true;
+        },
+        visiblePhysicalCount(symbol: SymbolId): number {
+          const cells = new Set<string>();
+          for (const reel of [0, 1, 2] as const) {
+            for (const row of [0, 1, 2] as const) {
+              if (working.grid[reel][row] !== symbol) continue;
+              const index = modulo(working.stops[reel] + row, working.strips[reel].length);
+              if (working.strips[reel][index] === symbol) cells.add(`${reel}:${index}`);
+            }
+          }
+          return cells.size;
+        },
+        physicalCell(reel: ReelIndex, row: RowIndex): PhysicalCell {
+          const index = modulo(working.stops[reel] + row, working.strips[reel].length);
+          return Object.freeze({ reel, index, symbol: working.strips[reel][index]! });
+        },
+        claimMotorOrdinal(): number | null {
+          if (signal.type !== "EFFECT_APPLIED" || appliedOrigin === registration || appliedMotorGenerated) return null;
+          violentRuntime.coreEffectsSeen += 1;
+          return violentRuntime.coreEffectsSeen;
+        }
+      }));
+    }
     try {
       const effects = registration.handler(context, cloneSignal(signal));
-      enqueueEffects(working, effects);
+      enqueueEffects(working, effects, registration, appliedMotorGenerated);
     } finally {
       AUTHORIZED_CHAPEL_CONTEXTS.delete(context);
+      AUTHORIZED_VIOLENT_CONTEXTS.delete(context);
     }
   }
 }
@@ -407,6 +492,15 @@ function applyEffect(
       removeSymbol(working, effect.reel, effect.symbol, count);
       break;
     }
+    case "REMOVE_PHYSICAL_CELLS": {
+      for (const reel of [0, 1, 2] as const) {
+        const indices = effect.cells
+          .filter((cell) => cell.reel === reel && working.strips[reel][cell.index] === cell.symbol)
+          .map((cell) => cell.index);
+        removeIndices(working, reel, indices);
+      }
+      break;
+    }
     case "DISABLE_PART":
       disablePart(state, currentBet, working, registrations, effect.slot);
       break;
@@ -448,6 +542,9 @@ function applyEffect(
       };
       break;
     }
+    case "SET_SHIFT_FLAG":
+      working.shiftFlags = { ...working.shiftFlags, [effect.flag]: true };
+      break;
   }
 }
 
@@ -459,7 +556,8 @@ function drainEffects(
   registrations: readonly InternalEffectHandlerRegistration[]
 ): void {
   while (working.queue.length > 0) {
-    const effect = working.queue.shift()!;
+    const queued = working.queue.shift()!;
+    const effect = queued.effect;
     working.effectCount += 1;
     applyEffect(state, currentBet, buffMultiplier, working, registrations, effect);
     if (working.overloaded) return;
@@ -467,7 +565,15 @@ function drainEffects(
       triggerOverload(currentBet, working);
       return;
     }
-    dispatchSignal(state, currentBet, working, registrations, { type: "EFFECT_APPLIED", effect });
+    dispatchSignal(
+      state,
+      currentBet,
+      working,
+      registrations,
+      { type: "EFFECT_APPLIED", effect },
+      queued.origin,
+      queued.motorGenerated
+    );
   }
 }
 
@@ -587,6 +693,13 @@ export function resolveSpin(
             } satisfies FruitRuntime] as const]
           : []
       )
+    ),
+    violentRuntimes: new Map(
+      state.partSlots.flatMap((part, slot) =>
+        part !== null && isViolentPartId(part.id)
+          ? [[slot, { coreEffectsSeen: 0 } satisfies ViolentRuntime] as const]
+          : []
+      )
     )
   };
 
@@ -610,9 +723,20 @@ export function resolveSpin(
       [INTERNAL_CHAPEL_REGISTRATION]: slot
     }];
   });
+  const violentRegistrations: InternalEffectHandlerRegistration[] = state.partSlots.flatMap((part, slot) => {
+    if (part === null || !isViolentPartId(part.id)) return [];
+    return [{
+      kind: "part",
+      slot,
+      partId: part.id,
+      handler: reactViolentParts,
+      [INTERNAL_VIOLENT_REGISTRATION]: slot
+    }];
+  });
   const registrations: InternalEffectHandlerRegistration[] = [
     ...fruitRegistrations,
     ...chapelRegistrations,
+    ...violentRegistrations,
     ...handlers.map((registration): EffectHandlerRegistration =>
       registration.kind === "system"
         ? { kind: "system", handler: registration.handler }
