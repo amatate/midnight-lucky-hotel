@@ -41,7 +41,7 @@ describe("contract generation", () => {
     expect(state).toEqual(snapshot);
   });
 
-  it("consumes one draw for a deterministic discipline fallback", () => {
+  it("uses an inert completed sentinel with one draw when no base spins remain", () => {
     const state: RunState = {
       ...createRun(72),
       phase: "READY_TO_SPIN",
@@ -51,8 +51,112 @@ describe("contract generation", () => {
       reels: [["cherry"], ["lemon"], ["bell"]]
     };
     const result = generateContract(state);
-    expect(result.contract.id).toBe("discipline");
+    expect(result.contract).toEqual({
+      id: "discipline",
+      target: 0,
+      progress: 0,
+      completed: true,
+      rewardClaimed: true,
+      startBankroll: state.bankroll,
+      interventionsUsed: 0
+    });
     expect(result.rng).toEqual(nextInt(state.rng, 1).rng);
+    expect(updateContract(result.contract, [{ sequence: 1, type: "BLOCK_COMPLETED", bankroll: 1_000 }])).toBe(
+      result.contract
+    );
+  });
+
+  it("witnesses combination wins with wild assistance instead of requiring a literal symbol on every reel", () => {
+    const state: RunState = {
+      ...createRun(74),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      baseSpinsInShift: 0,
+      reels: [["cherry", "blank", "blank"], ["wild", "blank", "blank"], ["cherry", "blank", "blank"]]
+    };
+    const combination = CONTRACT_TEMPLATES.find((template) => template.id === "combination")!;
+    expect(combination.canGenerate(state)).toBe(true);
+  });
+
+  it("excludes combination and rescue when no reachable board can pay", () => {
+    const state: RunState = {
+      ...createRun(75),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      baseSpinsInShift: 0,
+      reels: [["cherry", "blank"], ["lemon", "blank"], ["bell", "blank"]]
+    };
+    expect(CONTRACT_TEMPLATES.find((template) => template.id === "combination")!.canGenerate(state)).toBe(false);
+    expect(CONTRACT_TEMPLATES.find((template) => template.id === "rescue")!.canGenerate(state)).toBe(false);
+  });
+
+  it("excludes rescue when every reachable accepted board already pays", () => {
+    const state: RunState = {
+      ...createRun(76),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      baseSpinsInShift: 0,
+      reels: [["cherry", "wild"], ["cherry", "wild"], ["cherry", "wild"]]
+    };
+    expect(CONTRACT_TEMPLATES.find((template) => template.id === "rescue")!.canGenerate(state)).toBe(false);
+  });
+
+  it("includes rescue only when a legal respin has a concrete nonpaying-to-paying witness", () => {
+    const state: RunState = {
+      ...createRun(77),
+      phase: "READY_TO_SPIN",
+      service: "chapel",
+      baseSpinsInShift: 0,
+      interventionPoints: 1,
+      reels: [
+        ["cherry", "blank", "blank"],
+        ["cherry", "blank", "blank"],
+        ["cherry", "blank", "blank"]
+      ]
+    };
+    expect(CONTRACT_TEMPLATES.find((template) => template.id === "rescue")!.canGenerate(state)).toBe(true);
+  });
+
+  it("requires a block-start payout witness that can cover all remaining paid wagers for discipline", () => {
+    const discipline = CONTRACT_TEMPLATES.find((template) => template.id === "discipline")!;
+    const base: RunState = {
+      ...createRun(78),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      baseSpinsInShift: 0,
+      baseBet: 10,
+      betMode: "normal"
+    };
+    expect(discipline.canGenerate({
+      ...base,
+      reels: [["cherry", "blank", "blank"], ["cherry", "blank", "blank"], ["cherry", "blank", "blank"]]
+    })).toBe(false);
+    expect(discipline.canGenerate({
+      ...base,
+      reels: [["lemon", "blank", "blank"], ["lemon", "blank", "blank"], ["lemon", "blank", "blank"]]
+    })).toBe(true);
+    expect(discipline.canGenerate({ ...base, baseSpinsInShift: 1 })).toBe(false);
+  });
+
+  it("terminates conservatively for exact witness searches above the safe window-product bound", () => {
+    const symbols = ["cherry", "lemon", "bell", "seven", "wild", "blank", "food", "crack"] as const;
+    const largeStrip = (seed: number) => {
+      let value = seed;
+      return Array.from({ length: 512 }, () => {
+        value = (Math.imul(value, 1_664_525) + 1_013_904_223) >>> 0;
+        return symbols[(value >>> 24) % symbols.length]!;
+      });
+    };
+    const state: RunState = {
+      ...createRun(79),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      baseSpinsInShift: 0,
+      interventionPoints: 3,
+      reels: [largeStrip(1), largeStrip(2), largeStrip(3)]
+    };
+    expect(CONTRACT_TEMPLATES.find((template) => template.id === "discipline")!.canGenerate(state)).toBe(false);
+    expect(CONTRACT_TEMPLATES.find((template) => template.id === "rescue")!.canGenerate(state)).toBe(false);
   });
 });
 

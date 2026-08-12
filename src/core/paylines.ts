@@ -2,7 +2,7 @@ import type { Grid, LineWin, PaySymbolId, Paytable, SymbolId } from "@/core/type
 
 type Payline = Pick<LineWin, "lineId" | "cells">;
 
-const PAYLINES: readonly Payline[] = [
+export const PAYLINES: readonly Payline[] = [
   { lineId: "top", cells: [[0, 0], [1, 0], [2, 0]] },
   { lineId: "middle", cells: [[0, 1], [1, 1], [2, 1]] },
   { lineId: "bottom", cells: [[0, 2], [1, 2], [2, 2]] },

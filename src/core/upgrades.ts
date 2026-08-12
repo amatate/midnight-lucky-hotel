@@ -319,7 +319,7 @@ export function applyUpgrade(state: RunState, choice: UpgradeChoice): DispatchRe
   return applyUpgradeCommand(state, choice, { type: "CHOOSE_UPGRADE", choice });
 }
 
-/** Declines the wildcard candidate through the same validation and application path. */
+/** Safely discards the wildcard offer without revalidating stale upgrade prerequisites. */
 export function declineUpgrade(state: RunState): DispatchResult {
   if (state.phase !== "CHOOSING_UPGRADE" && state.phase !== "AFTER_HOURS") {
     return rejected(state, "INVALID_PHASE", `DECLINE_UPGRADE is invalid during ${state.phase}`);
@@ -327,9 +327,12 @@ export function declineUpgrade(state: RunState): DispatchResult {
   if (state.currentCandidates === null) {
     return rejected(state, "INVALID_TARGET", "there are no current upgrade candidates");
   }
-  return applyUpgradeCommand(
+  const choice = { id: state.currentCandidates.wildcard, action: "decline" } as const;
+  return completeUpgrade(
     state,
-    { id: state.currentCandidates.wildcard, action: "decline" },
+    { ...state, tips: state.tips + 1 },
+    choice,
+    false,
     { type: "DECLINE_UPGRADE" }
   );
 }

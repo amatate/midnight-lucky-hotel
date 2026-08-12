@@ -82,6 +82,56 @@ describe("normal run boundaries", () => {
     expect(declined.state.tips).toBe(2);
     expect(declined.state.commandHistory.at(-1)).toEqual({ type: "DECLINE_UPGRADE" });
   });
+
+  it("safely declines stale wildcard offers without weakening strict serialized decline validation", () => {
+    const boundary = forceBoundary(ready(86), 120);
+    const snapshot = boundary.shiftHistory.at(-1)!;
+    const staleCases: readonly RunState[] = [
+      {
+        ...boundary,
+        currentCandidates: { synergy: "lemon-crate", pivot: "carbon-copy", wildcard: "pruning-shears" },
+        reels: [boundary.reels[0].slice(0, 6), boundary.reels[1].slice(0, 6), boundary.reels[2].slice(0, 6)]
+      },
+      {
+        ...boundary,
+        currentCandidates: { synergy: "lemon-crate", pivot: "carbon-copy", wildcard: "scrap-magnet" },
+        service: "repair",
+        reels: [
+          boundary.reels[0].filter((symbol) => symbol !== "crack"),
+          boundary.reels[1].filter((symbol) => symbol !== "crack"),
+          boundary.reels[2].filter((symbol) => symbol !== "crack")
+        ]
+      },
+      {
+        ...boundary,
+        bankroll: 9,
+        currentCandidates: { synergy: "lemon-crate", pivot: "carbon-copy", wildcard: "tithe-box" }
+      }
+    ];
+
+    for (const state of staleCases) {
+      const strict = dispatchCommand(state, {
+        type: "CHOOSE_UPGRADE",
+        choice: { id: state.currentCandidates!.wildcard, action: "decline" }
+      });
+      expect(strict.ok).toBe(false);
+      expect(strict.state).toBe(state);
+
+      const safe = dispatchCommand(state, { type: "DECLINE_UPGRADE" });
+      expect(safe.ok).toBe(true);
+      if (!safe.ok) throw new Error(safe.error.message);
+      expect(safe.state).toMatchObject({
+        phase: "READY_TO_SPIN",
+        tips: state.tips + 1,
+        currentCandidates: null,
+        shift: state.shift + 1
+      });
+      expect(safe.events.filter((event) => event.type === "RESOURCE_CHANGED")).toHaveLength(1);
+      expect(safe.state.commandHistory.slice(-1)).toEqual([{ type: "DECLINE_UPGRADE" }]);
+      expect(safe.state.shiftHistory).toEqual(state.shiftHistory);
+      expect(safe.state.shiftHistory.at(-1)).toEqual(snapshot);
+    }
+  });
 });
 
 describe("after-hours blocks", () => {
