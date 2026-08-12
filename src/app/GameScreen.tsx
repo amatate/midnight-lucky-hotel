@@ -7,7 +7,7 @@ import { SlotMachine } from "@/app/components/SlotMachine";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
 import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
-import type { ServiceId } from "@/core/types";
+import type { RunState, ServiceId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
 
 const SERVICES: Readonly<Record<ServiceId, { readonly name: string; readonly description: string }>> = {
@@ -59,8 +59,13 @@ function PullControl({ onPull }: { readonly onPull: () => void }): React.JSX.Ele
   );
 }
 
-export function GameScreen({ seed }: { readonly seed: number }): React.JSX.Element {
-  const game = useGame(seed);
+interface GameScreenProps {
+  readonly seed: number;
+  readonly initialState?: RunState;
+}
+
+export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.Element {
+  const game = useGame(seed, initialState);
   const { estimate, status: estimateStatus } = useEstimate(game.state);
   const [trajectory, setTrajectory] = useState<readonly MachineEstimate[]>([]);
   const lastEstimate = useRef<MachineEstimate | null>(null);

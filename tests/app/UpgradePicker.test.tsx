@@ -90,4 +90,16 @@ describe("UpgradePicker", () => {
 
     expect(screen.queryByRole("button", { name: "获取柠檬木箱" })).not.toBeInTheDocument();
   });
+
+  it("shows eligible target symbols with Chinese names", async () => {
+    const user = userEvent.setup();
+    render(<UpgradePicker state={upgradeState({
+      currentCandidates: { synergy: "carbon-copy", pivot: "cherry-pitter", wildcard: "jam-jar" }
+    })} onCommand={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "选择复写纸" }));
+
+    expect(screen.getByRole("option", { name: "第1轮 · 樱桃" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /cherry/ })).not.toBeInTheDocument();
+  });
 });

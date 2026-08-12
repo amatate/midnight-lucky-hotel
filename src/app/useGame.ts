@@ -17,8 +17,8 @@ function nextSeed(seed: number): number {
   return (Math.trunc(seed) + 0x9e37_79b9) >>> 0;
 }
 
-export function useGame(seed: number): GameController {
-  const [state, setState] = useState<RunState>(() => createRun(seed));
+export function useGame(seed: number, initialState?: RunState): GameController {
+  const [state, setState] = useState<RunState>(() => initialState ?? createRun(seed));
   const stateRef = useRef(state);
   const [events, setEvents] = useState<readonly GameEvent[]>([]);
   const [error, setError] = useState<CommandError | null>(null);

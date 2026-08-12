@@ -1,4 +1,5 @@
 import type { DispatchResult } from "@/core/commands";
+import { generateCandidates } from "@/core/candidates";
 import type { GameEvent } from "@/core/events";
 import { nextInt } from "@/core/random";
 import { advanceReel, normalizeDrawIdentity } from "@/core/reels";
@@ -89,6 +90,14 @@ export function removeCracks(state: RunState, reelIndex: ReelIndex): DispatchRes
   const reels = state.reels.map((strip, reel) =>
     reel === reelIndex ? (repaired.length === 0 ? ["blank"] : repaired) : [...strip]
   ) as [SymbolId[], SymbolId[], SymbolId[]];
+  let candidateResult: ReturnType<typeof generateCandidates> | null = null;
+  if (state.currentCandidates !== null) {
+    try {
+      candidateResult = generateCandidates({ ...state, reels });
+    } catch {
+      return rejected(state, "INVALID_TARGET", "repair left no legal upgrade candidate assignment");
+    }
+  }
   const command = { type: "REMOVE_CRACKS", reelIndex } as const;
   const event = {
     sequence: state.pendingEvents.length + 1,
@@ -103,6 +112,8 @@ export function removeCracks(state: RunState, reelIndex: ReelIndex): DispatchRes
       ...state,
       tips: state.tips - 1,
       reels,
+      rng: candidateResult?.rng ?? state.rng,
+      currentCandidates: candidateResult?.candidates ?? state.currentCandidates,
       pendingEvents: [...state.pendingEvents, event],
       commandHistory: [...state.commandHistory, command]
     }

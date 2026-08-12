@@ -1,14 +1,15 @@
+import { SYMBOL_LABELS } from "@/app/labels";
 import type { Grid, RunState, SymbolId } from "@/core/types";
 
-const SYMBOLS: Readonly<Record<SymbolId, { readonly glyph: string; readonly label: string }>> = {
-  cherry: { glyph: "🍒", label: "樱桃" },
-  lemon: { glyph: "🍋", label: "柠檬" },
-  bell: { glyph: "🔔", label: "铃铛" },
-  seven: { glyph: "7", label: "幸运7" },
-  wild: { glyph: "★", label: "百搭" },
-  blank: { glyph: "·", label: "空白" },
-  food: { glyph: "🍲", label: "食物" },
-  crack: { glyph: "╱", label: "裂纹" }
+const SYMBOL_GLYPHS: Readonly<Record<SymbolId, string>> = {
+  cherry: "🍒",
+  lemon: "🍋",
+  bell: "🔔",
+  seven: "7",
+  wild: "★",
+  blank: "·",
+  food: "🍲",
+  crack: "╱"
 };
 
 function visibleGrid(state: RunState): Grid {
@@ -27,10 +28,10 @@ export function SlotMachine({ state }: { readonly state: RunState }): React.JSX.
               className={`symbol symbol-${symbol}`}
               data-testid="cell"
               role="img"
-              aria-label={SYMBOLS[symbol].label}
+              aria-label={SYMBOL_LABELS[symbol]}
               key={`${rowIndex}-${symbol}`}
             >
-              <span aria-hidden="true">{SYMBOLS[symbol].glyph}</span>
+              <span aria-hidden="true">{SYMBOL_GLYPHS[symbol]}</span>
             </div>
           ))}
         </div>

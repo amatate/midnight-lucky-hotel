@@ -40,16 +40,29 @@ export function useEstimate(state: RunState): EstimateResult {
     setEstimate(null);
     setStatus("idle");
 
+    const clearDeadlines = () => {
+      if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+      if (unavailableTimer !== undefined) clearTimeout(unavailableTimer);
+    };
+    const unavailable = () => {
+      if (cancelled || sequence !== requestSequence.current) return;
+      clearDeadlines();
+      worker?.terminate();
+      worker = null;
+      setStatus("unavailable");
+    };
+
+    pendingTimer = setTimeout(() => {
+      if (!cancelled && sequence === requestSequence.current) setStatus("pending");
+    }, 250);
+    unavailableTimer = setTimeout(unavailable, 1500);
+
     const debounceTimer = setTimeout(() => {
       if (cancelled || sequence !== requestSequence.current) return;
-      pendingTimer = setTimeout(() => {
-        if (!cancelled && sequence === requestSequence.current) setStatus("pending");
-      }, 250);
 
       const finish = (nextEstimate: MachineEstimate) => {
         if (cancelled || sequence !== requestSequence.current) return;
-        if (pendingTimer !== undefined) clearTimeout(pendingTimer);
-        if (unavailableTimer !== undefined) clearTimeout(unavailableTimer);
+        clearDeadlines();
         worker?.terminate();
         worker = null;
         setEstimate(nextEstimate);
@@ -60,7 +73,7 @@ export function useEstimate(state: RunState): EstimateResult {
         try {
           finish(estimateMachine(request));
         } catch {
-          setStatus("unavailable");
+          unavailable();
         }
         return;
       }
@@ -72,36 +85,22 @@ export function useEstimate(state: RunState): EstimateResult {
           const response = event.data;
           if (response.requestId !== requestId) return;
           if (response.type === "ESTIMATE_ERROR") {
-            if (pendingTimer !== undefined) clearTimeout(pendingTimer);
-            if (unavailableTimer !== undefined) clearTimeout(unavailableTimer);
-            worker?.terminate();
-            worker = null;
-            if (!cancelled && sequence === requestSequence.current) setStatus("unavailable");
+            unavailable();
             return;
           }
           finish(response.estimate);
         };
         worker.onerror = () => {
-          if (pendingTimer !== undefined) clearTimeout(pendingTimer);
-          if (unavailableTimer !== undefined) clearTimeout(unavailableTimer);
-          worker?.terminate();
-          worker = null;
-          if (!cancelled && sequence === requestSequence.current) setStatus("unavailable");
+          unavailable();
         };
         worker.postMessage({ type: "ESTIMATE", requestId, request });
-        unavailableTimer = setTimeout(() => {
-          if (cancelled || sequence !== requestSequence.current) return;
-          worker?.terminate();
-          worker = null;
-          setStatus("unavailable");
-        }, 1500);
       } catch {
         worker?.terminate();
         worker = null;
         try {
           finish(estimateMachine(request));
         } catch {
-          setStatus("unavailable");
+          unavailable();
         }
       }
     }, 120);
@@ -109,8 +108,7 @@ export function useEstimate(state: RunState): EstimateResult {
     return () => {
       cancelled = true;
       clearTimeout(debounceTimer);
-      if (pendingTimer !== undefined) clearTimeout(pendingTimer);
-      if (unavailableTimer !== undefined) clearTimeout(unavailableTimer);
+      clearDeadlines();
       worker?.terminate();
     };
   }, [request]);

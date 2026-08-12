@@ -48,5 +48,55 @@ describe("useEstimate", () => {
 
     expect(result.current).toEqual({ estimate: ESTIMATE, status: "ready" });
     expect(worker.terminate).toHaveBeenCalledOnce();
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+    expect(result.current).toEqual({ estimate: ESTIMATE, status: "ready" });
+    expect(worker.terminate).toHaveBeenCalledOnce();
+  });
+
+  it("clears every deadline when the guarded worker returns an error", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("Worker", FakeWorker);
+    const { result } = renderHook(() => useEstimate(createRun(25)));
+
+    await act(() => vi.advanceTimersByTimeAsync(120));
+    const worker = FakeWorker.instances[0]!;
+    const request = worker.postMessage.mock.calls[0]![0] as EstimateWorkerRequest;
+    await act(async () => worker.onmessage?.({
+      data: { type: "ESTIMATE_ERROR", requestId: request.requestId, error: { name: "Error", message: "failed" } }
+    } as MessageEvent));
+
+    expect(result.current.status).toBe("unavailable");
+    expect(worker.terminate).toHaveBeenCalledOnce();
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+    expect(result.current.status).toBe("unavailable");
+    expect(worker.terminate).toHaveBeenCalledOnce();
+  });
+
+  it("measures pending and unavailable deadlines from dependency start", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("Worker", FakeWorker);
+    const { result } = renderHook(() => useEstimate(createRun(23)));
+
+    await act(() => vi.advanceTimersByTimeAsync(249));
+    expect(result.current.status).toBe("idle");
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(result.current.status).toBe("pending");
+    await act(() => vi.advanceTimersByTimeAsync(1249));
+    expect(result.current.status).toBe("pending");
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(result.current.status).toBe("unavailable");
+    expect(FakeWorker.instances[0]!.terminate).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a synchronous fallback failure unavailable after every deadline", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("Worker", undefined);
+    const state = { ...createRun(24), bankroll: Number.NaN };
+    const { result } = renderHook(() => useEstimate(state));
+
+    await act(() => vi.advanceTimersByTimeAsync(120));
+    expect(result.current.status).toBe("unavailable");
+    await act(() => vi.advanceTimersByTimeAsync(2_000));
+    expect(result.current.status).toBe("unavailable");
   });
 });

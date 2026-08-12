@@ -1,24 +1,14 @@
 import { useState } from "react";
+import { SYMBOL_LABELS } from "@/app/labels";
 import { previewKick } from "@/content/services/security";
 import type { GameCommand } from "@/core/commands";
-import type { BaseSymbolId, BetMode, ReelIndex, RunState, SymbolId } from "@/core/types";
+import type { BaseSymbolId, BetMode, ReelIndex, RunState } from "@/core/types";
 
 const BET_LABELS: Readonly<Record<BetMode, string>> = {
   conservative: "保守",
   normal: "正常",
   aggressive: "激进"
 };
-const SYMBOL_LABELS: Readonly<Record<SymbolId, string>> = {
-  cherry: "樱桃",
-  lemon: "柠檬",
-  bell: "铃铛",
-  seven: "幸运7",
-  wild: "百搭",
-  blank: "空白",
-  food: "食物",
-  crack: "裂纹"
-};
-
 interface ActionBarProps {
   readonly state: RunState;
   readonly onCommand: (command: GameCommand) => void;
@@ -95,7 +85,13 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
           </div>
         )}
         {boundary && state.service === "repair" && state.tips > 0 && state.reels.some((reel) => reel.includes("crack")) && (
-          <ReelButtons label="修复第{n}轮裂纹（1 小费）" onSelect={(reelIndex) => onCommand({ type: "REMOVE_CRACKS", reelIndex })} />
+          <div className="reel-actions">
+            {state.reels.map((strip, reel) => strip.includes("crack") ? (
+              <button type="button" key={reel} onClick={() => onCommand({ type: "REMOVE_CRACKS", reelIndex: reel as ReelIndex })}>
+                修复第{reel + 1}轮裂纹（1 小费）
+              </button>
+            ) : null)}
+          </div>
         )}
         {((state.phase === "READY_TO_SPIN" && state.service !== "kitchen" && state.service !== "chapel" && !state.partSlots.some((part) => part?.id === "martyr-coin")) ||
           (state.phase === "AWAITING_INTERVENTION" && state.service !== "repair" && securityPreview === null)) && <p className="muted">当前没有可用服务行动</p>}

@@ -1,73 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import { SYMBOL_LABELS } from "@/app/labels";
+import {
+  buildUpgradeChoice,
+  needsUpgradeReelTarget,
+  needsUpgradeSymbolTarget,
+  upgradeSymbolTargets
+} from "@/app/upgrade-choice";
 import { UPGRADES } from "@/content/upgrades";
 import type { GameCommand } from "@/core/commands";
-import type { BaseSymbolId, ReelIndex, RunState, SymbolId, UpgradeChoice, UpgradeId } from "@/core/types";
+import type { ReelIndex, RunState, UpgradeId } from "@/core/types";
 
 const ROLE_LABELS = { synergy: "协同", pivot: "转向", wildcard: "变数" } as const;
 const KIND_LABELS = { "reel-mod": "改造转轮", part: "机器部件", tool: "信息工具" } as const;
-const BASE_SYMBOLS = new Set<SymbolId>(["cherry", "lemon", "bell", "seven"]);
-
-interface TargetPair {
-  readonly reel: ReelIndex;
-  readonly symbol: Exclude<SymbolId, "wild">;
-}
-
-function symbolTargets(state: RunState, id: UpgradeId): readonly TargetPair[] {
-  const targets: TargetPair[] = [];
-  state.reels.forEach((strip, reelNumber) => {
-    const reel = reelNumber as ReelIndex;
-    if (id === "pruning-shears" && strip.length <= 6) return;
-    [...new Set(strip)].forEach((symbol) => {
-      if (symbol === "wild") return;
-      const allowed = id === "cherry-pitter"
-        ? symbol !== "cherry"
-        : id === "seven-purification"
-          ? symbol === "cherry" || symbol === "lemon"
-          : id === "carbon-copy"
-            ? BASE_SYMBOLS.has(symbol)
-            : id === "pruning-shears";
-      if (allowed) targets.push({ reel, symbol });
-    });
-  });
-  return targets;
-}
-
-function needsSymbolTarget(id: UpgradeId): boolean {
-  return id === "cherry-pitter" || id === "seven-purification" || id === "pruning-shears" || id === "carbon-copy";
-}
-
-function needsReelTarget(id: UpgradeId): boolean {
-  return id === "tithe-box" || id === "artificial-crack";
-}
-
-function upgradeChoice(
-  state: RunState,
-  id: UpgradeId,
-  reel: ReelIndex,
-  secondReel: ReelIndex,
-  symbolPair: TargetPair | undefined,
-  replaceSlot: number
-): UpgradeChoice | null {
-  const definition = UPGRADES[id];
-  if (definition.kind === "part") {
-    const alreadyOwned = state.partSlots.some((part) => part?.id === id);
-    const inventoryFull = state.partSlots.every((part) => part !== null);
-    return inventoryFull && !alreadyOwned
-      ? { id, action: "replace", replaceSlot }
-      : { id, action: "apply" };
-  }
-  if (id === "lemon-crate") {
-    return reel === secondReel ? null : { id, action: "apply", target: { kind: "two-reels", reels: [reel, secondReel] } };
-  }
-  if (needsSymbolTarget(id)) {
-    return symbolPair === undefined
-      ? null
-      : { id, action: "apply", target: { kind: "symbol-on-reel", reel: symbolPair.reel, symbol: symbolPair.symbol } };
-  }
-  if (needsReelTarget(id)) return { id, action: "apply", target: { kind: "reel", reel } };
-  return { id, action: "apply" };
-}
-
 interface UpgradePickerProps {
   readonly state: RunState;
   readonly onCommand: (command: GameCommand) => void;
@@ -82,7 +26,7 @@ export function UpgradePicker({ state, onCommand }: UpgradePickerProps): React.J
   const [replaceSlot, setReplaceSlot] = useState(0);
   const offerKey = offers === null ? "none" : `${offers.synergy}|${offers.pivot}|${offers.wildcard}`;
   const symbolOptions = useMemo(
-    () => selectedId === null ? [] : symbolTargets(state, selectedId),
+    () => selectedId === null ? [] : upgradeSymbolTargets(state, selectedId),
     [selectedId, state]
   );
 
@@ -96,7 +40,7 @@ export function UpgradePicker({ state, onCommand }: UpgradePickerProps): React.J
     ?? symbolOptions[0];
   const selectedChoice = selectedId === null
     ? null
-    : upgradeChoice(state, selectedId, reel, secondReel, chosenSymbol, replaceSlot);
+    : buildUpgradeChoice(state, selectedId, { reel, secondReel, symbolTarget: chosenSymbol, replaceSlot });
   const selectedDefinition = selectedId === null ? null : UPGRADES[selectedId];
   const fullNewPart = selectedId !== null && selectedDefinition?.kind === "part" &&
     state.partSlots.every((part) => part !== null) && !state.partSlots.some((part) => part?.id === selectedId);
@@ -146,19 +90,19 @@ export function UpgradePicker({ state, onCommand }: UpgradePickerProps): React.J
               </select></label>
             </div>
           )}
-          {needsReelTarget(selectedId) && (
+          {needsUpgradeReelTarget(selectedId) && (
             <label>目标转轮<select value={reel} onChange={(event) => setReel(Number(event.target.value) as ReelIndex)}>
               <option value={0}>第1轮</option><option value={1}>第2轮</option><option value={2}>第3轮</option>
             </select></label>
           )}
-          {needsSymbolTarget(selectedId) && (
+          {needsUpgradeSymbolTarget(selectedId) && (
             <label>目标符号<select
               value={chosenSymbol === undefined ? "" : `${chosenSymbol.reel}:${chosenSymbol.symbol}`}
               onChange={(event) => setSymbolTargetValue(event.target.value)}
             >
               {symbolOptions.map((target) => (
                 <option value={`${target.reel}:${target.symbol}`} key={`${target.reel}:${target.symbol}`}>
-                  第{target.reel + 1}轮 · {target.symbol}
+                  第{target.reel + 1}轮 · {SYMBOL_LABELS[target.symbol]}
                 </option>
               ))}
             </select></label>

@@ -1,3 +1,4 @@
+import { SYMBOL_LABELS } from "@/app/labels";
 import { getCurrentBet } from "@/core/progression";
 import type { RunState, SymbolId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
@@ -8,17 +9,6 @@ const BAND_LABELS = {
   "near-break-even": "接近持平",
   favorable: "有利"
 } as const;
-
-const SYMBOL_LABELS: Readonly<Record<SymbolId, string>> = {
-  cherry: "樱桃",
-  lemon: "柠檬",
-  bell: "铃铛",
-  seven: "幸运7",
-  wild: "百搭",
-  blank: "空白",
-  food: "食物",
-  crack: "裂纹"
-};
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;

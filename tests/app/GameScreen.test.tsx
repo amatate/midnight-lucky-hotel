@@ -1,9 +1,13 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GameScreen } from "@/app/GameScreen";
 import { Hud } from "@/app/components/Hud";
+import { ActionBar } from "@/app/components/ActionBar";
+import { UPGRADE_IDS } from "@/content/upgrades";
 import { createRun } from "@/core/run";
+import type { GameCommand } from "@/core/commands";
+import type { RunState, UpgradeId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
 
 afterEach(cleanup);
@@ -20,6 +24,18 @@ async function completeSpin(): Promise<void> {
   await user.click(screen.getByRole("button", { name: "停轮" }));
   await user.click(screen.getByRole("button", { name: "接受结果" }));
   await user.click(screen.getByRole("button", { name: "播放结算/继续" }));
+}
+
+function offeredState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
+  const alternatives = UPGRADE_IDS.filter((candidate) => candidate !== id);
+  return {
+    ...createRun(60),
+    phase: "CHOOSING_UPGRADE",
+    service: "repair",
+    baseSpinsInShift: 3,
+    currentCandidates: { synergy: id, pivot: alternatives[0]!, wildcard: alternatives[1]! },
+    ...patch
+  };
 }
 
 describe("GameScreen", () => {
@@ -115,5 +131,114 @@ describe("GameScreen", () => {
 
     rerender(<Hud state={{ ...createRun(1), toolLevel: 3 }} estimate={estimate} estimateStatus="ready" />);
     expect(screen.getByText("破产风险 8.0%")).toBeInTheDocument();
+  });
+
+  it("offers boundary crack removal only for reels containing literal permanent cracks", () => {
+    const state: RunState = {
+      ...createRun(14),
+      phase: "CHOOSING_UPGRADE",
+      service: "repair",
+      tips: 1,
+      reels: [["crack", "cherry"], ["lemon"], ["bell", "crack"]],
+      currentCandidates: { synergy: "artificial-crack", pivot: "pruning-shears", wildcard: "calculator" }
+    };
+    const onCommand = vi.fn<(command: GameCommand) => void>();
+    render(<ActionBar state={state} onCommand={onCommand} />);
+
+    expect(screen.getAllByRole("button", { name: /修复第\d轮裂纹/ })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "修复第1轮裂纹（1 小费）" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "修复第2轮裂纹（1 小费）" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "修复第3轮裂纹（1 小费）" })).toBeVisible();
+  });
+
+  it.each([
+    ["lemon-crate", "柠檬木箱", "第一目标转轮"],
+    ["artificial-crack", "人为裂纹", "目标转轮"],
+    ["cherry-pitter", "樱桃去核器", "目标符号"],
+    ["carbon-copy", "复写纸", "目标符号"],
+    ["jam-jar", "果酱罐", null]
+  ] as const)("dispatches the %s target category through the real game controller", async (id, name, targetLabel) => {
+    const user = userEvent.setup();
+    render(<GameScreen seed={60} initialState={offeredState(id)} />);
+
+    await user.click(screen.getByRole("button", { name: `选择${name}` }));
+    if (targetLabel !== null) expect(screen.getByLabelText(targetLabel)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: `获取${name}` }));
+
+    expect(screen.getByText("准备拉动")).toBeVisible();
+    expect(screen.getByText("第 2 班 · 0/3")).toBeVisible();
+    expect(screen.queryByText(/INVALID_/)).not.toBeInTheDocument();
+  });
+
+  it("dispatches a user-selected full-slot part replacement through the real game controller", async () => {
+    const user = userEvent.setup();
+    const full: RunState["partSlots"] = [
+      { id: "jam-jar", level: 1 },
+      { id: "fruit-salad", level: 1 },
+      { id: "midnight-bell", level: 1 },
+      { id: "blank-capacitor", level: 1 },
+      { id: "safety-fuse", level: 1 }
+    ];
+    render(<GameScreen seed={61} initialState={offeredState("overload-motor", { partSlots: full })} />);
+
+    await user.click(screen.getByRole("button", { name: "选择过载马达" }));
+    await user.selectOptions(screen.getByLabelText("替换部件槽"), "2");
+    await user.click(screen.getByRole("button", { name: "获取过载马达" }));
+
+    expect(screen.getByText("准备拉动")).toBeVisible();
+    expect(screen.getByText("过载马达")).toBeVisible();
+    expect(screen.queryByText("午夜钟声")).not.toBeInTheDocument();
+  });
+
+  it("repairs a boundary reel and replaces stale cards through real dispatch", async () => {
+    const user = userEvent.setup();
+    const state = offeredState("scrap-magnet", {
+      service: "repair",
+      tips: 1,
+      reels: [["crack", "crack"], createRun(62).reels[1], createRun(62).reels[2]],
+      currentCandidates: { synergy: "scrap-magnet", pivot: "warranty-fraud", wildcard: "artificial-crack" }
+    });
+    render(<GameScreen seed={62} initialState={state} />);
+
+    await user.click(screen.getByRole("button", { name: "修复第1轮裂纹（1 小费）" }));
+
+    expect(screen.queryByRole("button", { name: /修复第1轮裂纹/ })).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("upgrade-card")).toHaveLength(3);
+    expect(screen.queryByRole("heading", { name: "废料磁铁" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "骗保单" })).not.toBeInTheDocument();
+    expect(screen.getByText("小费 0")).toBeVisible();
+  });
+
+  it("requires an after-hours upgrade decision before real continuation", async () => {
+    const user = userEvent.setup();
+    const state = {
+      ...offeredState("artificial-crack"),
+      phase: "AFTER_HOURS" as const,
+      afterHoursLevel: 1,
+      currentCandidates: { synergy: "artificial-crack", pivot: "pruning-shears", wildcard: "calculator" } as const
+    };
+    render(<GameScreen seed={63} initialState={state} />);
+
+    expect(screen.queryByRole("button", { name: "继续加班" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "放弃升级" }));
+    expect(screen.getByRole("button", { name: "继续加班" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "继续加班" }));
+    expect(screen.getByText("准备拉动")).toBeVisible();
+  });
+
+  it("cashes out through real dispatch and restarts a fifth-shift loss", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<GameScreen seed={64} initialState={{
+      ...createRun(64), phase: "SHIFT_COMPLETE", service: "repair", bankroll: 220, exitUnlocked: true
+    }} />);
+
+    await user.click(screen.getByRole("button", { name: "结账离开" }));
+    expect(screen.getByRole("heading", { name: "本局胜利 · 已结账" })).toBeVisible();
+    unmount();
+
+    render(<GameScreen seed={65} initialState={{ ...createRun(65), phase: "RUN_LOST", shift: 5, bankroll: 4 }} />);
+    expect(screen.getByRole("heading", { name: "本局失败" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "同种子重开" }));
+    expect(screen.getByRole("region", { name: "选择服务" })).toBeVisible();
   });
 });

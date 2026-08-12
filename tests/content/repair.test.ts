@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { removeCracks, lockAndRespinOthers } from "@/content/services/repair";
+import { generateCandidates } from "@/core/candidates";
 import { nextInt } from "@/core/random";
 import { createRun, dispatchCommand } from "@/core/run";
 import type { GameCommand } from "@/core/commands";
@@ -102,6 +103,51 @@ describe("repair lock service", () => {
 });
 
 describe("repair crack removal", () => {
+  it("atomically regenerates deterministic legal candidates after a boundary repair", () => {
+    const state: RunState = {
+      ...repairRun(49),
+      phase: "CHOOSING_UPGRADE",
+      tips: 2,
+      reels: [["crack", "crack"], createRun(49).reels[1], createRun(49).reels[2]],
+      currentCandidates: { synergy: "scrap-magnet", pivot: "warranty-fraud", wildcard: "artificial-crack" }
+    };
+    const repairedReels: RunState["reels"] = [["blank"], state.reels[1], state.reels[2]];
+    const expected = generateCandidates({ ...state, reels: repairedReels });
+
+    const result = removeCracks(state, 0);
+    const repeated = removeCracks(structuredClone(state), 0);
+
+    expect(result.ok).toBe(true);
+    expect(repeated).toEqual(result);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.state).toMatchObject({
+      tips: 1,
+      reels: repairedReels,
+      rng: expected.rng,
+      currentCandidates: expected.candidates
+    });
+    expect(new Set(Object.values(result.state.currentCandidates!)).size).toBe(3);
+    for (const id of Object.values(result.state.currentCandidates!)) {
+      expect(id).not.toBe("scrap-magnet");
+      expect(id).not.toBe("warranty-fraud");
+    }
+    expect(result.events).toHaveLength(1);
+    expect(result.state.commandHistory.slice(-1)).toEqual([{ type: "REMOVE_CRACKS", reelIndex: 0 }]);
+
+    const afterHours = { ...state, phase: "AFTER_HOURS" as const };
+    const afterExpected = generateCandidates({ ...afterHours, reels: repairedReels });
+    const afterResult = removeCracks(afterHours, 0);
+    expect(afterResult.ok).toBe(true);
+    if (!afterResult.ok) throw new Error(afterResult.error.message);
+    expect(afterResult.state).toMatchObject({ rng: afterExpected.rng, currentCandidates: afterExpected.candidates });
+
+    const shiftComplete = { ...state, phase: "SHIFT_COMPLETE" as const, currentCandidates: null };
+    const shiftResult = removeCracks(shiftComplete, 0);
+    expect(shiftResult.ok).toBe(true);
+    if (!shiftResult.ok) throw new Error(shiftResult.error.message);
+    expect(shiftResult.state).toMatchObject({ rng: shiftComplete.rng, currentCandidates: null });
+  });
+
   it("spends one tip to remove the first two permanent cracks and keeps a nonempty fallback", () => {
     const state: RunState = {
       ...repairRun(50),
