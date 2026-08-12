@@ -46,6 +46,12 @@ export function consumeSafetyFuse(state: RunState): SafetyFuseResult {
   return {
     consumed: true,
     payout,
-    state: { ...state, bankroll: roundMoney(state.bankroll + payout), partSlots }
+    state: {
+      ...state,
+      bankroll: roundMoney(state.bankroll + payout),
+      shiftPayout: roundMoney(state.shiftPayout + payout),
+      attribution: { ...state.attribution, part: roundMoney(state.attribution.part + payout) },
+      partSlots
+    }
   };
 }

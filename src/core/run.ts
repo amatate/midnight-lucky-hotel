@@ -1,4 +1,5 @@
 import { BASE_REELS } from "@/content/base-machine";
+import { consumeSafetyFuse } from "@/content/effects/neutral";
 import { generateCandidates } from "@/core/candidates";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
@@ -71,6 +72,21 @@ function supportsPhase(state: RunState, phase: RunPhase): boolean {
 
 function getMinimumBet(state: RunState): number {
   return roundMoney(state.baseBet * 0.5 * 1.25 ** state.afterHoursLevel);
+}
+
+function safetyFuseRescue(state: RunState): {
+  readonly state: RunState;
+  readonly events: readonly GameEvent[];
+} | null {
+  const fuse = state.partSlots.find((part) => part?.id === "safety-fuse");
+  if (fuse === undefined || fuse === null) return null;
+  const result = consumeSafetyFuse(state);
+  if (!result.consumed) return null;
+  const events = sequenceEvents(state, [
+    { type: "PART_TRIGGERED", partId: "safety-fuse", level: fuse.level },
+    { type: "PAYOUT_ADDED", amount: result.payout, source: "part" }
+  ]);
+  return { state: result.state, events };
 }
 
 export function createRun(seed: number): RunState {
@@ -147,6 +163,10 @@ function spin(state: RunState, command: Extract<GameCommand, { type: "SPIN" }>):
   const isFree = state.freeSpinQueue > 0;
   const bet = getCurrentBet(state);
   if (!isFree && state.bankroll < getMinimumBet(state)) {
+    const rescue = safetyFuseRescue(state);
+    if (rescue !== null) {
+      return accepted(rescue.state, command, rescue.events, { phase: "READY_TO_SPIN" });
+    }
     const events = sequenceEvents(state, [{ type: "RUN_ENDED", outcome: "lost" }]);
     return accepted(state, command, events, { phase: "RUN_LOST" });
   }
@@ -238,7 +258,11 @@ function presentationComplete(
 
   const baseSpinsInShift = state.pendingSpin.isFree ? state.baseSpinsInShift : state.baseSpinsInShift + 1;
   const isLost = state.bankroll < getMinimumBet(state) && state.freeSpinQueue === 0;
-  const nextPhase: RunPhase = isLost
+  const rescue = isLost ? safetyFuseRescue(state) : null;
+  const transitionState = rescue?.state ?? state;
+  const nextPhase: RunPhase = rescue !== null
+    ? "READY_TO_SPIN"
+    : isLost
     ? "RUN_LOST"
     : state.freeSpinQueue > 0
       ? "READY_TO_SPIN"
@@ -247,26 +271,28 @@ function presentationComplete(
         ? "CHOOSING_UPGRADE"
         : "SHIFT_COMPLETE"
       : "READY_TO_SPIN";
-  const events = isLost
+  const events = rescue !== null
+    ? rescue.events.map((event, index) => ({ ...event, sequence: index + 1 }))
+    : isLost
     ? ([{ sequence: 1, type: "RUN_ENDED", outcome: "lost" }] as const satisfies readonly GameEvent[])
     : [];
   const candidateResult = nextPhase === "CHOOSING_UPGRADE"
-    ? generateCandidates({ ...state, baseSpinsInShift })
+    ? generateCandidates({ ...transitionState, baseSpinsInShift })
     : null;
 
   return {
     ok: true,
     events,
     state: {
-      ...state,
+      ...transitionState,
       phase: nextPhase,
       baseSpinsInShift,
-      rng: candidateResult?.rng ?? state.rng,
+      rng: candidateResult?.rng ?? transitionState.rng,
       currentCandidates: candidateResult?.candidates ?? null,
       pendingSpin: null,
       interventionUsedThisSpin: false,
       pendingEvents: events,
-      commandHistory: [...state.commandHistory, command]
+      commandHistory: [...transitionState.commandHistory, command]
     }
   };
 }

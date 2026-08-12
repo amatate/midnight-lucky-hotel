@@ -131,6 +131,36 @@ describe("spin progression", () => {
     expect(completed.events).toEqual([{ sequence: 1, type: "RUN_ENDED", outcome: "lost" }]);
   });
 
+  it("consumes a level-two safety fuse after presentation and returns ready instead of losing", () => {
+    let state: RunState = {
+      ...readyRun(136),
+      bankroll: 10,
+      partSlots: [null, { id: "safety-fuse", level: 2 }, null, null, null]
+    };
+    state = dispatch(state, { type: "SPIN" });
+    state = dispatch(state, { type: "REELS_STOPPED" });
+    state = dispatch(state, { type: "ACCEPT_OUTCOME" });
+    const resolving: RunState = { ...state, bankroll: 4.99, shiftPayout: 0 };
+    const snapshot = structuredClone(resolving);
+    const completed = dispatchCommand(resolving, { type: "PRESENTATION_COMPLETE" });
+
+    expect(completed.ok).toBe(true);
+    if (!completed.ok) throw new Error(completed.error.message);
+    expect(completed.state).toMatchObject({
+      phase: "READY_TO_SPIN",
+      bankroll: 44.99,
+      shiftPayout: 40,
+      attribution: { part: 40 },
+      pendingSpin: null
+    });
+    expect(completed.state.partSlots[1]).toBeNull();
+    expect(completed.events).toEqual([
+      { sequence: 1, type: "PART_TRIGGERED", partId: "safety-fuse", level: 2 },
+      { sequence: 2, type: "PAYOUT_ADDED", amount: 40, source: "part" }
+    ]);
+    expect(resolving).toEqual(snapshot);
+  });
+
   it("ends a resumed ready state below the minimum bet instead of returning an unactionable funds error", () => {
     const ready: RunState = { ...readyRun(38), bankroll: 4.99 };
     const result = dispatchCommand(ready, { type: "SPIN" });
@@ -142,14 +172,59 @@ describe("spin progression", () => {
     expect(result.events).toEqual([{ sequence: 1, type: "RUN_ENDED", outcome: "lost" }]);
   });
 
+  it("consumes the leftmost level-one fuse from a resumed ready state and cannot rescue twice", () => {
+    const ready: RunState = {
+      ...readyRun(138),
+      bankroll: 4.99,
+      partSlots: [
+        { id: "safety-fuse", level: 1 },
+        null,
+        { id: "safety-fuse", level: 2 },
+        null,
+        null
+      ]
+    };
+    const snapshot = structuredClone(ready);
+    const rescued = dispatchCommand(ready, { type: "SPIN" });
+
+    expect(rescued.ok).toBe(true);
+    if (!rescued.ok) throw new Error(rescued.error.message);
+    expect(rescued.state).toMatchObject({
+      phase: "READY_TO_SPIN",
+      bankroll: 24.99,
+      shiftPayout: 20,
+      attribution: { part: 20 }
+    });
+    expect(rescued.state.partSlots).toEqual([null, null, { id: "safety-fuse", level: 2 }, null, null]);
+    expect(rescued.events).toEqual([
+      { sequence: 1, type: "PART_TRIGGERED", partId: "safety-fuse", level: 1 },
+      { sequence: 2, type: "PAYOUT_ADDED", amount: 20, source: "part" }
+    ]);
+    expect(ready).toEqual(snapshot);
+
+    const alreadyConsumed: RunState = { ...rescued.state, bankroll: 4.99, partSlots: [null, null, null, null, null] };
+    const second = dispatchCommand(alreadyConsumed, { type: "SPIN" });
+    expect(second.ok).toBe(true);
+    if (!second.ok) throw new Error(second.error.message);
+    expect(second.state.phase).toBe("RUN_LOST");
+    expect(second.events).toEqual([{ sequence: 3, type: "RUN_ENDED", outcome: "lost" }]);
+  });
+
   it("does not lose below the minimum bet while another free spin is queued", () => {
     let state = readyRun(37);
     state = dispatch(state, { type: "SPIN" });
     state = dispatch(state, { type: "REELS_STOPPED" });
     state = dispatch(state, { type: "ACCEPT_OUTCOME" });
-    const resolving: RunState = { ...state, bankroll: 0, freeSpinQueue: 1 };
+    const resolving: RunState = {
+      ...state,
+      bankroll: 0,
+      freeSpinQueue: 1,
+      partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null]
+    };
     const completed = dispatch(resolving, { type: "PRESENTATION_COMPLETE" });
 
     expect(completed.phase).toBe("READY_TO_SPIN");
+    expect(completed.partSlots[0]).toEqual({ id: "safety-fuse", level: 1 });
+    expect(completed.bankroll).toBe(0);
   });
 });

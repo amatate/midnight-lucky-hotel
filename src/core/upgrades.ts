@@ -109,7 +109,8 @@ function acquireReelModification(state: RunState, id: UpgradeId, target: Upgrade
         ...state,
         reels: appendToReel(state.reels, target.reel, "seven"),
         bankroll: roundMoney(state.bankroll - 10),
-        omen: state.omen + 1
+        omen: state.omen + 1,
+        expenses: { ...state.expenses, chapel: roundMoney(state.expenses.chapel + 10) }
       };
     case "artificial-crack":
       if (!reelTarget(target)) return rejected(state, "INVALID_TARGET", "artificial-crack requires one reel");
@@ -236,13 +237,19 @@ export function applyUpgrade(state: RunState, choice: UpgradeChoice): DispatchRe
     return rejected(state, "INVALID_TARGET", "upgrade is not a current candidate");
   }
 
-  if (choice.action === "decline") {
-    return advanceShift(state, { ...state, tips: state.tips + 1 }, choice, false);
-  }
-
   const definition = UPGRADES[choice.id];
   if (!definition.requires(state)) {
     return rejected(state, "INVALID_TARGET", "upgrade prerequisites are not met");
+  }
+  if (
+    definition.kind === "part" &&
+    state.partSlots.some((part) => part?.id === choice.id && part.level === 2)
+  ) {
+    return rejected(state, "RESOURCE_EXHAUSTED", "part is already level two");
+  }
+
+  if (choice.action === "decline") {
+    return advanceShift(state, { ...state, tips: state.tips + 1 }, choice, false);
   }
 
   let acquired: DispatchResult | RunState;

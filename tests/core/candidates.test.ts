@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { UPGRADES } from "@/content/upgrades";
-import { generateCandidates, getDominantRoute } from "@/core/candidates";
+import { assignCandidateRoles, generateCandidates, getDominantRoute } from "@/core/candidates";
 import { createRun } from "@/core/run";
 import type { RunState, UpgradeId } from "@/core/types";
 
@@ -120,6 +120,25 @@ describe("generateCandidates", () => {
     expect(getDominantRoute(noChapelSynergy)).toBe("chapel");
     expect(UPGRADES[fallback].candidateRoles).toContain("synergy");
     expect(UPGRADES[fallback].route).not.toBe("chapel");
+  });
+
+  it("backtracks when the seeded synergy preference would consume the only wildcard assignment", () => {
+    const state = candidateState({
+      rng: { value: 1 },
+      acquiredUpgrades: ["artificial-crack"],
+      partSlots: [{ id: "jam-jar", level: 1 }, { id: "fruit-salad", level: 1 }, null, null, null]
+    });
+    const result = assignCandidateRoles(state, ["lemon-crate", "artificial-crack", "safety-fuse"]);
+
+    expect(result.candidates).toEqual({
+      synergy: "lemon-crate",
+      pivot: "safety-fuse",
+      wildcard: "artificial-crack"
+    });
+    expect(UPGRADES[result.candidates.synergy].candidateRoles).toContain("synergy");
+    expect(UPGRADES[result.candidates.pivot].candidateRoles).toContain("pivot");
+    expect(UPGRADES[result.candidates.wildcard].candidateRoles).toContain("wildcard");
+    expect(result.rng.value).toBe((1 + 3 * 0x6d2b79f5) >>> 0);
   });
 
   it("never offers a level-two part or a prerequisite-gated upgrade", () => {

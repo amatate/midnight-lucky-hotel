@@ -185,6 +185,7 @@ describe("applyUpgrade", () => {
       applyUpgrade(titheState, { id: "tithe-box", action: "apply", target: { kind: "reel", reel: 2 } })
     );
     expect(tithe).toMatchObject({ bankroll: 15, omen: 1 });
+    expect(tithe.expenses.chapel).toBe(10);
     expect(tithe.reels[2].at(-1)).toBe("seven");
 
     const crackState = choosing("artificial-crack");
@@ -306,6 +307,26 @@ describe("applyUpgrade", () => {
     ).toBe(3);
   });
 
+  it("revalidates stale declined candidates before granting a tip or advancing", () => {
+    const cases: readonly RunState[] = [
+      choosing("tithe-box", { bankroll: 9.99 }),
+      choosing("jam-jar", { partSlots: [{ id: "jam-jar", level: 2 }, null, null, null, null] }),
+      choosing("leftovers", { service: "repair" })
+    ];
+
+    for (const state of cases) {
+      const snapshot = structuredClone(state);
+      const result = applyUpgrade(state, {
+        id: state.currentCandidates!.synergy,
+        action: "decline"
+      });
+      expect(result.ok).toBe(false);
+      expect(result.state).toBe(state);
+      expect(result.state.tips).toBe(state.tips);
+      expect(result.state).toEqual(snapshot);
+    }
+  });
+
   it("enforces pruning and carbon-copy neutral safety rules", () => {
     const sixSymbols: ReelSet = [createRun(1).reels[0].slice(0, 6), createRun(1).reels[1], createRun(1).reels[2]];
     const tooShort = choosing("pruning-shears", { reels: sixSymbols });
@@ -419,6 +440,8 @@ describe("consumeSafetyFuse", () => {
     const first = consumeSafetyFuse(levelOne);
     expect(first).toMatchObject({ consumed: true, payout: 20 });
     expect(first.state.bankroll).toBe(24.99);
+    expect(first.state.shiftPayout).toBe(20);
+    expect(first.state.attribution.part).toBe(20);
     expect(first.state.partSlots[0]).toBeNull();
     expect(levelOne).toEqual(snapshot);
     expect(consumeSafetyFuse(first.state)).toEqual({ consumed: false, payout: 0, state: first.state });

@@ -68,61 +68,77 @@ function carriesRole(id: UpgradeId, role: CandidateRole): boolean {
   return (UPGRADES[id].candidateRoles as readonly CandidateRole[]).includes(role);
 }
 
-function rolePool(
+function preferredRolePool(
   eligible: readonly UpgradeId[],
-  excluded: ReadonlySet<UpgradeId>,
   role: CandidateRole,
   preferred: (id: UpgradeId) => boolean
-): readonly UpgradeId[] {
-  const available = eligible.filter((id) => !excluded.has(id) && carriesRole(id, role));
+): { readonly preferred: readonly UpgradeId[]; readonly fallback: readonly UpgradeId[] } {
+  const available = eligible.filter((id) => carriesRole(id, role));
   const preferredPool = available.filter(preferred);
-  return preferredPool.length > 0 ? preferredPool : available;
+  return {
+    preferred: preferredPool,
+    fallback: available.filter((id) => !preferredPool.includes(id))
+  };
 }
 
-function chooseFromRole(
+function rotate<T>(values: readonly T[], offset: number): readonly T[] {
+  if (values.length < 2) return [...values];
+  const start = offset % values.length;
+  return [...values.slice(start), ...values.slice(0, start)];
+}
+
+function seededRoleOrder(
   state: RunState,
   eligible: readonly UpgradeId[],
-  excluded: ReadonlySet<UpgradeId>,
   role: CandidateRole,
   preferred: (id: UpgradeId) => boolean
-): { readonly id: UpgradeId; readonly rng: RunState["rng"] } {
-  const pool = rolePool(eligible, excluded, role, preferred);
-  if (pool.length === 0) throw new Error(`no legal ${role} upgrade is available`);
-  const selected = nextInt(state.rng, pool.length);
-  return { id: pool[selected.value]!, rng: selected.rng };
+): { readonly ids: readonly UpgradeId[]; readonly rng: RunState["rng"] } {
+  const pool = preferredRolePool(eligible, role, preferred);
+  const randomPool = pool.preferred.length > 0 ? pool.preferred : pool.fallback;
+  if (randomPool.length === 0) throw new Error(`no legal ${role} upgrade is available`);
+  const selected = nextInt(state.rng, randomPool.length);
+  const preferredOrder = pool.preferred.length > 0 ? rotate(pool.preferred, selected.value) : [];
+  const fallbackOrder = rotate(pool.fallback, selected.value);
+  return { ids: [...preferredOrder, ...fallbackOrder], rng: selected.rng };
+}
+
+/** Finds a unique role assignment, backtracking over seeded preference orders when necessary. */
+export function assignCandidateRoles(state: RunState, eligible: readonly UpgradeId[]): CandidateResult {
+  const dominantRoute = getDominantRoute(state);
+  const tags = acquiredTags(state);
+  const synergy = seededRoleOrder(
+    state,
+    eligible,
+    "synergy",
+    (id) => UPGRADES[id].route === dominantRoute || UPGRADES[id].tags.some((tag) => tags.has(tag))
+  );
+  const pivotState = { ...state, rng: synergy.rng };
+  const pivot = seededRoleOrder(
+    pivotState,
+    eligible,
+    "pivot",
+    (id) => UPGRADES[id].route !== dominantRoute
+  );
+  const wildcardState = { ...state, rng: pivot.rng };
+  const wildcard = seededRoleOrder(wildcardState, eligible, "wildcard", () => true);
+
+  for (const synergyId of synergy.ids) {
+    for (const pivotId of pivot.ids) {
+      if (pivotId === synergyId) continue;
+      const wildcardId = wildcard.ids.find((id) => id !== synergyId && id !== pivotId);
+      if (wildcardId !== undefined) {
+        return {
+          candidates: { synergy: synergyId, pivot: pivotId, wildcard: wildcardId },
+          rng: wildcard.rng
+        };
+      }
+    }
+  }
+
+  throw new Error("no legal unique synergy/pivot/wildcard upgrade assignment exists");
 }
 
 /** Generates role-ordered construction choices without mutating the run. */
 export function generateCandidates(state: RunState): CandidateResult {
-  const dominantRoute = getDominantRoute(state);
-  const legal = eligibleIds(state);
-  const tags = acquiredTags(state);
-  const chosen = new Set<UpgradeId>();
-
-  const synergy = chooseFromRole(
-    state,
-    legal,
-    chosen,
-    "synergy",
-    (id) => UPGRADES[id].route === dominantRoute || UPGRADES[id].tags.some((tag) => tags.has(tag))
-  );
-  chosen.add(synergy.id);
-
-  const pivotState = { ...state, rng: synergy.rng };
-  const pivot = chooseFromRole(
-    pivotState,
-    legal,
-    chosen,
-    "pivot",
-    (id) => UPGRADES[id].route !== dominantRoute
-  );
-  chosen.add(pivot.id);
-
-  const wildcardState = { ...state, rng: pivot.rng };
-  const wildcard = chooseFromRole(wildcardState, legal, chosen, "wildcard", () => true);
-
-  return {
-    candidates: { synergy: synergy.id, pivot: pivot.id, wildcard: wildcard.id },
-    rng: wildcard.rng
-  };
+  return assignCandidateRoles(state, eligibleIds(state));
 }
