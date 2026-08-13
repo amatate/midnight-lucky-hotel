@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createRun, dispatchCommand } from "@/core/run";
-import type { RunState } from "@/core/types";
+import type { ReelDraw, RunState } from "@/core/types";
 import { clearRun, loadRun, RUN_STORAGE_KEY, saveRun } from "@/persistence/storage";
 
 function accept(state: RunState, command: Parameters<typeof dispatchCommand>[1]): RunState {
@@ -9,10 +9,14 @@ function accept(state: RunState, command: Parameters<typeof dispatchCommand>[1])
   return result.state;
 }
 
-function resolvingState(seed = 101): RunState {
+function spinningState(seed = 101): RunState {
   let state = createRun(seed);
   state = accept(state, { type: "SELECT_SERVICE", serviceId: state.serviceCandidates[0] });
-  state = accept(state, { type: "SPIN" });
+  return accept(state, { type: "SPIN" });
+}
+
+function resolvingState(seed = 101): RunState {
+  let state = spinningState(seed);
   state = accept(state, { type: "REELS_STOPPED" });
   return accept(state, { type: "ACCEPT_OUTCOME" });
 }
@@ -28,6 +32,42 @@ function upgradeBoundaryState(seed = 102): RunState {
   }
   if (state.phase !== "CHOOSING_UPGRADE") throw new Error("upgrade boundary fixture failed");
   return state;
+}
+
+function afterHoursBoundaryState(seed = 103): RunState {
+  let state = spinningState(seed);
+  state = accept(state, { type: "REELS_STOPPED" });
+  state = accept(state, { type: "ACCEPT_OUTCOME" });
+  state = accept({ ...state, shift: 5, baseSpinsInShift: 2, bankroll: 200 }, { type: "PRESENTATION_COMPLETE" });
+  state = accept(state, { type: "CONTINUE" });
+  for (let spin = 0; spin < 3; spin += 1) {
+    state = accept(state, { type: "SPIN" });
+    state = accept(state, { type: "REELS_STOPPED" });
+    state = accept(state, { type: "ACCEPT_OUTCOME" });
+    state = accept(state, { type: "PRESENTATION_COMPLETE" });
+  }
+  if (state.phase !== "AFTER_HOURS" || state.currentCandidates === null) {
+    throw new Error("after-hours boundary fixture failed");
+  }
+  return state;
+}
+
+function drawWithDuplicateAssociation(draw: ReelDraw): ReelDraw {
+  if (draw.entryIds === undefined || draw.visibleSourceIds === undefined) throw new Error("draw identity missing");
+  for (let reel = 0; reel < 3; reel += 1) {
+    for (let row = 0; row < 3; row += 1) {
+      const symbol = draw.grid[reel]![row]!;
+      const currentId = draw.visibleSourceIds[reel]![row]!;
+      const alternateIndex = draw.strips[reel]!.findIndex((candidate, index) =>
+        candidate === symbol && draw.entryIds![reel]![index] !== currentId
+      );
+      if (alternateIndex < 0) continue;
+      const visibleSourceIds = draw.visibleSourceIds.map((ids) => [...ids]) as [number[], number[], number[]];
+      visibleSourceIds[reel]![row] = draw.entryIds[reel]![alternateIndex]!;
+      return { ...draw, visibleSourceIds: visibleSourceIds as unknown as NonNullable<ReelDraw["visibleSourceIds"]> };
+    }
+  }
+  throw new Error("fixture has no duplicate visible symbol");
 }
 
 function expectInvalid(value: unknown): void {
@@ -93,16 +133,67 @@ describe("run storage", () => {
     }
   });
 
-  it("accepts a real ended state that retains boundary candidates after cash out", () => {
+  it("round-trips valid persisted draws exactly without normalizing or mutating them", () => {
+    const state = resolvingState(107);
+    const before = structuredClone(state);
+    saveRun(state);
+    const serialized = localStorage.getItem(RUN_STORAGE_KEY);
+
+    const loaded = loadRun();
+    expect(loaded).toEqual({ ok: true, state: before });
+    expect(state).toEqual(before);
+    expect(localStorage.getItem(RUN_STORAGE_KEY)).toBe(serialized);
+  });
+
+  it("rejects semantically inconsistent pending-spin draws", () => {
+    const state = spinningState(108);
+    const draw = state.pendingSpin!.draw;
+    const replacement = draw.grid[0][0] === "cherry" ? "lemon" : "cherry";
+    const badGrid = draw.grid.map((window, reel) => reel === 0
+      ? [replacement, window[1], window[2]]
+      : [...window]);
+    const { entryIds: _entryIds, ...missingIdentity } = draw;
+    const { visibleSourceIds: _visibleSourceIds, ...missingVisibleIdentity } = draw;
+
+    expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: { ...draw, grid: badGrid } } });
+    expectInvalid({
+      ...state,
+      pendingSpin: { ...state.pendingSpin!, draw: { ...draw, stops: [draw.stops[0] + draw.strips[0].length, ...draw.stops.slice(1)] } }
+    });
+    expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: missingIdentity } });
+    expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: missingVisibleIdentity } });
+    expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: drawWithDuplicateAssociation(draw) } });
+  });
+
+  it("rejects semantically inconsistent REELS_DRAWN history without repairing it", () => {
+    const state = spinningState(109);
+    const pendingEvents = state.pendingEvents.map((event) => event.type === "REELS_DRAWN"
+      ? { ...event, draw: drawWithDuplicateAssociation(event.draw) }
+      : event);
+    expectInvalid({ ...state, pendingEvents });
+  });
+
+  it("round-trips real ended and after-hours states with controller-reachable phase fields", () => {
     const boundary = { ...upgradeBoundaryState(), exitUnlocked: true };
     const won = accept(boundary, { type: "CASH_OUT" });
     expect(won.phase).toBe("RUN_WON");
-    expect(won.currentCandidates).not.toBeNull();
+    expect(won.currentCandidates).toBeNull();
 
     saveRun(won);
     const loaded = loadRun();
-    expect(loaded.ok).toBe(true);
-    if (loaded.ok) expect(loaded.state).toEqual(won);
+    expect(loaded).toEqual({ ok: true, state: won });
+
+    const offer = afterHoursBoundaryState();
+    saveRun(offer);
+    expect(loadRun()).toEqual({ ok: true, state: offer });
+    const rerollableOffer = afterHoursBoundaryState(118);
+    expect(rerollableOffer.tips).toBeGreaterThanOrEqual(1);
+    const rerolled = accept(rerollableOffer, { type: "REROLL_CANDIDATES" });
+    saveRun(rerolled);
+    expect(loadRun()).toEqual({ ok: true, state: rerolled });
+    const decided = accept(offer, { type: "DECLINE_UPGRADE" });
+    saveRun(decided);
+    expect(loadRun()).toEqual({ ok: true, state: decided });
   });
 
   it.each([
@@ -122,6 +213,15 @@ describe("run storage", () => {
     ["upgrade phase without candidates", () => ({
       ...createRun(8), phase: "CHOOSING_UPGRADE", service: "repair", currentCandidates: null
     })],
+    ["shift complete with candidates", () => ({
+      ...afterHoursBoundaryState(110), phase: "SHIFT_COMPLETE", afterHoursLevel: 0
+    })],
+    ["run won with candidates", () => ({ ...afterHoursBoundaryState(111), phase: "RUN_WON" })],
+    ["after hours before level one", () => ({ ...afterHoursBoundaryState(112), afterHoursLevel: 0 })],
+    ["after hours outside shift five", () => ({ ...afterHoursBoundaryState(113), shift: 4 })],
+    ["after hours before its three-spin boundary", () => ({ ...afterHoursBoundaryState(114), baseSpinsInShift: 2 })],
+    ["after hours without unlocked exit", () => ({ ...afterHoursBoundaryState(115), exitUnlocked: false })],
+    ["after hours with a queued free spin", () => ({ ...afterHoursBoundaryState(116), freeSpinQueue: 1 })],
     ["ready phase with pending spin", () => ({
       ...resolvingState(8), phase: "READY_TO_SPIN"
     })],

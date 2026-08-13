@@ -402,7 +402,7 @@ function cashOut(state: RunState, command: Extract<GameCommand, { type: "CASH_OU
   if (!boundary) return invalidPhase(state, command);
   if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
   const events = sequenceEvents(state, [{ type: "RUN_ENDED", outcome: "won" }]);
-  return accepted(state, command, events, { phase: "RUN_WON" });
+  return accepted(state, command, events, { phase: "RUN_WON", currentCandidates: null });
 }
 
 function resetForAfterHoursBlock(state: RunState, level: number): RunState {

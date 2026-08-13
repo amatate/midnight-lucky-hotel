@@ -1,7 +1,6 @@
 import { UPGRADE_IDS } from "@/content/upgrades";
 import type { GameCommand } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
-import { normalizeDrawIdentity } from "@/core/reels";
 import type { PartId, ReelDraw, ReelSet, RunPhase, RunState, SymbolId, UpgradeChoice } from "@/core/types";
 
 export const RUN_STORAGE_KEY = "midnight-lucky-hotel.run.v1";
@@ -108,8 +107,8 @@ function isGrid(value: unknown): boolean {
   );
 }
 
-function isStops(value: unknown): boolean {
-  return isDenseArray(value, 3, 3) && value.every((stop) => isSafeInteger(stop));
+function isStops(value: unknown, strips: ReelSet): boolean {
+  return isDenseArray(value, 3, 3) && value.every((stop, reel) => isSafeInteger(stop, 0, strips[reel]!.length - 1));
 }
 
 function isEntryIds(value: unknown, strips: ReelSet): boolean {
@@ -126,13 +125,25 @@ function isVisibleSourceIds(value: unknown): boolean {
 }
 
 function isReelDraw(value: unknown): value is ReelDraw {
-  if (!hasShape(value, ["strips", "stops", "grid", "rng"], ["entryIds", "visibleSourceIds", "preInterventionPaying"])) {
+  if (!hasShape(value, ["strips", "stops", "grid", "rng", "entryIds", "visibleSourceIds"], ["preInterventionPaying"])) {
     return false;
   }
-  if (!isReels(value.strips) || !isStops(value.stops) || !isGrid(value.grid) || !isRng(value.rng)) return false;
-  if (Object.hasOwn(value, "entryIds") && !isEntryIds(value.entryIds, value.strips)) return false;
-  if (Object.hasOwn(value, "visibleSourceIds") && !isVisibleSourceIds(value.visibleSourceIds)) return false;
-  return !Object.hasOwn(value, "preInterventionPaying") || isBoolean(value.preInterventionPaying);
+  if (!isReels(value.strips) || !isStops(value.stops, value.strips) || !isGrid(value.grid) || !isRng(value.rng) ||
+      !isEntryIds(value.entryIds, value.strips) || !isVisibleSourceIds(value.visibleSourceIds) ||
+      (Object.hasOwn(value, "preInterventionPaying") && !isBoolean(value.preInterventionPaying))) return false;
+  const draw = value as unknown as ReelDraw & {
+    readonly entryIds: NonNullable<ReelDraw["entryIds"]>;
+    readonly visibleSourceIds: NonNullable<ReelDraw["visibleSourceIds"]>;
+  };
+  for (const reel of [0, 1, 2] as const) {
+    const strip = draw.strips[reel];
+    for (const row of [0, 1, 2] as const) {
+      const sourceIndex = (draw.stops[reel] + row) % strip.length;
+      if (draw.visibleSourceIds[reel][row] !== draw.entryIds[reel][sourceIndex] ||
+          draw.grid[reel][row] !== strip[sourceIndex]) return false;
+    }
+  }
+  return true;
 }
 
 function isPart(value: unknown): boolean {
@@ -299,15 +310,16 @@ function phaseIsCoherent(value: PlainRecord): boolean {
     case "CHOOSING_UPGRADE": return hasService && !hasSpin && hasCandidates;
     case "SHIFT_COMPLETE":
     case "RUN_WON":
-      return hasService && !hasSpin;
     case "RUN_LOST":
       return hasService && !hasSpin && !hasCandidates;
-    case "AFTER_HOURS": return hasService && !hasSpin;
+    case "AFTER_HOURS":
+      return hasService && !hasSpin && value.shift === 5 && isSafeInteger(value.afterHoursLevel, 1) &&
+        value.baseSpinsInShift === 3 && value.freeSpinQueue === 0 && value.exitUnlocked === true;
     default: return false;
   }
 }
 
-function normalizeSnapshot(value: unknown): RunState | null {
+function validateSnapshot(value: unknown): RunState | null {
   if (!hasShape(value, ROOT_KEYS) || value.schemaVersion !== 1 || !isEnum(value.phase, PHASES)) return null;
   if (!isSafeInteger(value.initialSeed) || !isRng(value.rng) || !isFiniteSafe(value.bankroll) || value.checkoutTarget !== 200 ||
       !isSafeInteger(value.shift, 1) || !isSafeInteger(value.baseSpinsInShift, 0, 3) || !isFiniteSafe(value.shiftWager) ||
@@ -336,15 +348,7 @@ function normalizeSnapshot(value: unknown): RunState | null {
       !isDenseArray(value.shiftHistory, MAX_HISTORY) || !value.shiftHistory.every(isShiftSnapshot) ||
       !isDenseArray(value.commandHistory, MAX_COMMANDS) || !value.commandHistory.every(isGameCommand) || !phaseIsCoherent(value)) return null;
 
-  const snapshot = value as unknown as RunState;
-  const pendingSpin = snapshot.pendingSpin === null ? null : {
-    ...snapshot.pendingSpin,
-    draw: normalizeDrawIdentity(snapshot.pendingSpin.draw)
-  };
-  const pendingEvents = snapshot.pendingEvents.map((event) => event.type === "REELS_DRAWN"
-    ? { ...event, draw: normalizeDrawIdentity(event.draw) }
-    : event);
-  return { ...snapshot, pendingSpin, pendingEvents };
+  return value as unknown as RunState;
 }
 
 export function saveRun(state: RunState): void {
@@ -365,7 +369,7 @@ export function loadRun(): LoadRunResult {
   if (serialized === null) return { ok: false, reason: "MISSING" };
   if (serialized.length > MAX_SNAPSHOT_BYTES) return { ok: false, reason: "INVALID_SNAPSHOT" };
   try {
-    const state = normalizeSnapshot(JSON.parse(serialized));
+    const state = validateSnapshot(JSON.parse(serialized));
     return state === null ? { ok: false, reason: "INVALID_SNAPSHOT" } : { ok: true, state };
   } catch {
     return { ok: false, reason: "INVALID_SNAPSHOT" };
