@@ -52,22 +52,22 @@ function afterHoursBoundaryState(seed = 103): RunState {
   return state;
 }
 
-function drawWithDuplicateAssociation(draw: ReelDraw): ReelDraw {
+function drawWithInvalidVisibleSource(draw: ReelDraw, kind: "unknown" | "wrong-symbol"): ReelDraw {
   if (draw.entryIds === undefined || draw.visibleSourceIds === undefined) throw new Error("draw identity missing");
   for (let reel = 0; reel < 3; reel += 1) {
     for (let row = 0; row < 3; row += 1) {
-      const symbol = draw.grid[reel]![row]!;
-      const currentId = draw.visibleSourceIds[reel]![row]!;
-      const alternateIndex = draw.strips[reel]!.findIndex((candidate, index) =>
-        candidate === symbol && draw.entryIds![reel]![index] !== currentId
-      );
-      if (alternateIndex < 0) continue;
+      const sourceIndex = kind === "unknown"
+        ? -1
+        : draw.strips[reel]!.findIndex((symbol) => symbol !== draw.grid[reel]![row]);
+      if (kind === "wrong-symbol" && sourceIndex < 0) continue;
       const visibleSourceIds = draw.visibleSourceIds.map((ids) => [...ids]) as [number[], number[], number[]];
-      visibleSourceIds[reel]![row] = draw.entryIds[reel]![alternateIndex]!;
+      visibleSourceIds[reel]![row] = sourceIndex < 0
+        ? Math.max(...draw.entryIds.flat()) + 1
+        : draw.entryIds[reel]![sourceIndex]!;
       return { ...draw, visibleSourceIds: visibleSourceIds as unknown as NonNullable<ReelDraw["visibleSourceIds"]> };
     }
   }
-  throw new Error("fixture has no duplicate visible symbol");
+  throw new Error("fixture has no alternate visible symbol");
 }
 
 function expectInvalid(value: unknown): void {
@@ -145,6 +145,57 @@ describe("run storage", () => {
     expect(localStorage.getItem(RUN_STORAGE_KEY)).toBe(serialized);
   });
 
+  it("round-trips real security-kick draws at every persistable spin phase", () => {
+    let state = createRun(11);
+    expect(state.serviceCandidates).toContain("security");
+    state = accept(state, { type: "SELECT_SERVICE", serviceId: "security" });
+    state = accept(state, { type: "SPIN" });
+    state = accept(state, { type: "REELS_STOPPED" });
+    const kicked = accept(state, { type: "KICK_REEL", reelIndex: 0 });
+    const kickedDraw = kicked.pendingSpin!.draw;
+
+    expect(kickedDraw.stops[0]).toBe(11);
+    expect(kickedDraw.strips[0]).toHaveLength(13);
+    expect(kickedDraw.visibleSourceIds![0]).toEqual([11, 0, 1]);
+    expect(kickedDraw.grid[0]).toEqual(["wild", "cherry", "lemon"]);
+
+    const awaiting = accept(kicked, { type: "REELS_STOPPED" });
+    const resolving = accept(awaiting, { type: "ACCEPT_OUTCOME" });
+    for (const persistable of [kicked, awaiting, resolving]) {
+      const before = structuredClone(persistable);
+      saveRun(persistable);
+      expect(loadRun()).toEqual({ ok: true, state: before });
+      expect(persistable).toEqual(before);
+    }
+  });
+
+  it("round-trips security-kick draws across multiple seeds and reels", () => {
+    let nonConsecutiveWindows = 0;
+    let kickedStates = 0;
+    for (let seed = 1; seed <= 24; seed += 1) {
+      const initial = createRun(seed);
+      if (!initial.serviceCandidates.includes("security")) continue;
+      let awaiting = accept(initial, { type: "SELECT_SERVICE", serviceId: "security" });
+      awaiting = accept(awaiting, { type: "SPIN" });
+      awaiting = accept(awaiting, { type: "REELS_STOPPED" });
+      for (const reelIndex of [0, 1, 2] as const) {
+        const kicked = accept(awaiting, { type: "KICK_REEL", reelIndex });
+        const draw = kicked.pendingSpin!.draw;
+        const canonicalIds = [0, 1, 2].map((row) =>
+          draw.entryIds![reelIndex]![(draw.stops[reelIndex] + row) % draw.strips[reelIndex].length]
+        );
+        if (draw.visibleSourceIds![reelIndex]!.some((id, row) => id !== canonicalIds[row])) {
+          nonConsecutiveWindows += 1;
+        }
+        saveRun(kicked);
+        expect(loadRun()).toEqual({ ok: true, state: kicked });
+        kickedStates += 1;
+      }
+    }
+    expect(kickedStates).toBeGreaterThanOrEqual(9);
+    expect(nonConsecutiveWindows).toBeGreaterThan(0);
+  });
+
   it("rejects semantically inconsistent pending-spin draws", () => {
     const state = spinningState(108);
     const draw = state.pendingSpin!.draw;
@@ -162,13 +213,14 @@ describe("run storage", () => {
     });
     expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: missingIdentity } });
     expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: missingVisibleIdentity } });
-    expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: drawWithDuplicateAssociation(draw) } });
+    expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: drawWithInvalidVisibleSource(draw, "unknown") } });
+    expectInvalid({ ...state, pendingSpin: { ...state.pendingSpin!, draw: drawWithInvalidVisibleSource(draw, "wrong-symbol") } });
   });
 
   it("rejects semantically inconsistent REELS_DRAWN history without repairing it", () => {
     const state = spinningState(109);
     const pendingEvents = state.pendingEvents.map((event) => event.type === "REELS_DRAWN"
-      ? { ...event, draw: drawWithDuplicateAssociation(event.draw) }
+      ? { ...event, draw: drawWithInvalidVisibleSource(event.draw, "wrong-symbol") }
       : event);
     expectInvalid({ ...state, pendingEvents });
   });

@@ -138,9 +138,8 @@ function isReelDraw(value: unknown): value is ReelDraw {
   for (const reel of [0, 1, 2] as const) {
     const strip = draw.strips[reel];
     for (const row of [0, 1, 2] as const) {
-      const sourceIndex = (draw.stops[reel] + row) % strip.length;
-      if (draw.visibleSourceIds[reel][row] !== draw.entryIds[reel][sourceIndex] ||
-          draw.grid[reel][row] !== strip[sourceIndex]) return false;
+      const sourceIndex = draw.entryIds[reel].indexOf(draw.visibleSourceIds[reel][row]);
+      if (sourceIndex < 0 || draw.grid[reel][row] !== strip[sourceIndex]) return false;
     }
   }
   return true;
