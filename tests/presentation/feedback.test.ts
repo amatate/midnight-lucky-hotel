@@ -26,9 +26,9 @@ describe("coinBurstPaths", () => {
     const random = vi.spyOn(Math, "random");
 
     expect(coinBurstPaths(3)).toEqual([
-      { index: 0, x: -50, y: -70, rotation: -180, delayMs: 0 },
-      { index: 1, x: -13, y: -99, rotation: -97, delayMs: 18 },
-      { index: 2, x: 24, y: -128, rotation: -14, delayMs: 36 }
+      { index: 0, startDx: -9, startDy: -5, apexDx: -12, apexLift: 44, endDx: -6, endDy: -4, rotation: -180, delayMs: 0 },
+      { index: 1, startDx: 2, startDy: 2, apexDx: 5, apexLift: 57, endDx: -1, endDy: -1, rotation: -97, delayMs: 18 },
+      { index: 2, startDx: -6, startDy: -2, apexDx: -3, apexLift: 70, endDx: 4, endDy: 2, rotation: -14, delayMs: 36 }
     ]);
     expect(coinBurstPaths(-4)).toHaveLength(0);
     expect(coinBurstPaths(80)).toHaveLength(48);

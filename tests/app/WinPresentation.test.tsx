@@ -1,6 +1,8 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { useRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoinBurst } from "@/app/components/CoinBurst";
+import { Hud } from "@/app/components/Hud";
 import { WinPresentation } from "@/app/components/WinPresentation";
 import { PartsBar } from "@/app/components/PartsBar";
 import { createRun } from "@/core/run";
@@ -8,6 +10,7 @@ import type { GameEvent } from "@/core/events";
 import type { Grid, RunState } from "@/core/types";
 import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
 import type { PresentationSummary } from "@/presentation/summary";
+import appStyles from "@/app/styles.css?inline";
 
 const GRID: Grid = [
   ["cherry", "blank", "blank"],
@@ -72,21 +75,153 @@ function presentation(
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  document.querySelectorAll("[data-task6-test-style]").forEach((style) => style.remove());
+});
 
 describe("CoinBurst", () => {
-  it("renders only the capped deterministic particle count and hides the whole effect from assistive technology", () => {
-    const { container } = render(<CoinBurst count={80} />);
+  it("measures a cabinet-level path from the real win area to the HUD balance and keeps every point inside mobile width", async () => {
+    const rect = (x: number, y: number, width: number, height: number): DOMRect => ({
+      x,
+      y,
+      width,
+      height,
+      top: y,
+      right: x + width,
+      bottom: y + height,
+      left: x,
+      toJSON: () => ({})
+    });
+    const rectSpy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("data-anchor") === "cabinet") return rect(100, 50, 320, 700);
+      if (this.getAttribute("data-anchor") === "win-area") return rect(130, 330, 260, 180);
+      if (this.getAttribute("data-anchor") === "balance") return rect(118, 90, 100, 30);
+      return rect(0, 0, 0, 0);
+    });
+    const CoinGeometryHarness = () => {
+      const cabinetRef = useRef<HTMLDivElement>(null);
+      const winAreaRef = useRef<HTMLDivElement>(null);
+      const balanceRef = useRef<HTMLDivElement>(null);
+      return (
+        <div data-anchor="cabinet" data-coin-cabinet="true" ref={cabinetRef}>
+          <div data-anchor="balance" ref={balanceRef} />
+          <div data-anchor="win-area" ref={winAreaRef} />
+          <CoinBurst
+            count={80}
+            containerRef={cabinetRef}
+            sourceRef={winAreaRef}
+            destinationRef={balanceRef}
+          />
+        </div>
+      );
+    };
+    const style = document.createElement("style");
+    style.dataset.task6TestStyle = "true";
+    style.textContent = appStyles;
+    document.head.append(style);
+    const { container } = render(<CoinGeometryHarness />);
 
     const burst = screen.getByTestId("coin-burst");
+    await waitFor(() => expect(rectSpy).toHaveBeenCalled());
     expect(burst).toHaveAttribute("aria-hidden", "true");
+    expect(burst).toHaveAttribute("data-overlay-scope", "cabinet");
+    expect(burst).toHaveAttribute("data-source-x", "160");
+    expect(burst).toHaveAttribute("data-source-y", "370");
+    expect(burst).toHaveAttribute("data-target-x", "68");
+    expect(burst).toHaveAttribute("data-target-y", "55");
     expect(container.querySelectorAll(".coin-particle")).toHaveLength(48);
     expect(container.querySelector(".coin-particle")).toHaveStyle({
-      "--coin-x": "-50px",
-      "--coin-y": "-70px",
+      "--coin-start-x": "151px",
+      "--coin-start-y": "365px",
+      "--coin-apex-x": "102px",
+      "--coin-apex-y": "11px",
+      "--coin-end-x": "62px",
+      "--coin-end-y": "51px",
+      "--coin-mid-rotation": "-81deg",
       "--coin-rotation": "-180deg",
       "--coin-delay": "0ms"
     });
+    for (const particle of container.querySelectorAll<HTMLElement>(".coin-particle")) {
+      for (const property of ["--coin-start-x", "--coin-apex-x", "--coin-end-x"]) {
+        const value = Number.parseFloat(particle.style.getPropertyValue(property));
+        expect(value).toBeGreaterThanOrEqual(7);
+        expect(value).toBeLessThanOrEqual(313);
+      }
+    }
+    expect(getComputedStyle(burst).position).toBe("absolute");
+    expect(getComputedStyle(burst).inset).toBe("0px");
+    expect(getComputedStyle(burst).overflow).toBe("visible");
+  });
+});
+
+describe("food buff tickets", () => {
+  it("reveals each new three-spin +25% layer only when its causal food event is presented", () => {
+    const firstFood = { sequence: 2, type: "FOOD_CONSUMED", reel: 0 } as const;
+    const secondFood = { sequence: 5, type: "FOOD_CONSUMED", reel: 2 } as const;
+    const resolving = state([secondFood, firstFood], {
+      buffs: [
+        { id: "food", spinsRemaining: 2, additivePayout: 0.25 },
+        { id: "food", spinsRemaining: 3, additivePayout: 0.25 },
+        { id: "food", spinsRemaining: 3, additivePayout: 0.25 }
+      ]
+    });
+    const { rerender } = render(
+      <Hud state={resolving} estimate={null} estimateStatus="idle" presentedThroughSequence={1} />
+    );
+
+    let status = screen.getByRole("region", { name: "食物加成" });
+    expect(within(status).getByText("食物加成 1 层")).toBeVisible();
+    expect(within(status).getByLabelText("第 1 层 +25%，剩余 2/3 次转动")).toBeVisible();
+    expect(within(status).getAllByTestId("food-ticket").map((ticket) => ticket.getAttribute("data-active"))).toEqual([
+      "true", "true", null
+    ]);
+
+    rerender(<Hud state={resolving} estimate={null} estimateStatus="idle" presentedThroughSequence={2} />);
+    status = screen.getByRole("region", { name: "食物加成" });
+    expect(within(status).getByText("食物加成 2 层")).toBeVisible();
+    expect(within(status).getByLabelText("第 2 层 +25%，剩余 3/3 次转动")).toBeVisible();
+
+    rerender(<Hud state={resolving} estimate={null} estimateStatus="idle" presentedThroughSequence={4} />);
+    expect(within(screen.getByRole("region", { name: "食物加成" })).getAllByTestId("food-buff-stack")).toHaveLength(2);
+
+    rerender(<Hud state={resolving} estimate={null} estimateStatus="idle" presentedThroughSequence={5} />);
+    status = screen.getByRole("region", { name: "食物加成" });
+    expect(within(status).getByText("食物加成 3 层")).toBeVisible();
+    expect(within(status).getAllByTestId("food-buff-stack")).toHaveLength(3);
+    expect(within(status).getByLabelText("第 1 层 +25%，剩余 2/3 次转动")).toBeVisible();
+    expect(within(status).getByLabelText("第 2 层 +25%，剩余 3/3 次转动")).toBeVisible();
+    expect(within(status).getByLabelText("第 3 层 +25%，剩余 3/3 次转动")).toBeVisible();
+    expect(within(status).getAllByTestId("food-ticket").filter((ticket) => (
+      ticket.getAttribute("data-active") === "true"
+    ))).toHaveLength(8);
+  });
+
+  it("tears one of the three visible cells after each later spin and removes the layer at 3→2→1→0", () => {
+    const ready = { ...createRun(606), phase: "READY_TO_SPIN", service: "kitchen" } as const;
+    const withRemaining = (spinsRemaining: number): RunState => ({
+      ...ready,
+      buffs: spinsRemaining === 0 ? [] : [{ id: "food", spinsRemaining, additivePayout: 0.25 }]
+    });
+    const { rerender } = render(<Hud state={withRemaining(3)} estimate={null} estimateStatus="idle" />);
+
+    const activeCells = () => within(screen.getByRole("region", { name: "食物加成" }))
+      .queryAllByTestId("food-ticket")
+      .filter((ticket) => ticket.getAttribute("data-active") === "true");
+    expect(activeCells()).toHaveLength(3);
+
+    rerender(<Hud state={withRemaining(2)} estimate={null} estimateStatus="idle" />);
+    expect(activeCells()).toHaveLength(2);
+    expect(screen.getByLabelText("第 1 层 +25%，剩余 2/3 次转动")).toBeVisible();
+
+    rerender(<Hud state={withRemaining(1)} estimate={null} estimateStatus="idle" />);
+    expect(activeCells()).toHaveLength(1);
+    expect(screen.getByLabelText("第 1 层 +25%，剩余 1/3 次转动")).toBeVisible();
+
+    rerender(<Hud state={withRemaining(0)} estimate={null} estimateStatus="idle" />);
+    expect(screen.getByText("食物加成 0 层")).toBeVisible();
+    expect(screen.queryByTestId("food-buff-stack")).not.toBeInTheDocument();
   });
 });
 
@@ -110,7 +245,7 @@ describe("WinPresentation", () => {
     expect(within(region).getByText("飞向余额 ¥135")).toBeVisible();
     expect(within(region).getByText("1 条中奖线 · 1 次部件触发 · 因果链 2")).toBeVisible();
     expect(within(region).getByText("樱桃顶线 +¥20")).toBeVisible();
-    expect(within(region).getAllByTestId("coin-particle")).toHaveLength(24);
+    expect(within(region).queryByTestId("coin-burst")).not.toBeInTheDocument();
     expect(region).toHaveStyle({ "--cabinet-shake": "3px" });
   });
 

@@ -175,6 +175,7 @@ export function SlotMachine({
       className={`slot-machine${activePlan !== null || pausedSpinning ? " is-spinning" : ""}${reducedMotion ? " is-reduced" : ""}${safeShakePx > 0 ? " is-feedback-shaking" : ""}`}
       aria-label="老虎机转轮"
       data-motion-kind={activePlan?.kind ?? (pausedSpinning ? "paused" : "none")}
+      data-coin-source="true"
       style={{ "--cabinet-shake": `${safeShakePx}px` } as React.CSSProperties}
     >
       {REEL_INDICES.map((reel) => {

@@ -9,8 +9,12 @@ export interface FeedbackPlan {
 
 export interface CoinPath {
   readonly index: number;
-  readonly x: number;
-  readonly y: number;
+  readonly startDx: number;
+  readonly startDy: number;
+  readonly apexDx: number;
+  readonly apexLift: number;
+  readonly endDx: number;
+  readonly endDy: number;
   readonly rotation: number;
   readonly delayMs: number;
 }
@@ -24,8 +28,12 @@ const PLANS: Readonly<Record<FeedbackTier, FeedbackPlan>> = {
 
 const COIN_PATHS: readonly CoinPath[] = Array.from({ length: 48 }, (_unused, index) => ({
   index,
-  x: (index * 37) % 101 - 50,
-  y: -70 - ((index * 29) % 81),
+  startDx: (index * 11) % 19 - 9,
+  startDy: (index * 7) % 11 - 5,
+  apexDx: (index * 17) % 25 - 12,
+  apexLift: 44 + ((index * 13) % 29),
+  endDx: (index * 5) % 13 - 6,
+  endDy: (index * 3) % 9 - 4,
   rotation: (index * 83) % 361 - 180,
   delayMs: (index % 8) * 18
 }));

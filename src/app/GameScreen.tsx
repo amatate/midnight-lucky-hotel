@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ActionBar } from "@/app/components/ActionBar";
+import { CoinBurst } from "@/app/components/CoinBurst";
 import { Hud } from "@/app/components/Hud";
 import { PartsBar } from "@/app/components/PartsBar";
 import { PullLever } from "@/app/components/PullLever";
@@ -77,6 +78,11 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
   const settlementFeedback = settlementPresentation === null
     ? null
     : feedbackPlan(settlementPresentation.summary.tier, effectiveReducedMotion);
+  const presentedThroughSequence = settlementPresentation === null
+    ? undefined
+    : settlementPresentation.done
+      ? Math.max(0, ...game.state.pendingEvents.map((event) => event.sequence))
+      : settlementPresentation.currentEvent?.sequence ?? null;
 
   useEffect(() => {
     if (estimate === null || estimate === lastEstimate.current) return;
@@ -115,7 +121,11 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
     game.state.phase === "RUN_LOST" || (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates === null);
 
   return (
-    <div className={`game-screen${effectiveReducedMotion ? " reduce-motion" : ""}`} data-reduced-motion={effectiveReducedMotion}>
+    <div
+      className={`game-screen${effectiveReducedMotion ? " reduce-motion" : ""}`}
+      data-reduced-motion={effectiveReducedMotion}
+      data-coin-cabinet="true"
+    >
       <header className="game-header">
         <div>
           <p className="eyebrow">功能原型</p>
@@ -128,6 +138,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         estimate={estimate}
         estimateStatus={estimateStatus}
         payoutAmount={settlementPresentation?.summary.total ?? 0}
+        presentedThroughSequence={presentedThroughSequence}
       />
 
       {game.state.phase === "CHOOSING_SERVICE" && (
@@ -157,6 +168,9 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
           : []}
         shakePx={settlementFeedback?.shakePx ?? 0}
       />
+      {!documentHidden && !recoveryOpen && (settlementFeedback?.coinCount ?? 0) > 0 && (
+        <CoinBurst count={settlementFeedback!.coinCount} />
+      )}
       <PartsBar
         state={game.state}
         activePartId={settlementPresentation?.activePartId ?? null}

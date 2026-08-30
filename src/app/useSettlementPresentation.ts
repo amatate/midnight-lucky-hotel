@@ -189,7 +189,6 @@ export function useSettlementPresentation(
         setView((current) => current.key === key
           ? { ...current, displayGrid: cycle.resolvedGrid ?? current.displayGrid, done: true }
           : current);
-        complete(key);
         return;
       }
       const next = cycle.events[view.eventIndex] ?? null;
@@ -202,7 +201,6 @@ export function useSettlementPresentation(
               done: true
             }
           : current);
-        complete(key);
         return;
       }
       setView((current) => current.key !== key
@@ -210,7 +208,12 @@ export function useSettlementPresentation(
         : eventView(cycle, next, current.eventIndex + 1, current.displayGrid, current.accelerated, futureDelayMs.current));
     }, view.currentEvent === null ? 0 : view.delayMs);
     return () => clearTimeout(timer);
-  }, [complete, cycle, key, paused, view.currentEvent, view.delayMs, view.done, view.eventIndex, view.key]);
+  }, [cycle, key, paused, view.currentEvent, view.delayMs, view.done, view.eventIndex, view.key]);
+
+  useEffect(() => {
+    if (key === null || paused || view.key !== key || !view.done) return;
+    complete(key);
+  }, [complete, key, paused, view.done, view.key]);
 
   const speedUp = useCallback(() => {
     if (key === null || cycle?.key !== key) return;
@@ -232,8 +235,7 @@ export function useSettlementPresentation(
           changedCells: [],
           done: true
         });
-    complete(key);
-  }, [complete, cycle, key]);
+  }, [cycle, key]);
 
   if (key === null || cycle === null) return null;
   const visibleView = view.key === key ? view : cycle.initialView;

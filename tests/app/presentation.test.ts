@@ -3,6 +3,7 @@ import { createElement, StrictMode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GameScreen } from "@/app/GameScreen";
+import { SlotMachine } from "@/app/components/SlotMachine";
 import { useGame } from "@/app/useGame";
 import { dispatchCommand } from "@/core/run";
 import { createRun } from "@/core/run";
@@ -125,6 +126,38 @@ function manualResolvingState(events: readonly GameEvent[], patch: Partial<RunSt
     pendingEvents: events,
     ...patch
   };
+}
+
+function SettlementFrameHarness({
+  state,
+  paused,
+  reducedMotion,
+  onCommand
+}: {
+  readonly state: RunState;
+  readonly paused: boolean;
+  readonly reducedMotion: boolean;
+  readonly onCommand: (command: GameCommand) => void;
+}) {
+  const presentation = useSettlementPresentation({ state, paused, reducedMotion, onCommand });
+  return createElement(
+    "div",
+    { "data-testid": "settlement-frame-harness" },
+    createElement(SlotMachine, {
+      state,
+      motionPlan: null,
+      reducedMotion,
+      displayGrid: presentation?.displayGrid ?? null,
+      highlightedLineIds: presentation?.activeLineIds ?? [],
+      changedCells: presentation?.changedCells ?? []
+    }),
+    createElement("output", { "data-testid": "presentation-done" }, presentation?.done ? "done" : "playing"),
+    createElement("button", { type: "button", onClick: () => presentation?.skip() }, "测试直接结算")
+  );
+}
+
+function firstVisibleSymbol(): string | null {
+  return screen.getAllByTestId("cell")[0]?.querySelector("[data-symbol]")?.getAttribute("data-symbol") ?? null;
 }
 
 function persistedCommandCount(type: GameCommand["type"]): number {
@@ -547,6 +580,125 @@ describe("useSettlementPresentation", () => {
     expect(onSkip).toHaveBeenCalledOnce();
     skipped.unmount();
   });
+
+  it("commits the authoritative final grid before completing a settlement with no payout-complete event", async () => {
+    vi.useFakeTimers();
+    const original: Grid = [
+      ["food", "cherry", "lemon"],
+      ["blank", "cherry", "lemon"],
+      ["blank", "lemon", "bell"]
+    ];
+    const authoritative: Grid = [
+      ["cherry", "lemon", "blank"],
+      ["blank", "cherry", "lemon"],
+      ["blank", "lemon", "bell"]
+    ];
+    const base = manualResolvingState([]);
+    const draw = { strips: base.reels, stops: [0, 0, 0] as const, grid: original, rng: base.rng };
+    const resolving = manualResolvingState([
+      { sequence: 1, type: "REELS_DRAWN", draw },
+      { sequence: 2, type: "FOOD_CONSUMED", reel: 0 }
+    ], {
+      pendingSpin: { isFree: false, draw: { ...draw, grid: authoritative } }
+    });
+    const observedAtComplete: { readonly done: string | null; readonly firstSymbol: string | null }[] = [];
+    const onCommand = vi.fn<(command: GameCommand) => void>(() => {
+      observedAtComplete.push({
+        done: screen.getByTestId("presentation-done").textContent,
+        firstSymbol: firstVisibleSymbol()
+      });
+    });
+    render(createElement(SettlementFrameHarness, {
+      state: resolving,
+      paused: false,
+      reducedMotion: false,
+      onCommand
+    }));
+
+    expect(firstVisibleSymbol()).toBe("food");
+    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await act(async () => vi.advanceTimersByTimeAsync(350));
+
+    expect(observedAtComplete).toEqual([{ done: "done", firstSymbol: "cherry" }]);
+    expect(onCommand.mock.calls).toEqual([[{ type: "PRESENTATION_COMPLETE" }]]);
+  });
+
+  it("commits a recovered zero-event reduced frame after resume before completing exactly once", async () => {
+    vi.useFakeTimers();
+    const base = manualResolvingState([]);
+    const authoritative: Grid = [
+      ["bell", "blank", "blank"],
+      ["cherry", "lemon", "blank"],
+      ["cherry", "bell", "blank"]
+    ];
+    const resolving = manualResolvingState([], {
+      pendingSpin: {
+        isFree: false,
+        draw: { strips: base.reels, stops: [0, 0, 0], grid: authoritative, rng: base.rng }
+      }
+    });
+    const observedAtComplete: { readonly done: string | null; readonly firstSymbol: string | null }[] = [];
+    const onCommand = vi.fn<(command: GameCommand) => void>(() => {
+      observedAtComplete.push({
+        done: screen.getByTestId("presentation-done").textContent,
+        firstSymbol: firstVisibleSymbol()
+      });
+    });
+    const { rerender } = render(createElement(SettlementFrameHarness, {
+      state: resolving,
+      paused: true,
+      reducedMotion: true,
+      onCommand
+    }));
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(onCommand).not.toHaveBeenCalled();
+    rerender(createElement(SettlementFrameHarness, {
+      state: resolving,
+      paused: false,
+      reducedMotion: true,
+      onCommand
+    }));
+    await act(async () => vi.advanceTimersByTimeAsync(0));
+
+    expect(observedAtComplete).toEqual([{ done: "done", firstSymbol: "bell" }]);
+    expect(onCommand.mock.calls).toEqual([[{ type: "PRESENTATION_COMPLETE" }]]);
+  });
+
+  it("commits the authoritative skipped frame before sending completion exactly once", () => {
+    const original: Grid = REPLAY_GRID;
+    const authoritative: Grid = [
+      ["lemon", "cherry", "blank"],
+      ["cherry", "lemon", "blank"],
+      ["cherry", "bell", "blank"]
+    ];
+    const base = manualResolvingState([]);
+    const draw = { strips: base.reels, stops: [0, 0, 0] as const, grid: original, rng: base.rng };
+    const resolving = manualResolvingState([
+      { sequence: 1, type: "REELS_DRAWN", draw }
+    ], {
+      pendingSpin: { isFree: false, draw: { ...draw, grid: authoritative } }
+    });
+    const observedAtComplete: { readonly done: string | null; readonly firstSymbol: string | null }[] = [];
+    const onCommand = vi.fn<(command: GameCommand) => void>(() => {
+      observedAtComplete.push({
+        done: screen.getByTestId("presentation-done").textContent,
+        firstSymbol: firstVisibleSymbol()
+      });
+    });
+    render(createElement(SettlementFrameHarness, {
+      state: resolving,
+      paused: false,
+      reducedMotion: false,
+      onCommand
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "测试直接结算" }));
+    fireEvent.click(screen.getByRole("button", { name: "测试直接结算" }));
+
+    expect(observedAtComplete).toEqual([{ done: "done", firstSymbol: "lemon" }]);
+    expect(onCommand.mock.calls).toEqual([[{ type: "PRESENTATION_COMPLETE" }]]);
+  });
 });
 
 describe("presentation recovery UI", () => {
@@ -578,10 +730,12 @@ describe("presentation recovery UI", () => {
       { sequence: 4, type: "PAYOUT_COMPLETE", total: 10 }
     ], {
       partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null],
-      counters: { blankCharge: 0, cherryWinsThisShift: 1 }
+      counters: { blankCharge: 0, cherryWinsThisShift: 1 },
+      buffs: [{ id: "food", spinsRemaining: 3, additivePayout: 0.25 }]
     });
     render(createElement(GameScreen, { seed: 707, initialState: state }));
 
+    expect(screen.getByText("食物加成 0 层")).toBeVisible();
     const cells = screen.getAllByTestId("cell");
     expect(cells.filter((cell) => cell.getAttribute("data-highlighted") === "true").map((cell) => cell.getAttribute("data-cell"))).toEqual([
       "0-0", "1-0", "2-0"
@@ -590,11 +744,52 @@ describe("presentation recovery UI", () => {
     const activeParts = screen.getAllByTestId("part-slot").filter((slot) => slot.getAttribute("data-active") === "true");
     expect(activeParts).toHaveLength(1);
     expect(activeParts[0]).toHaveTextContent("果酱罐 · L1");
+    expect(screen.getByText("食物加成 0 层")).toBeVisible();
     await act(async () => vi.advanceTimersByTimeAsync(350));
     expect(screen.getAllByTestId("reel").map((reel) => reel.getAttribute("data-reel-highlighted"))).toEqual([
       null, "true", null
     ]);
     expect(screen.getByText(/第2轮食物已消耗：这份食物提供 1 层 \+25%，接下来 3 次转动有效；多份食物的层数可叠加/)).toBeVisible();
+    expect(screen.getByText("食物加成 1 层")).toBeVisible();
+    expect(screen.getByLabelText("第 1 层 +25%，剩余 3/3 次转动")).toBeVisible();
+  });
+
+  it("mounts the coin layer on the cabinet and measures the real slot-to-balance route", () => {
+    const rect = (x: number, y: number, width: number, height: number): DOMRect => ({
+      x,
+      y,
+      width,
+      height,
+      top: y,
+      right: x + width,
+      bottom: y + height,
+      left: x,
+      toJSON: () => ({})
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("game-screen")) return rect(10, 20, 320, 700);
+      if (this.classList.contains("slot-machine")) return rect(30, 260, 280, 180);
+      if (this.classList.contains("is-payout-destination")) return rect(28, 80, 100, 30);
+      return rect(0, 0, 0, 0);
+    });
+    const resolving = manualResolvingState([
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 20, source: "base" },
+      { sequence: 2, type: "PAYOUT_COMPLETE", total: 20 }
+    ]);
+    const { container } = render(createElement(GameScreen, { seed: 707, initialState: resolving }));
+
+    const cabinet = container.querySelector(".game-screen");
+    const burst = screen.getByTestId("coin-burst");
+    expect(cabinet).toHaveAttribute("data-coin-cabinet", "true");
+    expect(screen.getByRole("region", { name: "老虎机转轮" })).toHaveAttribute("data-coin-source", "true");
+    expect(screen.getByText("余额 ¥120")).toHaveAttribute("data-coin-destination", "true");
+    expect(burst.parentElement).toBe(cabinet);
+    expect(within(screen.getByRole("region", { name: "结算演出队列" })).queryByTestId("coin-burst")).not.toBeInTheDocument();
+    expect(burst).toHaveAttribute("data-source-x", "160");
+    expect(burst).toHaveAttribute("data-source-y", "330");
+    expect(burst).toHaveAttribute("data-target-x", "68");
+    expect(burst).toHaveAttribute("data-target-y", "75");
+    expect(screen.getAllByTestId("coin-particle")).toHaveLength(8);
   });
 
   it("keeps equipped-part status and disabled-slot eligibility causal to the presented prefix", async () => {
@@ -819,8 +1014,13 @@ describe("presentation recovery UI", () => {
   it("uses zero-delay presentation when effective reduced motion is active", async () => {
     vi.useFakeTimers();
     installMotionPreference(true);
-    render(createElement(GameScreen, { seed: 206, initialState: resolvingState(206) }));
+    const resolving = manualResolvingState([
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 20, source: "base" },
+      { sequence: 2, type: "PAYOUT_COMPLETE", total: 20 }
+    ]);
+    render(createElement(GameScreen, { seed: 206, initialState: resolving }));
     expect(screen.getByText(/事件 1\/\d+/)).toBeVisible();
+    expect(screen.queryByTestId("coin-burst")).not.toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(0));
     expect(screen.queryByText(/事件 1\/\d+/)).not.toBeInTheDocument();
   });

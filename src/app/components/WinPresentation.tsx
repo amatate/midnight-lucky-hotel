@@ -1,4 +1,3 @@
-import { CoinBurst } from "@/app/components/CoinBurst";
 import { SYMBOL_LABELS } from "@/app/labels";
 import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
 import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
@@ -99,7 +98,6 @@ export function WinPresentation({ state, presentation, reducedMotion }: WinPrese
       </div>
       <p className="cause-summary">{lineCount} 条中奖线 · {partCount} 次部件触发 · 因果链 {presentation.summary.chainLength}</p>
       <div className="event-card" aria-live="polite">{settlementEventLabel(state, presentation.currentEvent)}</div>
-      {plan.coinCount > 0 && <CoinBurst count={plan.coinCount} />}
       {!presentation.done && (
         <div className="presentation-actions">
           <button type="button" onClick={presentation.speedUp}>加速演出</button>
