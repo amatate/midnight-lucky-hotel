@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActionBar } from "@/app/components/ActionBar";
+import { ActionBar, selectedPaidBetIsUnaffordable } from "@/app/components/ActionBar";
 import { CoinBurst } from "@/app/components/CoinBurst";
 import { Hud } from "@/app/components/Hud";
 import { PartsBar } from "@/app/components/PartsBar";
@@ -14,7 +14,7 @@ import { useAutomaticSpinFlow } from "@/app/useAutomaticSpinFlow";
 import { useSettlementPresentation } from "@/app/useSettlementPresentation";
 import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
-import type { RunState } from "@/core/types";
+import type { CommandError, CommandErrorCode, RunState } from "@/core/types";
 import { unlockAudio } from "@/presentation/audio";
 import { feedbackPlan } from "@/presentation/feedback";
 import type { MachineEstimate } from "@/sim/types";
@@ -33,6 +33,17 @@ const PHASE_LABELS = {
 } as const;
 
 const REDUCE_FLASH_KEY = "midnight-lucky-hotel.reduce-flash";
+
+const COMMAND_ERROR_COPY: Readonly<Record<CommandErrorCode, string>> = {
+  INVALID_PHASE: "当前阶段不能执行这项操作。",
+  INSUFFICIENT_FUNDS: "余额不足，无法完成这项操作。",
+  INVALID_TARGET: "当前选择不可用，请重新选择。",
+  RESOURCE_EXHAUSTED: "所需资源已经用完，请选择其他行动。"
+};
+
+export function playerFacingCommandError(error: CommandError): string {
+  return COMMAND_ERROR_COPY[error.code];
+}
 
 function storedReduceFlash(): boolean {
   try {
@@ -167,7 +178,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
               shakePx={settlementFeedback?.shakePx ?? 0}
             />
             <PullLever
-              disabled={game.state.phase !== "READY_TO_SPIN"}
+              disabled={game.state.phase !== "READY_TO_SPIN" || selectedPaidBetIsUnaffordable(game.state)}
               reducedMotion={effectiveReducedMotion}
               onPull={() => game.send({ type: "SPIN" })}
             />
@@ -227,7 +238,9 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         )}
         {isRunSummary && (
           <>
-            {game.state.phase === "SHIFT_COMPLETE" && <ActionBar state={game.state} onCommand={game.send} />}
+            {(game.state.phase === "SHIFT_COMPLETE" || game.state.phase === "AFTER_HOURS") && (
+              <ActionBar state={game.state} onCommand={game.send} />
+            )}
             <RunSummary
               state={game.state}
               trajectory={trajectory}
@@ -249,7 +262,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
       </label>
 
       <div className="game-feedback" aria-live="assertive">
-        {game.error !== null ? `${game.error.code}: ${game.error.message}` : ""}
+        {game.error !== null ? playerFacingCommandError(game.error) : ""}
       </div>
       {recoveryOpen && (
         <div className="recovery-backdrop">

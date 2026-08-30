@@ -3,6 +3,7 @@ import { availableInterventions } from "@/app/intervention-options";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { previewKick } from "@/content/services/security";
 import type { GameCommand } from "@/core/commands";
+import { getCurrentBet, getMinimumBet } from "@/core/progression";
 import { dispatchCommand } from "@/core/run";
 import type { BaseSymbolId, BetMode, ReelIndex, RunState } from "@/core/types";
 
@@ -15,6 +16,12 @@ const BET_LABELS: Readonly<Record<BetMode, string>> = {
 interface ActionBarProps {
   readonly state: RunState;
   readonly onCommand: (command: GameCommand) => void;
+}
+
+export function selectedPaidBetIsUnaffordable(state: RunState): boolean {
+  if (state.phase !== "READY_TO_SPIN" || state.freeSpinQueue > 0) return false;
+  const minimumBet = getMinimumBet(state);
+  return state.bankroll >= minimumBet && state.bankroll < getCurrentBet(state);
 }
 
 function ReelButtons({ reels, label, onSelect }: {
@@ -69,6 +76,7 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
     const martyrCost = Number.isFinite(state.bankroll) && state.bankroll > 0
       ? Math.ceil(state.bankroll * 0.1)
       : 1;
+    const selectedBetUnaffordable = selectedPaidBetIsUnaffordable(state);
     return (
       <section className="action-bar ready-actions" aria-label="本转准备">
         <div className="tray-heading">
@@ -87,6 +95,11 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
             >{BET_LABELS[mode]}</button>
           ))}
         </fieldset>
+        {selectedBetUnaffordable && (
+          <p className="bet-warning" role="status">
+            余额 ¥{state.bankroll} 不足以支付当前{BET_LABELS[state.betMode]}下注 ¥{getCurrentBet(state)}；可切换到保守下注 ¥{getMinimumBet(state)}。
+          </p>
+        )}
         <div className="action-section" role="group" aria-label="当前服务行动">
           {showBuyFood && (
             <div className="field-row">

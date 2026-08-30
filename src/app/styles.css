@@ -1071,6 +1071,16 @@ h3 {
   font-weight: 800;
 }
 
+.bet-warning {
+  margin: 0;
+  padding: 8px;
+  color: var(--enamel);
+  border-left: 3px solid var(--hotel-red);
+  background: color-mix(in srgb, var(--hotel-red) 14%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .action-section {
   padding: 8px;
   border-left: 3px solid var(--verdigris);
@@ -1398,7 +1408,10 @@ select {
 }
 
 @media (max-width: 360px) {
-  .game-page { padding-inline: max(8px, env(safe-area-inset-left)); }
+  .game-page {
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
   .hotel-sign { font-size: 0.64rem; }
   .shift-plaque { min-width: 92px; padding-inline: 5px; }
   .cabinet-shell { padding-inline: 7px; }
@@ -1415,7 +1428,10 @@ select {
 }
 
 @media (min-width: 390px) {
-  .game-page { padding-inline: max(14px, env(safe-area-inset-left)); }
+  .game-page {
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
   .cabinet-shell { padding: 11px; }
   .slot-machine { min-height: 244px; padding: 10px; gap: 6px; }
   .symbol { min-height: 65px; }

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GameScreen } from "@/app/GameScreen";
+import { GameScreen, playerFacingCommandError } from "@/app/GameScreen";
 import { Hud } from "@/app/components/Hud";
 import { ActionBar } from "@/app/components/ActionBar";
 import { SYMBOL_LABELS } from "@/app/labels";
@@ -44,6 +44,37 @@ function offeredState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
 }
 
 describe("GameScreen", () => {
+  it.each([
+    ["INVALID_PHASE", "当前阶段不能执行这项操作。"],
+    ["INSUFFICIENT_FUNDS", "余额不足，无法完成这项操作。"],
+    ["INVALID_TARGET", "当前选择不可用，请重新选择。"],
+    ["RESOURCE_EXHAUSTED", "所需资源已经用完，请选择其他行动。"]
+  ] as const)("maps %s to deterministic Chinese player copy", (code, expected) => {
+    const rawMessage = "raw English controller detail";
+    const copy = playerFacingCommandError({ code, message: rawMessage });
+    expect(copy).toBe(expected);
+    expect(copy).not.toContain(code);
+    expect(copy).not.toContain(rawMessage);
+  });
+
+  it("renders translated feedback instead of controller internals after a rejected command", () => {
+    const base = createRun(38);
+    const spin = dispatchCommand({ ...base, phase: "READY_TO_SPIN", service: "repair" }, { type: "SPIN" });
+    if (!spin.ok) throw new Error("fixture spin failed");
+    render(<GameScreen seed={38} initialState={{
+      ...spin.state,
+      phase: "SHIFT_COMPLETE",
+      tips: 1,
+      exitUnlocked: true,
+      reels: [["crack", ...base.reels[0]], base.reels[1], base.reels[2]]
+    }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "修复第1轮裂纹（1 小费）" }));
+
+    expect(screen.getByText("当前阶段不能执行这项操作。")).toBeVisible();
+    expect(screen.queryByText(/INVALID_PHASE|REMOVE_CRACKS is invalid during SHIFT_COMPLETE/)).not.toBeInTheDocument();
+  });
+
   it("presents one current decision beneath a single physical cabinet with room-number counters", () => {
     render(<GameScreen seed={39} />);
 
@@ -94,6 +125,82 @@ describe("GameScreen", () => {
     expect(screen.getAllByTestId("part-slot")).toHaveLength(5);
     expect(screen.getByText("会计工具")).toBeVisible();
     expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
+  });
+
+  it("blocks only an unaffordable selected bet and points to a legal cheaper mode", async () => {
+    const user = userEvent.setup();
+    render(<GameScreen seed={43} initialState={{
+      ...createRun(43),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 15,
+      betMode: "aggressive"
+    }} />);
+
+    expect(screen.getByRole("button", { name: "拉动老虎机" })).toBeDisabled();
+    expect(screen.getByText("余额 ¥15 不足以支付当前激进下注 ¥20；可切换到保守下注 ¥5。")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "保守" }));
+
+    expect(screen.getByText("下注 ¥5")).toBeVisible();
+    expect(screen.getByRole("button", { name: "拉动老虎机" })).toBeEnabled();
+    expect(screen.queryByText(/不足以支付当前激进下注/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a queued free spin pull legal at zero bankroll", async () => {
+    const user = userEvent.setup();
+    render(<GameScreen seed={44} initialState={{
+      ...createRun(44),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 0,
+      betMode: "aggressive",
+      freeSpinQueue: 1
+    }} />);
+
+    const lever = screen.getByRole("button", { name: "拉动老虎机" });
+    expect(lever).toBeEnabled();
+    await user.click(lever);
+
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+    expect(screen.getByText("余额 ¥0")).toBeVisible();
+  });
+
+  it("keeps a below-minimum paid pull legal so the accepted loss transition can run", async () => {
+    const user = userEvent.setup();
+    render(<GameScreen seed={45} initialState={{
+      ...createRun(45),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 4.99
+    }} />);
+
+    const lever = screen.getByRole("button", { name: "拉动老虎机" });
+    expect(lever).toBeEnabled();
+    await user.click(lever);
+
+    expect(screen.getByRole("heading", { name: "本局失败" })).toBeVisible();
+    expect(screen.queryByText(/余额不足以支付当前/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a below-minimum safety-fuse pull legal so the accepted rescue can run", async () => {
+    const user = userEvent.setup();
+    render(<GameScreen seed={46} initialState={{
+      ...createRun(46),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 4.99,
+      partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null]
+    }} />);
+
+    expect(screen.getByText("安全保险丝 · L1")).toBeVisible();
+    const lever = screen.getByRole("button", { name: "拉动老虎机" });
+    expect(lever).toBeEnabled();
+    await user.click(lever);
+
+    expect(screen.getByText("余额 ¥24.99")).toBeVisible();
+    expect(screen.queryByText("安全保险丝 · L1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/INSUFFICIENT_FUNDS|bankroll is below/)).not.toBeInTheDocument();
   });
 
   it("automatically stops each motion cycle once and waits for the player's intervention decision", async () => {
@@ -441,6 +548,34 @@ describe("GameScreen", () => {
     expect(screen.getByRole("button", { name: "继续加班" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "继续加班" }));
     expect(screen.getByText("准备拉动")).toBeVisible();
+  });
+
+  it("keeps legal crack repair beside the after-hours summary, cash-out, and continue actions", async () => {
+    const user = userEvent.setup();
+    const base = createRun(66);
+    render(<GameScreen seed={66} initialState={{
+      ...base,
+      phase: "AFTER_HOURS",
+      service: "repair",
+      afterHoursLevel: 1,
+      currentCandidates: null,
+      tips: 1,
+      exitUnlocked: true,
+      reels: [["crack", "crack", ...base.reels[0]], base.reels[1], base.reels[2]]
+    }} />);
+
+    const decision = screen.getByRole("region", { name: "当前决策" });
+    expect(within(decision).getByRole("heading", { name: "加班边界" })).toBeVisible();
+    expect(within(decision).getByRole("button", { name: "修复第1轮裂纹（1 小费）" })).toBeVisible();
+    expect(within(decision).getByRole("button", { name: "结账离开" })).toBeVisible();
+    expect(within(decision).getByRole("button", { name: "继续加班" })).toBeVisible();
+
+    await user.click(within(decision).getByRole("button", { name: "修复第1轮裂纹（1 小费）" }));
+
+    expect(screen.queryByRole("button", { name: /修复第1轮裂纹/ })).not.toBeInTheDocument();
+    expect(screen.getByText("主要支出：下注")).toBeVisible();
+    expect(screen.getByRole("button", { name: "结账离开" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "继续加班" })).toBeVisible();
   });
 
   it("cashes out through real dispatch and restarts a fifth-shift loss", async () => {
