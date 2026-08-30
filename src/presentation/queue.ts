@@ -12,6 +12,7 @@ export interface PresentationQueueOptions {
 
 export interface PresentationQueue {
   readonly done: boolean;
+  readonly delayMs: number;
   next(): GameEvent | null;
   speedUp(): void;
   skip(): readonly GameEvent[];
@@ -30,6 +31,9 @@ export function createPresentationQueue(
   return {
     get done() {
       return cursor >= ordered.length;
+    },
+    get delayMs() {
+      return delayMs;
     },
     next() {
       const event = ordered[cursor];

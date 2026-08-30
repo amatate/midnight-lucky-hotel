@@ -10,3 +10,9 @@ export function vibrate(pattern: number | readonly number[] = 18): boolean {
 export function vibrateLeverDetent(): boolean {
   return vibrate(10);
 }
+
+export function vibrateSettlement(pattern: number | readonly number[]): boolean {
+  if (typeof pattern === "number" && pattern <= 0) return false;
+  if (Array.isArray(pattern) && pattern.length === 0) return false;
+  return vibrate(pattern);
+}

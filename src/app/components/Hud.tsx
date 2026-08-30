@@ -18,14 +18,16 @@ interface HudProps {
   readonly state: RunState;
   readonly estimate: MachineEstimate | null;
   readonly estimateStatus: EstimateStatus;
+  readonly payoutAmount?: number;
 }
 
-export function Hud({ state, estimate, estimateStatus }: HudProps): React.JSX.Element {
+export function Hud({ state, estimate, estimateStatus, payoutAmount = 0 }: HudProps): React.JSX.Element {
   const isWaiting = state.toolLevel >= 1 && (estimateStatus === "pending" || estimateStatus === "unavailable");
   return (
     <section className="hud" aria-label="本局状态">
-      <div className="hud-primary">
-        <strong>余额 ¥{state.bankroll}</strong>
+      <div className="hud-primary" data-payout-active={payoutAmount > 0 ? "true" : undefined}>
+        <strong className={payoutAmount > 0 ? "is-payout-destination" : undefined}>余额 ¥{state.bankroll}</strong>
+        {payoutAmount > 0 && <span className="sr-only" aria-live="polite">本转到账 +¥{payoutAmount}</span>}
         <span>目标 ¥{state.checkoutTarget}</span>
         <span>第 {state.shift} 班 · {state.baseSpinsInShift}/3</span>
         <span>下注 ¥{getCurrentBet(state)}</span>

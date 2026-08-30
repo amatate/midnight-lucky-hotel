@@ -1,16 +1,40 @@
 import { describeEquippedPart } from "@/content/player-copy";
-import type { RunState } from "@/core/types";
+import type { PartId, RunState } from "@/core/types";
 
-export function PartsBar({ state }: { readonly state: RunState }): React.JSX.Element {
+export interface PartsBarProps {
+  readonly state: RunState;
+  readonly activePartId?: PartId | null;
+  readonly presentedThroughSequence?: number | null;
+}
+
+export function PartsBar({ state, activePartId = null, presentedThroughSequence }: PartsBarProps): React.JSX.Element {
+  const orderedEvents = [...state.pendingEvents].sort((left, right) => left.sequence - right.sequence);
+  const visibleEvents = presentedThroughSequence === undefined
+    ? orderedEvents
+    : presentedThroughSequence === null
+      ? []
+      : orderedEvents.filter((event) => event.sequence <= presentedThroughSequence);
+  const visibleState = { ...state, pendingEvents: visibleEvents };
+  const disabledSlots = new Set(visibleEvents.flatMap((event) => event.type === "PART_DISABLED" ? [event.slot] : []));
+  const activeSlot = activePartId === null
+    ? -1
+    : state.partSlots.findIndex((part, slot) => part?.id === activePartId && !disabledSlots.has(slot));
   return (
     <section className="parts-panel" aria-label="部件栏">
       <h2>部件</h2>
       <p>本局全部部件贡献 ¥{state.attribution.part}</p>
       <div className="parts-bar">
         {state.partSlots.map((part, slot) => {
-          const presentation = part === null ? null : describeEquippedPart(state, part);
+          const presentation = part === null ? null : describeEquippedPart(visibleState, part);
+          const active = slot === activeSlot;
           return (
-            <div className={`part-slot ${part === null ? "is-empty" : ""}`} data-testid="part-slot" key={slot}>
+            <div
+              className={`part-slot ${part === null ? "is-empty" : ""}${active ? " is-triggered" : ""}`}
+              data-testid="part-slot"
+              data-active={active ? "true" : undefined}
+              key={slot}
+            >
+              {part !== null && <span className="part-trigger-lamp" aria-hidden="true" />}
               {part === null || presentation === null ? (
                 <span aria-label={`空部件槽 ${slot + 1}`}>空</span>
               ) : (

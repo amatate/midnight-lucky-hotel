@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActionBar } from "@/app/components/ActionBar";
 import { Hud } from "@/app/components/Hud";
 import { PartsBar } from "@/app/components/PartsBar";
@@ -6,17 +6,16 @@ import { PullLever } from "@/app/components/PullLever";
 import { RunSummary } from "@/app/components/RunSummary";
 import { SlotMachine } from "@/app/components/SlotMachine";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
+import { WinPresentation } from "@/app/components/WinPresentation";
 import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
 import { useAutomaticSpinFlow } from "@/app/useAutomaticSpinFlow";
-import { SYMBOL_LABELS } from "@/app/labels";
+import { useSettlementPresentation } from "@/app/useSettlementPresentation";
 import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
 import type { RunState } from "@/core/types";
-import type { GameEvent } from "@/core/events";
-import { createPresentationQueue, type PresentationQueue } from "@/presentation/queue";
-import { playEventTone, unlockAudio } from "@/presentation/audio";
-import { vibrate } from "@/presentation/haptics";
+import { unlockAudio } from "@/presentation/audio";
+import { feedbackPlan } from "@/presentation/feedback";
 import type { MachineEstimate } from "@/sim/types";
 
 const PHASE_LABELS = {
@@ -46,29 +45,6 @@ function systemReducedMotion(): boolean {
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function eventLabel(event: GameEvent): string {
-  switch (event.type) {
-    case "BET_PLACED": return `下注 ¥${event.amount}`;
-    case "REELS_DRAWN": return "转轮结果已经生成";
-    case "INTERVENTION_USED": return `已使用干预：${event.kind === "respin" ? "重转" : event.kind === "repair-lock" ? "锁轮维修" : event.kind === "kick" ? "踹击" : "祈祷"}`;
-    case "LINE_WIN": return `${SYMBOL_LABELS[event.symbol]}连线 +¥${event.amount}`;
-    case "PART_TRIGGERED": return `部件触发：${UPGRADES[event.partId].name} L${event.level}`;
-    case "PART_DISABLED": return `部件因裂纹失效：${UPGRADES[event.partId].name}`;
-    case "FOOD_CONSUMED": return `第${event.reel + 1}轮食物已消耗`;
-    case "PAYOUT_ADDED": return `赔付增加 ¥${event.amount}`;
-    case "SYMBOL_CHANGED": return `第${event.reel + 1}轮图案：${SYMBOL_LABELS[event.from]} → ${SYMBOL_LABELS[event.to]}`;
-    case "RESOURCE_CHANGED": return `${event.resource === "tips" ? "小费" : event.resource === "focus" ? "专注" : event.resource === "omen" ? "恶兆" : event.resource === "agitation" ? "躁动" : "免费转动"} ${event.delta >= 0 ? "+" : ""}${event.delta}`;
-    case "SERVICE_USED": return `${SERVICE_PRESENTATIONS[event.serviceId].name}行动，花费 ¥${event.cost}`;
-    case "CONTRACT_PROGRESS": return `合同进度 ${event.progress}${event.completed ? "，已经完成" : ""}`;
-    case "SPIN_COMMITTED": return `本转已确认，最终赔付 ¥${event.finalPayout}`;
-    case "BLOCK_COMPLETED": return `本段完成，余额 ¥${event.bankroll}`;
-    case "OVERLOAD": return `机器过载 +¥${event.amount}`;
-    case "PAYOUT_COMPLETE": return `本次总赔付 ¥${event.total}`;
-    case "SHIFT_CHANGED": return `进入第 ${event.shift} 班`;
-    case "RUN_ENDED": return event.outcome === "won" ? "本局胜利" : event.outcome === "lost" ? "本局失败" : "已经结账离开";
-  }
-}
-
 interface GameScreenProps {
   readonly seed: number;
   readonly initialState?: RunState;
@@ -79,11 +55,6 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
   const { estimate, status: estimateStatus } = useEstimate(game.state);
   const [trajectory, setTrajectory] = useState<readonly MachineEstimate[]>([]);
   const lastEstimate = useRef<MachineEstimate | null>(null);
-  const queueRef = useRef<PresentationQueue | null>(null);
-  const completionSent = useRef(false);
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [presentation, setPresentation] = useState<{ event: GameEvent; index: number; total: number; done: boolean } | null>(null);
-  const [accelerated, setAccelerated] = useState(false);
   const [documentHidden, setDocumentHidden] = useState(() => typeof document !== "undefined" && document.hidden);
   const [recoveryOpen, setRecoveryOpen] = useState(game.wasRecovered);
   const [reduceFlash, setReduceFlash] = useState(storedReduceFlash);
@@ -97,6 +68,15 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
     onCommand: game.send
   });
   const visibleMotionPlan = documentHidden || recoveryOpen ? null : motionPlan;
+  const settlementPresentation = useSettlementPresentation({
+    state: game.state,
+    paused: documentHidden || recoveryOpen,
+    reducedMotion: effectiveReducedMotion,
+    onCommand: game.send
+  });
+  const settlementFeedback = settlementPresentation === null
+    ? null
+    : feedbackPlan(settlementPresentation.summary.tier, effectiveReducedMotion);
 
   useEffect(() => {
     if (estimate === null || estimate === lastEstimate.current) return;
@@ -118,67 +98,6 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
     media.addEventListener?.("change", onChange);
     return () => media.removeEventListener?.("change", onChange);
   }, []);
-
-  useEffect(() => {
-    if (game.state.phase !== "RESOLVING_EFFECTS") {
-      queueRef.current = null;
-      completionSent.current = false;
-      setPresentation(null);
-      return;
-    }
-    const source = game.events.length > 0 ? game.events : game.state.pendingEvents;
-    const queue = createPresentationQueue(source);
-    queueRef.current = queue;
-    completionSent.current = false;
-    setAccelerated(false);
-    const first = queue.next();
-    setPresentation(first === null ? null : { event: first, index: 1, total: source.length, done: queue.done });
-    return () => { queueRef.current = null; };
-  }, [game.state.phase, game.events]);
-
-  useEffect(() => {
-    if (presentation === null || presentation.done || recoveryOpen || documentHidden) return;
-    const timer = setTimeout(() => {
-      const queue = queueRef.current;
-      const next = queue?.next() ?? null;
-      if (next === null || queue === null) {
-        setPresentation((current) => current === null ? null : { ...current, done: true });
-        return;
-      }
-      playEventTone(next);
-      if (!effectiveReducedMotion) vibrate(12);
-      setPresentation((current) => current === null ? null : {
-        event: next,
-        index: current.index + 1,
-        total: current.total,
-        done: queue.done
-      });
-    }, effectiveReducedMotion ? 0 : accelerated ? 50 : 350);
-    return () => clearTimeout(timer);
-  }, [accelerated, documentHidden, effectiveReducedMotion, presentation, recoveryOpen]);
-
-  useEffect(() => () => {
-    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
-  }, []);
-
-  const completePresentation = useCallback(() => {
-    if (completionSent.current || game.state.phase !== "RESOLVING_EFFECTS") return;
-    completionSent.current = true;
-    game.send({ type: "PRESENTATION_COMPLETE" });
-  }, [game]);
-
-  const speedUp = () => {
-    unlockAudio();
-    queueRef.current?.speedUp();
-    setAccelerated(true);
-  };
-
-  const skipPresentation = () => {
-    unlockAudio();
-    queueRef.current?.skip();
-    setPresentation((current) => current === null ? null : { ...current, index: current.total, done: true });
-    completePresentation();
-  };
 
   const restartSameSeed = () => {
     setRecoveryOpen(false);
@@ -204,7 +123,12 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         </div>
         <span className="phase-badge">{PHASE_LABELS[game.state.phase]}</span>
       </header>
-      <Hud state={game.state} estimate={estimate} estimateStatus={estimateStatus} />
+      <Hud
+        state={game.state}
+        estimate={estimate}
+        estimateStatus={estimateStatus}
+        payoutAmount={settlementPresentation?.summary.total ?? 0}
+      />
 
       {game.state.phase === "CHOOSING_SERVICE" && (
         <section className="service-chooser" aria-label="选择服务">
@@ -225,8 +149,19 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         state={game.state}
         motionPlan={visibleMotionPlan}
         reducedMotion={effectiveReducedMotion}
+        displayGrid={settlementPresentation?.displayGrid ?? null}
+        highlightedLineIds={settlementPresentation?.activeLineIds ?? []}
+        changedCells={settlementPresentation?.changedCells ?? []}
+        highlightedReels={settlementPresentation?.currentEvent?.type === "FOOD_CONSUMED"
+          ? [settlementPresentation.currentEvent.reel]
+          : []}
+        shakePx={settlementFeedback?.shakePx ?? 0}
       />
-      <PartsBar state={game.state} />
+      <PartsBar
+        state={game.state}
+        activePartId={settlementPresentation?.activePartId ?? null}
+        presentedThroughSequence={settlementPresentation?.currentEvent?.sequence ?? null}
+      />
       {game.state.acquiredUpgrades.length > 0 && (
         <section className="acquired-upgrades" aria-label="已获得升级">
           <h2>已获得升级</h2>
@@ -234,31 +169,12 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         </section>
       )}
 
-      {game.state.phase === "RESOLVING_EFFECTS" && presentation !== null && (
-        <section className={`presentation-panel${effectiveReducedMotion ? " reduce-flash" : ""}`} aria-label="结算演出队列">
-          <header><strong>结算事件</strong><span>事件 {presentation.index}/{presentation.total}</span></header>
-          <div className="event-card" aria-live="polite">{eventLabel(presentation.event)}</div>
-          <div className="presentation-actions">
-            {!presentation.done && <button
-              type="button"
-              onClick={speedUp}
-              onPointerDown={() => {
-                holdTimer.current = setTimeout(speedUp, 400);
-              }}
-              onPointerUp={() => {
-                if (holdTimer.current !== null) clearTimeout(holdTimer.current);
-                holdTimer.current = null;
-              }}
-              onPointerCancel={() => {
-                if (holdTimer.current !== null) clearTimeout(holdTimer.current);
-                holdTimer.current = null;
-              }}
-            >加速演出</button>}
-            {!presentation.done
-              ? <button className="primary-button" type="button" onClick={skipPresentation}>直接结算</button>
-              : <button className="primary-button" type="button" onClick={completePresentation}>完成结算</button>}
-          </div>
-        </section>
+      {game.state.phase === "RESOLVING_EFFECTS" && settlementPresentation !== null && (
+        <WinPresentation
+          state={game.state}
+          presentation={settlementPresentation}
+          reducedMotion={effectiveReducedMotion}
+        />
       )}
 
       {game.state.phase !== "CHOOSING_SERVICE" && (!isRunSummary || game.state.phase === "SHIFT_COMPLETE") && (
@@ -306,7 +222,10 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
             <h2 id="recovery-title">恢复上次进度</h2>
             <p>规则状态已经保存。请选择如何继续当前阶段。</p>
             <div className="summary-actions">
-              <button type="button" onClick={() => setRecoveryOpen(false)}>{
+              <button type="button" onClick={() => {
+                unlockAudio();
+                setRecoveryOpen(false);
+              }}>{
                 game.state.phase === "RESOLVING_EFFECTS" ? "继续演出"
                   : game.state.phase === "SPINNING" ? "继续停轮"
                     : game.state.phase === "AWAITING_INTERVENTION" ? "继续干预"
@@ -315,11 +234,12 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
               {game.state.phase === "RESOLVING_EFFECTS" && (
                 <button className="primary-button" type="button" onClick={() => {
                   setRecoveryOpen(false);
-                  skipPresentation();
+                  settlementPresentation?.skip();
                 }}>直接结算</button>
               )}
               {game.state.phase === "AWAITING_INTERVENTION" && (
                 <button className="primary-button" type="button" onClick={() => {
+                  unlockAudio();
                   setRecoveryOpen(false);
                   game.send({ type: "ACCEPT_OUTCOME" });
                 }}>接受结果</button>

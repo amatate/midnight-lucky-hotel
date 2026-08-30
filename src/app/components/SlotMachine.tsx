@@ -11,6 +11,8 @@ export interface SlotMachineProps {
   readonly displayGrid?: Grid | null;
   readonly highlightedLineIds?: readonly LineWin["lineId"][];
   readonly changedCells?: readonly { reel: ReelIndex; row: RowIndex }[];
+  readonly highlightedReels?: readonly ReelIndex[];
+  readonly shakePx?: number;
 }
 
 interface MotionState {
@@ -96,8 +98,11 @@ export function SlotMachine({
   reducedMotion,
   displayGrid,
   highlightedLineIds = [],
-  changedCells = []
+  changedCells = [],
+  highlightedReels = [],
+  shakePx = 0
 }: SlotMachineProps): React.JSX.Element {
+  const safeShakePx = Math.max(0, Math.min(6, Number.isFinite(shakePx) ? shakePx : 0));
   const explicitReplay = displayGrid !== null && displayGrid !== undefined;
   const activePlan = state.phase === "SPINNING" && !explicitReplay ? motionPlan : null;
   const timerKey = motionTimerIdentity(activePlan, reducedMotion);
@@ -167,9 +172,10 @@ export function SlotMachine({
 
   return (
     <section
-      className={`slot-machine${activePlan !== null || pausedSpinning ? " is-spinning" : ""}${reducedMotion ? " is-reduced" : ""}`}
+      className={`slot-machine${activePlan !== null || pausedSpinning ? " is-spinning" : ""}${reducedMotion ? " is-reduced" : ""}${safeShakePx > 0 ? " is-feedback-shaking" : ""}`}
       aria-label="老虎机转轮"
       data-motion-kind={activePlan?.kind ?? (pausedSpinning ? "paused" : "none")}
+      style={{ "--cabinet-shake": `${safeShakePx}px` } as React.CSSProperties}
     >
       {REEL_INDICES.map((reel) => {
         const isMoving = activePlan?.spinningReels.includes(reel) === true;
@@ -185,15 +191,17 @@ export function SlotMachine({
             ? targetGrid
             : cycleComplete
               ? targetGrid
-              : activePlan === null
-                ? visibleGrid
-                : stableGrid;
+                : activePlan === null
+                  ? visibleGrid
+                  : stableGrid;
+        const isReelHighlighted = highlightedReels.includes(reel);
 
         return (
           <div
-            className={`reel reel-${reelState}`}
+            className={`reel reel-${reelState}${isReelHighlighted ? " is-reel-highlighted" : ""}`}
             data-testid="reel"
             data-reel-state={reelState}
+            data-reel-highlighted={isReelHighlighted ? "true" : undefined}
             aria-label={`第${reel + 1}轮`}
             key={reel}
           >
