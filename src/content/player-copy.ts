@@ -387,12 +387,21 @@ function equippedImpact(state: RunState, part: PartInstance): string {
       return `当前 ${state.omen} 层恶兆；触发时可额外赔付 ¥${money(payout)} 并清空恶兆。${status}`;
     }
     case "martyr-coin": {
+      if (state.shiftFlags.martyrEnabled) {
+        return `本班已经献祭；不会再次扣款，幸运7中奖线按当前等级复制。${status}`;
+      }
+      const canEnable = state.phase === "READY_TO_SPIN" && state.pendingSpin === null && state.baseSpinsInShift === 0;
+      if (!canEnable) return `尚未献祭，但已经错过本班献祭窗口；本班不能再启用。${status}`;
       const cost = state.bankroll > 0 && Number.isFinite(state.bankroll) ? Math.ceil(state.bankroll * 0.1) : 0;
-      return `本班${state.shiftFlags.martyrEnabled ? "已经献祭" : "尚未献祭"}；当前献祭成本 ¥${cost}。${status}`;
+      return `本班尚未献祭；现在可以献祭，献祭成本 ¥${cost}。${status}`;
     }
     case "blank-capacitor": {
       const threshold = part.level === 1 ? 3 : 2;
-      const charge = Math.max(0, state.counters.blankCharge) % threshold;
+      const charge = Math.max(0, state.counters.blankCharge);
+      const pendingGrants = Math.floor(charge / threshold);
+      if (pendingGrants > 0) {
+        return `当前蓄能 ${charge}/${threshold}；待结算 ${pendingGrants} 次免费转动，将在下一次未失效的已接受盘面结算。${status}`;
+      }
       return `当前蓄能 ${charge}/${threshold}；还差 ${threshold - charge} 个实体空白获得免费转动。${status}`;
     }
     case "warranty-fraud": {
@@ -408,9 +417,15 @@ function equippedImpact(state: RunState, part: PartInstance): string {
     case "safety-fuse": {
       const minimum = getMinimumBet(state);
       const rescue = getSafetyFuseRescuePayout(state);
-      return rescue > 0
-        ? `余额已低于最低下注 ¥${money(minimum)}；下次尝试付费转动时将消耗并救援 ¥${money(rescue)}。${status}`
-        : `最低下注 ¥${money(minimum)}；余额尚未触发，触发后救援 ¥${part.level === 1 ? 20 : 40}。${status}`;
+      if (rescue > 0) {
+        const trigger = state.phase === "RESOLVING_EFFECTS" && state.freeSpinQueue === 0
+          ? `本次演出完成时将自动消耗并救援 ¥${money(rescue)}`
+          : state.phase === "READY_TO_SPIN"
+            ? `下次尝试付费转动时将消耗并救援 ¥${money(rescue)}`
+            : `进入下一次付费转动前将消耗并救援 ¥${money(rescue)}`;
+        return `余额已低于最低下注 ¥${money(minimum)}；${trigger}。${status}`;
+      }
+      return `最低下注 ¥${money(minimum)}；余额尚未触发，触发后救援 ¥${part.level === 1 ? 20 : 40}。${status}`;
     }
     default:
       return `当前装备 L${part.level}。${status}`;

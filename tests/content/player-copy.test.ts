@@ -5,7 +5,8 @@ import {
   describeUpgrade
 } from "@/content/player-copy";
 import { UPGRADE_IDS, UPGRADES } from "@/content/upgrades";
-import { createRun } from "@/core/run";
+import { drawReels } from "@/core/reels";
+import { createRun, dispatchCommand } from "@/core/run";
 import type { MachineEstimate } from "@/sim/types";
 import type { PartId, PartInstance, RunState, ServiceId, UpgradeId } from "@/core/types";
 
@@ -163,7 +164,6 @@ describe("player-facing content", () => {
       [{ id: "jam-jar", level: 1 }, ["本班已有 3 条樱桃中奖线", "下一条额外赔付 ¥30"]],
       [{ id: "leftovers", level: 2 }, ["本班还可返回 1 份食物"]],
       [{ id: "omen-collector", level: 2 }, ["当前 4 层恶兆", "可额外赔付 ¥80"]],
-      [{ id: "martyr-coin", level: 1 }, ["本班尚未献祭", "当前献祭成本 ¥11"]],
       [{ id: "blank-capacitor", level: 1 }, ["当前蓄能 2/3", "还差 1 个实体空白"]],
       [{ id: "warranty-fraud", level: 1 }, ["本班已经赔付"]],
       [{ id: "loose-spring", level: 2 }, ["本班踹击已使用", "前进 3 格", "增加 2 个永久裂纹"]],
@@ -182,5 +182,79 @@ describe("player-facing content", () => {
     }, { id: "safety-fuse", level: 1 });
     expect(rescue.currentImpact).toContain("低于最低下注 ¥5");
     expect(rescue.currentImpact).toContain("将消耗并救援 ¥20");
+  });
+
+  it("preserves an L1 capacitor's two banked blanks when the real controller upgrades it to L2", () => {
+    const state = upgradeState({
+      currentCandidates: {
+        synergy: "blank-capacitor",
+        pivot: "cherry-pitter",
+        wildcard: "calculator"
+      },
+      counters: { cherryWinsThisShift: 0, blankCharge: 2 },
+      partSlots: [{ id: "blank-capacitor", level: 1 }, null, null, null, null]
+    });
+    const upgraded = dispatchCommand(state, {
+      type: "CHOOSE_UPGRADE",
+      choice: { id: "blank-capacitor", action: "apply" }
+    });
+    expect(upgraded.ok).toBe(true);
+    if (!upgraded.ok) throw new Error(upgraded.error.message);
+    expect(upgraded.state.partSlots[0]).toEqual({ id: "blank-capacitor", level: 2 });
+    expect(upgraded.state.counters.blankCharge).toBe(2);
+
+    const presentation = describeEquippedPart(upgraded.state, upgraded.state.partSlots[0]!);
+    expect(presentation.currentImpact).toContain("当前蓄能 2/2");
+    expect(presentation.currentImpact).toContain("待结算 1 次免费转动");
+    expect(presentation.currentImpact).toContain("下一次未失效的已接受盘面");
+    expect(presentation.currentImpact).not.toContain("当前蓄能 0/2");
+    expect(presentation.currentImpact).not.toContain("还差 2 个");
+  });
+
+  it("distinguishes martyr availability, completed payment, and a missed activation window", () => {
+    const available: RunState = {
+      ...createRun(72),
+      phase: "READY_TO_SPIN",
+      service: "chapel",
+      bankroll: 101,
+      partSlots: [{ id: "martyr-coin", level: 1 }, null, null, null, null]
+    };
+    const before = describeEquippedPart(available, available.partSlots[0]!);
+    expect(before.currentImpact).toContain("现在可以献祭");
+    expect(before.currentImpact).toContain("献祭成本 ¥11");
+
+    const enabled = dispatchCommand(available, { type: "ENABLE_MARTYR" });
+    expect(enabled.ok).toBe(true);
+    if (!enabled.ok) throw new Error(enabled.error.message);
+    expect(enabled.state.bankroll).toBe(90);
+    const after = describeEquippedPart(enabled.state, enabled.state.partSlots[0]!);
+    expect(after.currentImpact).toContain("本班已经献祭");
+    expect(after.currentImpact).toContain("不会再次扣款");
+    expect(after.currentImpact).not.toMatch(/当前献祭成本|¥9/);
+
+    const missed = describeEquippedPart({ ...available, baseSpinsInShift: 1 }, available.partSlots[0]!);
+    expect(missed.currentImpact).toContain("已经错过本班献祭窗口");
+    expect(missed.currentImpact).not.toContain("献祭成本");
+  });
+
+  it("states when a below-minimum fuse will be consumed in ready and resolving phases", () => {
+    const ready: RunState = {
+      ...createRun(73),
+      phase: "READY_TO_SPIN",
+      service: "repair",
+      bankroll: 4,
+      partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null]
+    };
+    const readyCopy = describeEquippedPart(ready, ready.partSlots[0]!);
+    expect(readyCopy.currentImpact).toContain("下次尝试付费转动时将消耗并救援 ¥20");
+
+    const resolving: RunState = {
+      ...ready,
+      phase: "RESOLVING_EFFECTS",
+      pendingSpin: { draw: drawReels(ready.reels, ready.rng), isFree: false }
+    };
+    const resolvingCopy = describeEquippedPart(resolving, resolving.partSlots[0]!);
+    expect(resolvingCopy.currentImpact).toContain("本次演出完成时将自动消耗并救援 ¥20");
+    expect(resolvingCopy.currentImpact).not.toContain("下次尝试付费转动");
   });
 });
