@@ -1,9 +1,10 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SlotMachine } from "@/app/components/SlotMachine";
-import { createRun } from "@/core/run";
-import type { Grid, RunPhase, RunState } from "@/core/types";
+import { createRun, dispatchCommand } from "@/core/run";
+import type { Grid, RunPhase, RunState, SymbolId } from "@/core/types";
 import type { ReelMotionPlan } from "@/presentation/reel-timeline";
+import appStyles from "@/app/styles.css?inline";
 
 const STABLE_GRID: Grid = [
   ["blank", "blank", "blank"],
@@ -24,6 +25,19 @@ const BASE_PLAN: ReelMotionPlan = {
   revealAtMs: { 0: 1000, 1: 1220, 2: 1440 },
   completeAtMs: 1440
 };
+
+const TEST_SYMBOL_LABELS: Readonly<Record<SymbolId, string>> = {
+  cherry: "樱桃",
+  lemon: "柠檬",
+  bell: "铃铛",
+  seven: "幸运7",
+  wild: "百搭",
+  blank: "空白",
+  food: "食物",
+  crack: "裂纹"
+};
+
+let styleElement: HTMLStyleElement | null = null;
 
 function stateWithGrid(grid: Grid, phase: RunPhase): RunState {
   const base = createRun(501);
@@ -51,12 +65,25 @@ function reelStates(): string[] {
   return screen.getAllByTestId("reel").map((reel) => reel.getAttribute("data-reel-state") ?? "");
 }
 
+function completedPresentation(state: RunState): RunState {
+  const result = dispatchCommand(state, { type: "PRESENTATION_COMPLETE" });
+  if (!result.ok) throw new Error("fixture presentation completion failed");
+  return result.state;
+}
+
 afterEach(() => {
   cleanup();
+  styleElement?.remove();
+  styleElement = null;
   vi.useRealTimers();
 });
 
-beforeEach(() => vi.useFakeTimers());
+beforeEach(() => {
+  vi.useFakeTimers();
+  styleElement = document.createElement("style");
+  styleElement.textContent = appStyles;
+  document.head.append(styleElement);
+});
 
 describe("SlotMachine", () => {
   it("keeps every authoritative label private until that reel reaches its planned stop", () => {
@@ -219,13 +246,19 @@ describe("SlotMachine", () => {
     );
 
     rerender(<SlotMachine state={spinning} motionPlan={reducedPlan} reducedMotion />);
-    expect(screen.getAllByTestId("reduced-reel-cover")).toHaveLength(3);
+    const covers = screen.getAllByTestId("reduced-reel-cover");
+    expect(covers).toHaveLength(3);
+    expect(covers[0]).toHaveAttribute("data-cover-duration-ms", "160");
+    expect(getComputedStyle(covers[0]!).animationName).toBe("reduced-cover-fade");
+    expect(getComputedStyle(covers[0]!).animationDuration).toBe("160ms");
     expect(labelsIn(screen.getByRole("region", { name: "老虎机转轮" }))).toEqual([]);
 
     act(() => vi.advanceTimersByTime(159));
     expect(labelsIn(screen.getByRole("region", { name: "老虎机转轮" }))).toEqual([]);
     act(() => vi.advanceTimersByTime(1));
     expect(labelsIn(screen.getByRole("region", { name: "老虎机转轮" }))).toHaveLength(9);
+    expect(screen.queryByTestId("reduced-reel-cover")).not.toBeInTheDocument();
+    expect(getComputedStyle(screen.getAllByTestId("cell")[0]!).animationName).toBe("none");
   });
 
   it("uses the same deterministic filler tape for different authoritative outcomes", () => {
@@ -320,5 +353,40 @@ describe("SlotMachine", () => {
     expect(labelsIn(screen.getAllByTestId("reel")[0]!)).toEqual(["樱桃", "柠檬", "铃铛"]);
     expect(labelsIn(screen.getAllByTestId("reel")[1]!)).toEqual([]);
     expect(labelsIn(screen.getAllByTestId("reel")[2]!)).toEqual(["裂纹", "樱桃", "柠檬"]);
+  });
+
+  it.each([
+    { name: "the authoritative settled grid", displayGrid: undefined },
+    {
+      name: "the last replay frame",
+      displayGrid: [
+        ["wild", "lemon", "bell"],
+        ["seven", "wild", "food"],
+        ["crack", "cherry", "wild"]
+      ] as Grid
+    }
+  ])("preserves $name after real presentation completion and resets it for a same-seed new run", ({ displayGrid }) => {
+    const resolving = stateWithGrid(FINAL_GRID, "RESOLVING_EFFECTS");
+    const completed = completedPresentation(resolving);
+    const visibleBeforeCompletion = displayGrid ?? FINAL_GRID;
+    const { rerender } = render(
+      <SlotMachine
+        state={resolving}
+        motionPlan={null}
+        reducedMotion={false}
+        {...(displayGrid === undefined ? {} : { displayGrid })}
+      />
+    );
+    const machine = screen.getByRole("region", { name: "老虎机转轮" });
+    const expectedSettledLabels = visibleBeforeCompletion.flatMap((reel) => reel.map((symbol) => TEST_SYMBOL_LABELS[symbol]));
+
+    rerender(<SlotMachine state={completed} motionPlan={null} reducedMotion={false} />);
+    expect(labelsIn(machine)).toEqual(expectedSettledLabels);
+
+    const restarted = createRun(resolving.initialSeed);
+    const expectedRestartLabels = restarted.reels.flatMap((strip) =>
+      [0, 1, 2].map((row) => TEST_SYMBOL_LABELS[strip[row] ?? "blank"]));
+    rerender(<SlotMachine state={restarted} motionPlan={null} reducedMotion={false} />);
+    expect(labelsIn(machine)).toEqual(expectedRestartLabels);
   });
 });

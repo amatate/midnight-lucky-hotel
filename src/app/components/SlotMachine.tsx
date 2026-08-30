@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SymbolFace } from "@/app/components/SymbolFace";
 import { PAYLINES } from "@/core/paylines";
 import type { Grid, LineWin, ReelIndex, RowIndex, RunState, SymbolId } from "@/core/types";
@@ -18,6 +18,13 @@ interface MotionState {
   readonly revealedReels: readonly ReelIndex[];
 }
 
+interface StableObservation {
+  readonly initialSeed: number;
+  readonly commandHistoryLength: number;
+  readonly hadPendingSpin: boolean;
+  readonly reels: RunState["reels"];
+}
+
 const REEL_INDICES = [0, 1, 2] as const;
 
 const FILLER_TAPES: readonly (readonly SymbolId[])[] = [
@@ -28,11 +35,6 @@ const FILLER_TAPES: readonly (readonly SymbolId[])[] = [
 
 function stripPreview(state: RunState): Grid {
   return REEL_INDICES.map((reel) => REEL_INDICES.map((row) => state.reels[reel][row] ?? "blank")) as unknown as Grid;
-}
-
-function resolvedGrid(state: RunState, displayGrid: Grid | null | undefined): Grid {
-  if (displayGrid !== null && displayGrid !== undefined) return displayGrid;
-  return state.pendingSpin?.draw.grid ?? stripPreview(state);
 }
 
 function cellKey(reel: ReelIndex, row: RowIndex): string {
@@ -61,8 +63,25 @@ function FillerTape({ reel }: { readonly reel: ReelIndex }): React.JSX.Element {
   );
 }
 
-function ReducedCover(): React.JSX.Element {
-  return <div className="reel-smoked-cover" data-testid="reduced-reel-cover" aria-hidden="true" />;
+function ReducedCover({ durationMs }: { readonly durationMs: number | null }): React.JSX.Element {
+  const timedStyle = durationMs === null
+    ? undefined
+    : {
+        "--reduced-cover-duration": `${durationMs}ms`,
+        animationName: "reduced-cover-fade",
+        animationDuration: `${durationMs}ms`,
+        animationTimingFunction: "linear",
+        animationFillMode: "both"
+      } as React.CSSProperties;
+  return (
+    <div
+      className="reel-smoked-cover"
+      data-testid="reduced-reel-cover"
+      data-cover-duration-ms={durationMs ?? undefined}
+      style={timedStyle}
+      aria-hidden="true"
+    />
+  );
 }
 
 function motionTimerIdentity(plan: ReelMotionPlan | null, reducedMotion: boolean): string | null {
@@ -79,17 +98,46 @@ export function SlotMachine({
   highlightedLineIds = [],
   changedCells = []
 }: SlotMachineProps): React.JSX.Element {
-  const resolved = resolvedGrid(state, displayGrid);
   const explicitReplay = displayGrid !== null && displayGrid !== undefined;
   const activePlan = state.phase === "SPINNING" && !explicitReplay ? motionPlan : null;
   const timerKey = motionTimerIdentity(activePlan, reducedMotion);
-  const stableGrid = useRef<Grid>(resolved);
+  const immediateGrid = explicitReplay ? displayGrid : state.pendingSpin?.draw.grid;
+  const [stableGrid, setStableGrid] = useState<Grid>(() => immediateGrid ?? stripPreview(state));
+  const observation = useRef<StableObservation>({
+    initialSeed: state.initialSeed,
+    commandHistoryLength: state.commandHistory.length,
+    hadPendingSpin: state.pendingSpin !== null,
+    reels: state.reels
+  });
   const [motionState, setMotionState] = useState<MotionState>(() => ({
     timerKey,
     revealedReels: []
   }));
 
-  if (activePlan === null) stableGrid.current = resolved;
+  useLayoutEffect(() => {
+    const previous = observation.current;
+    const resetRun = previous.initialSeed !== state.initialSeed ||
+      state.commandHistory.length < previous.commandHistoryLength;
+    let nextStable: Grid | null = null;
+
+    if (explicitReplay) {
+      nextStable = displayGrid;
+    } else if (resetRun) {
+      nextStable = state.pendingSpin?.draw.grid ?? stripPreview(state);
+    } else if (activePlan === null && state.pendingSpin !== null) {
+      nextStable = state.pendingSpin.draw.grid;
+    } else if (state.pendingSpin === null && !previous.hadPendingSpin && state.reels !== previous.reels) {
+      nextStable = stripPreview(state);
+    }
+
+    if (nextStable !== null && nextStable !== stableGrid) setStableGrid(nextStable);
+    observation.current = {
+      initialSeed: state.initialSeed,
+      commandHistoryLength: state.commandHistory.length,
+      hadPendingSpin: state.pendingSpin !== null,
+      reels: state.reels
+    };
+  }, [activePlan, displayGrid, explicitReplay, stableGrid, state]);
 
   useEffect(() => {
     if (activePlan === null || timerKey === null) {
@@ -113,7 +161,8 @@ export function SlotMachine({
   const cycleComplete = activePlan !== null && activePlan.spinningReels.every((reel) => currentCycleReveals.has(reel));
   const highlighted = highlightedCells(highlightedLineIds);
   const changed = new Set(changedCells.map(({ reel, row }) => cellKey(reel, row)));
-  const targetGrid = state.pendingSpin?.draw.grid ?? resolved;
+  const visibleGrid = immediateGrid ?? stableGrid;
+  const targetGrid = state.pendingSpin?.draw.grid ?? visibleGrid;
   const pausedSpinning = state.phase === "SPINNING" && activePlan === null && !explicitReplay;
 
   return (
@@ -131,14 +180,14 @@ export function SlotMachine({
             ? isRevealed ? "settled" : "moving"
             : activePlan?.kind === "repair-lock" ? "locked" : "static";
         const grid = explicitReplay
-          ? resolved
+          ? visibleGrid
           : isRevealed
             ? targetGrid
             : cycleComplete
               ? targetGrid
               : activePlan === null
-                ? resolved
-                : stableGrid.current;
+                ? visibleGrid
+                : stableGrid;
 
         return (
           <div
@@ -149,7 +198,14 @@ export function SlotMachine({
             key={reel}
           >
             {pausedSpinning || (isMoving && !isRevealed)
-              ? reducedMotion ? <ReducedCover /> : <FillerTape reel={reel} />
+              ? reducedMotion
+                ? <ReducedCover
+                    durationMs={activePlan === null
+                      ? null
+                      : activePlan.revealAtMs[reel] ?? activePlan.completeAtMs}
+                    key={timerKey ?? "paused"}
+                  />
+                : <FillerTape reel={reel} />
               : grid[reel].map((symbol, row) => {
                   const typedRow = row as RowIndex;
                   const key = cellKey(reel, typedRow);
