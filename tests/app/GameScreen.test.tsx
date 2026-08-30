@@ -4,15 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GameScreen } from "@/app/GameScreen";
 import { Hud } from "@/app/components/Hud";
 import { ActionBar } from "@/app/components/ActionBar";
+import { SYMBOL_LABELS } from "@/app/labels";
 import { UPGRADE_IDS } from "@/content/upgrades";
-import { createRun } from "@/core/run";
+import { createRun, dispatchCommand } from "@/core/run";
 import type { GameCommand } from "@/core/commands";
 import type { RunState, UpgradeId } from "@/core/types";
+import { RUN_STORAGE_KEY } from "@/persistence/storage";
 import type { MachineEstimate } from "@/sim/types";
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 beforeEach(() => localStorage.clear());
 
@@ -111,6 +114,83 @@ describe("GameScreen", () => {
     expect(screen.getByText("结算演出")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "直接结算" }));
     expect(screen.getByText("第 1 班 · 1/3")).toBeVisible();
+  });
+
+  it("wires the shared reel plan so a base result appears one authoritative reel at a time", async () => {
+    vi.useFakeTimers();
+    const seed = 92;
+    const initial = createRun(seed);
+    const serviceId = initial.serviceCandidates[0];
+    const readyResult = dispatchCommand(initial, { type: "SELECT_SERVICE", serviceId });
+    if (!readyResult.ok) throw new Error("fixture service selection failed");
+    const spinResult = dispatchCommand(readyResult.state, { type: "SPIN" });
+    if (!spinResult.ok || spinResult.state.pendingSpin === null) throw new Error("fixture spin failed");
+    const expected = spinResult.state.pendingSpin.draw.grid;
+
+    render(<GameScreen seed={seed} initialState={initial} />);
+    await chooseFirstService();
+    fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
+
+    const machine = screen.getByRole("region", { name: "老虎机转轮" });
+    expect(within(machine).queryAllByRole("img")).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTimeAsync(999));
+    expect(within(machine).queryAllByRole("img")).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(within(screen.getAllByTestId("reel")[0]!).getAllByRole("img").map((cell) => cell.getAttribute("aria-label"))).toEqual(
+      expected[0].map((symbol) => SYMBOL_LABELS[symbol])
+    );
+    expect(within(machine).queryAllByRole("img")).toHaveLength(3);
+    await act(async () => vi.advanceTimersByTimeAsync(440));
+    expect(within(machine).getAllByRole("img").map((cell) => cell.getAttribute("aria-label"))).toEqual(
+      expected.flatMap((reel) => reel.map((symbol) => SYMBOL_LABELS[symbol]))
+    );
+    expect(screen.getByText("等待干预")).toBeVisible();
+  });
+
+  it("keeps the generated result private while hidden and restarts reel timing after visibility returns", async () => {
+    vi.useFakeTimers();
+    let hidden = false;
+    vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+    render(<GameScreen seed={93} />);
+    await chooseFirstService();
+    fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
+    const machine = screen.getByRole("region", { name: "老虎机转轮" });
+
+    await act(async () => vi.advanceTimersByTimeAsync(900));
+    hidden = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(within(machine).queryAllByRole("img")).toHaveLength(0);
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+
+    hidden = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => vi.advanceTimersByTimeAsync(999));
+    expect(within(machine).queryAllByRole("img")).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(within(machine).queryAllByRole("img")).toHaveLength(3);
+  });
+
+  it("keeps a recovered spinning result covered until the player resumes a fresh reel cycle", async () => {
+    vi.useFakeTimers();
+    const initial = createRun(94);
+    const ready = dispatchCommand(initial, { type: "SELECT_SERVICE", serviceId: initial.serviceCandidates[0] });
+    if (!ready.ok) throw new Error("fixture service selection failed");
+    const spinning = dispatchCommand(ready.state, { type: "SPIN" });
+    if (!spinning.ok) throw new Error("fixture spin failed");
+    localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(spinning.state));
+    render(<GameScreen seed={999} />);
+
+    const machine = screen.getByRole("region", { name: "老虎机转轮" });
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(within(machine).queryAllByRole("img")).toHaveLength(0);
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+
+    fireEvent.click(within(screen.getByRole("dialog", { name: "恢复上次进度" })).getByRole("button", { name: "继续停轮" }));
+    await act(async () => vi.advanceTimersByTimeAsync(999));
+    expect(within(machine).queryAllByRole("img")).toHaveLength(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(within(machine).queryAllByRole("img")).toHaveLength(3);
   });
 
   it("uses the physical lever's 82% journey without firing below the threshold", async () => {

@@ -90,12 +90,13 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
   const [osReducedMotion, setOsReducedMotion] = useState(systemReducedMotion);
   const effectiveReducedMotion = reduceFlash || osReducedMotion;
 
-  useAutomaticSpinFlow({
+  const motionPlan = useAutomaticSpinFlow({
     state: game.state,
     paused: documentHidden || recoveryOpen,
     reducedMotion: effectiveReducedMotion,
     onCommand: game.send
   });
+  const visibleMotionPlan = documentHidden || recoveryOpen ? null : motionPlan;
 
   useEffect(() => {
     if (estimate === null || estimate === lastEstimate.current) return;
@@ -220,7 +221,11 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         </section>
       )}
 
-      <SlotMachine state={game.state} />
+      <SlotMachine
+        state={game.state}
+        motionPlan={visibleMotionPlan}
+        reducedMotion={effectiveReducedMotion}
+      />
       <PartsBar state={game.state} />
       {game.state.acquiredUpgrades.length > 0 && (
         <section className="acquired-upgrades" aria-label="已获得升级">
