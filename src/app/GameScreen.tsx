@@ -7,6 +7,7 @@ import { SlotMachine } from "@/app/components/SlotMachine";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
 import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
+import { useAutomaticSpinFlow } from "@/app/useAutomaticSpinFlow";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
@@ -116,6 +117,13 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
   const [reduceFlash, setReduceFlash] = useState(storedReduceFlash);
   const [osReducedMotion, setOsReducedMotion] = useState(systemReducedMotion);
   const effectiveReducedMotion = reduceFlash || osReducedMotion;
+
+  useAutomaticSpinFlow({
+    state: game.state,
+    paused: documentHidden || recoveryOpen,
+    reducedMotion: effectiveReducedMotion,
+    onCommand: game.send
+  });
 
   useEffect(() => {
     if (estimate === null || estimate === lastEstimate.current) return;

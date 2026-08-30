@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GameScreen } from "@/app/GameScreen";
@@ -10,21 +10,22 @@ import type { GameCommand } from "@/core/commands";
 import type { RunState, UpgradeId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 beforeEach(() => localStorage.clear());
 
 async function chooseFirstService(): Promise<void> {
-  const user = userEvent.setup();
   const chooser = screen.getByRole("region", { name: "选择服务" });
-  await user.click(within(chooser).getAllByRole("button")[0]!);
+  fireEvent.click(within(chooser).getAllByRole("button")[0]!);
 }
 
 async function completeSpin(): Promise<void> {
-  const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "拉动老虎机" }));
-  await user.click(screen.getByRole("button", { name: "停轮" }));
-  await user.click(screen.getByRole("button", { name: "接受结果" }));
-  await user.click(screen.getByRole("button", { name: "直接结算" }));
+  fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
+  await act(async () => vi.advanceTimersByTimeAsync(1_440));
+  fireEvent.click(screen.getByRole("button", { name: "收下这把" }));
+  fireEvent.click(screen.getByRole("button", { name: "直接结算" }));
 }
 
 function offeredState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
@@ -74,24 +75,41 @@ describe("GameScreen", () => {
     expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
   });
 
-  it("routes a paid spin through explicit stop, intervention, acceptance, and presentation", async () => {
-    const user = userEvent.setup();
+  it("automatically stops each motion cycle once and waits for the player's intervention decision", async () => {
+    vi.useFakeTimers();
     render(<GameScreen seed={91} />);
     await chooseFirstService();
 
-    await user.click(screen.getByRole("button", { name: "拉动老虎机" }));
+    fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
     expect(screen.getByText("余额 ¥90")).toBeVisible();
     expect(screen.getByText("转轮旋转中")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "停轮" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "停轮" }));
-    expect(screen.getByText("等待干预")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "重转第1轮" }));
+    await act(async () => vi.advanceTimersByTimeAsync(1_439));
     expect(screen.getByText("转轮旋转中")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "停轮" }));
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    expect(screen.getByRole("button", { name: "收下这把" })).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    let history = JSON.parse(localStorage.getItem("midnight-lucky-hotel.run.v1")!).commandHistory as readonly GameCommand[];
+    expect(history.filter((command) => command.type === "REELS_STOPPED")).toHaveLength(1);
 
-    await user.click(screen.getByRole("button", { name: "接受结果" }));
+    fireEvent.click(screen.getByRole("button", { name: "重转第1轮" }));
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(619));
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    history = JSON.parse(localStorage.getItem("midnight-lucky-hotel.run.v1")!).commandHistory as readonly GameCommand[];
+    expect(history.filter((command) => command.type === "REELS_STOPPED")).toHaveLength(2);
+
+    expect(screen.queryByRole("button", { name: "收下这把" })).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(299));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(screen.getByText("结算演出")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "直接结算" }));
+    fireEvent.click(screen.getByRole("button", { name: "直接结算" }));
     expect(screen.getByText("第 1 班 · 1/3")).toBeVisible();
   });
 
@@ -111,6 +129,7 @@ describe("GameScreen", () => {
   });
 
   it("reaches a three-card upgrade boundary after three presented base spins", async () => {
+    vi.useFakeTimers();
     render(<GameScreen seed={123} />);
     await chooseFirstService();
 

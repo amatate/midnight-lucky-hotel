@@ -1,4 +1,4 @@
-import { act, cleanup, render, renderHook, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,7 @@ import { createRun } from "@/core/run";
 import type { GameEvent } from "@/core/events";
 import { createPresentationQueue } from "@/presentation/queue";
 import { RUN_STORAGE_KEY } from "@/persistence/storage";
+import type { GameCommand } from "@/core/commands";
 
 const events: readonly GameEvent[] = [
   { sequence: 3, type: "PAYOUT_COMPLETE", total: 25 },
@@ -88,6 +89,13 @@ function awaitingState(seed: number) {
   return accept(dispatchCommand(spinningState(seed), { type: "REELS_STOPPED" })).state;
 }
 
+function persistedCommandCount(type: GameCommand["type"]): number {
+  const value = localStorage.getItem(RUN_STORAGE_KEY);
+  if (value === null) return 0;
+  const commands = JSON.parse(value).commandHistory as readonly GameCommand[];
+  return commands.filter((command) => command.type === type).length;
+}
+
 function installMotionPreference(initial: boolean) {
   let matches = initial;
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
@@ -132,8 +140,8 @@ describe("presentation recovery UI", () => {
     expect(screen.getByText(`余额 ¥${saved.bankroll}`)).toBeVisible();
   });
 
-  it("recovers SPINNING by closing into the explicit stop control without dispatching early", async () => {
-    const user = userEvent.setup();
+  it("keeps recovered SPINNING paused, then resumes automatic stopping from a fresh full delay", async () => {
+    vi.useFakeTimers();
     const saved = spinningState(201);
     localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(saved));
     render(createElement(GameScreen, { seed: 999 }));
@@ -141,9 +149,36 @@ describe("presentation recovery UI", () => {
     const dialog = screen.getByRole("dialog", { name: "恢复上次进度" });
     expect(within(dialog).getByRole("button", { name: "继续停轮" })).toBeVisible();
     expect(within(dialog).queryByRole("button", { name: "直接结算" })).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "继续停轮" }));
-    expect(screen.getByRole("button", { name: "停轮" })).toBeVisible();
-    expect(JSON.parse(localStorage.getItem(RUN_STORAGE_KEY)!).commandHistory).toHaveLength(saved.commandHistory.length);
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+    expect(persistedCommandCount("REELS_STOPPED")).toBe(0);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "继续停轮" }));
+    expect(screen.queryByRole("button", { name: "停轮" })).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(1_439));
+    expect(persistedCommandCount("REELS_STOPPED")).toBe(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    expect(persistedCommandCount("REELS_STOPPED")).toBe(1);
+  });
+
+  it("does not auto-accept behind recovery and starts the result hold only after continue", async () => {
+    vi.useFakeTimers();
+    const saved = { ...awaitingState(207), interventionPoints: 0, interventionUsedThisSpin: true };
+    localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(saved));
+    render(createElement(GameScreen, { seed: 999 }));
+
+    const dialog = screen.getByRole("dialog", { name: "恢复上次进度" });
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    expect(persistedCommandCount("ACCEPT_OUTCOME")).toBe(0);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "继续干预" }));
+    await act(async () => vi.advanceTimersByTimeAsync(299));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByText("结算演出")).toBeVisible();
+    expect(persistedCommandCount("ACCEPT_OUTCOME")).toBe(1);
   });
 
   it("recovers AWAITING_INTERVENTION with an explicit accept that starts presentation once", async () => {
@@ -223,6 +258,62 @@ describe("presentation recovery UI", () => {
     act(() => document.dispatchEvent(new Event("visibilitychange")));
     await act(async () => vi.advanceTimersByTimeAsync(350));
     expect(screen.getByText(/事件 2\/\d+/)).toBeVisible();
+  });
+
+  it("pauses automatic reel stopping while hidden and restarts the full phase delay when visible", async () => {
+    vi.useFakeTimers();
+    let isHidden = false;
+    vi.spyOn(document, "hidden", "get").mockImplementation(() => isHidden);
+    render(createElement(GameScreen, { seed: 208, initialState: spinningState(208) }));
+
+    isHidden = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+    expect(persistedCommandCount("REELS_STOPPED")).toBe(0);
+
+    isHidden = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => vi.advanceTimersByTimeAsync(1_439));
+    expect(persistedCommandCount("REELS_STOPPED")).toBe(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(persistedCommandCount("REELS_STOPPED")).toBe(1);
+  });
+
+  it("auto-accepts exactly once after the result hold when no legal intervention remains", async () => {
+    vi.useFakeTimers();
+    const state = { ...awaitingState(209), interventionPoints: 0, interventionUsedThisSpin: true };
+    render(createElement(GameScreen, { seed: 209, initialState: state }));
+
+    await act(async () => vi.advanceTimersByTimeAsync(299));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByText("结算演出")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(persistedCommandCount("ACCEPT_OUTCOME")).toBe(1);
+  });
+
+  it("uses the reduced-motion delay after an effect rerun without duplicate stopping", async () => {
+    vi.useFakeTimers();
+    render(createElement(GameScreen, { seed: 210, initialState: spinningState(210) }));
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "减少闪烁" }));
+    await act(async () => vi.advanceTimersByTimeAsync(159));
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByText("等待干预")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(persistedCommandCount("REELS_STOPPED")).toBe(1);
+  });
+
+  it("clears automatic flow timers on unmount", async () => {
+    vi.useFakeTimers();
+    const { unmount } = render(createElement(GameScreen, { seed: 211, initialState: spinningState(211) }));
+
+    unmount();
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+
+    expect(localStorage.getItem(RUN_STORAGE_KEY)).toBeNull();
   });
 
   it("treats OS reduced motion as mandatory even when the stored setting is false", async () => {
