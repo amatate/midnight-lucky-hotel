@@ -121,6 +121,24 @@ describe("summarizePresentation", () => {
     });
   });
 
+  it("keeps a zero-total non-overload result at none even with six visible effects", () => {
+    const events: GameEvent[] = [
+      { sequence: 1, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
+      { sequence: 2, type: "PART_DISABLED", partId: "jam-jar", slot: 0 },
+      { sequence: 3, type: "PAYOUT_ADDED", amount: 1, source: "part" },
+      { sequence: 4, type: "SYMBOL_CHANGED", reel: 0, row: 0, from: "blank", to: "cherry" },
+      { sequence: 5, type: "RESOURCE_CHANGED", resource: "tips", delta: 1 },
+      { sequence: 6, type: "FOOD_CONSUMED", reel: 2 },
+      { sequence: 7, type: "PAYOUT_COMPLETE", total: 0 }
+    ];
+
+    expect(summarizePresentation(events, 10)).toMatchObject({
+      total: 0,
+      effectCount: 6,
+      tier: "none"
+    });
+  });
+
   it("changes from win to chain exactly at three times the current bet", () => {
     expect(
       summarizePresentation([{ sequence: 1, type: "PAYOUT_COMPLETE", total: 29.99 }], 10).tier

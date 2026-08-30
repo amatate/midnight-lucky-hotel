@@ -89,10 +89,12 @@ export function summarizePresentation(
   const overloaded = events.some((event) => event.type === "OVERLOAD");
 
   let tier: FeedbackTier;
-  if (overloaded || effectCount >= 6 || total >= 8 * currentBet) {
+  if (overloaded) {
     tier = "runaway";
   } else if (total <= 0) {
     tier = "none";
+  } else if (effectCount >= 6 || total >= 8 * currentBet) {
+    tier = "runaway";
   } else if (
     lines.length >= 2 ||
     partTriggers.length >= 2 ||
