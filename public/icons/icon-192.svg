@@ -1,8 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="午夜好运酒店图标">
-  <rect width="192" height="192" rx="38" fill="#17191f"/>
-  <rect x="30" y="36" width="132" height="120" rx="22" fill="#38244c" stroke="#ffd166" stroke-width="8"/>
-  <circle cx="64" cy="88" r="18" fill="#d6b7ff"/>
-  <circle cx="128" cy="88" r="18" fill="#d6b7ff"/>
-  <path d="M68 130h56M96 52v96" stroke="#ffd166" stroke-width="9" stroke-linecap="round"/>
-  <path d="m53 88 11 12 18-28m28 16 11 12 18-28" fill="none" stroke="#8ff0bc" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="午夜好运酒店 1313 房老虎机图标">
+  <rect width="192" height="192" rx="38" fill="#0B0908"/>
+  <path d="M29 58h119v107H29z" fill="#B8893E" stroke="#F2E3C0" stroke-width="4"/>
+  <path d="M37 66h103v91H37z" fill="#0B0908"/>
+  <path d="M43 24h91l9 10v31H43z" fill="#F2E3C0" stroke="#B8893E" stroke-width="5"/>
+  <g fill="none" stroke="#A92F36" stroke-width="6" stroke-linecap="square" stroke-linejoin="bevel">
+    <path d="M56 35v19m-5-15 5-4"/>
+    <path d="M69 35h13l-8 9h8l-8 10H68"/>
+    <path d="M96 35v19m-5-15 5-4"/>
+    <path d="M109 35h13l-8 9h8l-8 10h-6"/>
+  </g>
+  <path d="M43 76h91v57H43z" fill="#347568" stroke="#B8893E" stroke-width="4"/>
+  <g fill="#F2E3C0" stroke="#B8893E" stroke-width="3">
+    <rect x="49" y="83" width="23" height="43" rx="3"/>
+    <rect x="77" y="83" width="23" height="43" rx="3"/>
+    <rect x="105" y="83" width="23" height="43" rx="3"/>
+  </g>
+  <g fill="none" stroke="#A92F36" stroke-width="5" stroke-linejoin="bevel">
+    <path d="M54 94h14l-8 21"/>
+    <path d="M82 94h14l-8 21"/>
+    <path d="M110 94h14l-8 21"/>
+  </g>
+  <path d="M56 143h62" stroke="#FFD45A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M153 72v58" stroke="#F2E3C0" stroke-width="6"/>
+  <circle cx="153" cy="68" r="11" fill="#A92F36" stroke="#B8893E" stroke-width="4"/>
+  <circle cx="153" cy="135" r="5" fill="#FFD45A"/>
 </svg>

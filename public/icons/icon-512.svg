@@ -1,8 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="午夜好运酒店图标">
-  <rect width="512" height="512" rx="102" fill="#17191f"/>
-  <rect x="80" y="96" width="352" height="320" rx="58" fill="#38244c" stroke="#ffd166" stroke-width="22"/>
-  <circle cx="171" cy="235" r="48" fill="#d6b7ff"/>
-  <circle cx="341" cy="235" r="48" fill="#d6b7ff"/>
-  <path d="M181 347h150M256 139v256" stroke="#ffd166" stroke-width="24" stroke-linecap="round"/>
-  <path d="m141 235 30 32 48-75m74 43 30 32 48-75" fill="none" stroke="#8ff0bc" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="午夜好运酒店 1313 房老虎机图标">
+  <rect width="512" height="512" rx="102" fill="#0B0908"/>
+  <path d="M77 155h317v285H77z" fill="#B8893E" stroke="#F2E3C0" stroke-width="11"/>
+  <path d="M99 176h274v243H99z" fill="#0B0908"/>
+  <path d="M115 64h242l24 27v83H115z" fill="#F2E3C0" stroke="#B8893E" stroke-width="13"/>
+  <g fill="none" stroke="#A92F36" stroke-width="16" stroke-linecap="square" stroke-linejoin="bevel">
+    <path d="M149 93v51m-14-40 14-11"/>
+    <path d="M184 93h35l-21 24h21l-21 27h-16"/>
+    <path d="M256 93v51m-14-40 14-11"/>
+    <path d="M291 93h35l-21 24h21l-21 27h-16"/>
+  </g>
+  <path d="M115 203h242v152H115z" fill="#347568" stroke="#B8893E" stroke-width="11"/>
+  <g fill="#F2E3C0" stroke="#B8893E" stroke-width="8">
+    <rect x="131" y="221" width="61" height="115" rx="8"/>
+    <rect x="205" y="221" width="61" height="115" rx="8"/>
+    <rect x="279" y="221" width="61" height="115" rx="8"/>
+  </g>
+  <g fill="none" stroke="#A92F36" stroke-width="13" stroke-linejoin="bevel">
+    <path d="M144 250h37l-21 56"/>
+    <path d="M218 250h37l-21 56"/>
+    <path d="M292 250h37l-21 56"/>
+  </g>
+  <path d="M149 381h165" stroke="#FFD45A" stroke-width="16" stroke-linecap="round"/>
+  <path d="M408 192v155" stroke="#F2E3C0" stroke-width="16"/>
+  <circle cx="408" cy="181" r="29" fill="#A92F36" stroke="#B8893E" stroke-width="11"/>
+  <circle cx="408" cy="360" r="13" fill="#FFD45A"/>
 </svg>

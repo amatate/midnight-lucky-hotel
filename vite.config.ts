@@ -9,15 +9,20 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
-      includeAssets: ["icons/icon-192.svg", "icons/icon-512.svg"],
+      includeAssets: [
+        "icons/icon-192.svg",
+        "icons/icon-512.svg",
+        "fonts/SmileySans-Oblique.woff2",
+        "fonts/BarlowCondensed-SemiBold.woff2"
+      ],
       manifest: {
         name: "午夜好运酒店",
         short_name: "好运酒店",
-        description: "离线可玩的老虎机 Roguelite 功能原型",
+        description: "一拉一爆的午夜酒店老虎机 Roguelite",
         display: "standalone",
         orientation: "portrait",
-        theme_color: "#17191f",
-        background_color: "#17191f",
+        theme_color: "#0B0908",
+        background_color: "#0B0908",
         start_url: "/",
         icons: [
           { src: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
@@ -25,7 +30,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg}"],
+        globPatterns: ["**/*.{js,css,html,svg,woff2}"],
         navigateFallback: "index.html",
         runtimeCaching: [],
         cleanupOutdatedCaches: true

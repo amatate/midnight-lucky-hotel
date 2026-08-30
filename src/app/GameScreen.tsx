@@ -119,117 +119,138 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
   };
   const isRunSummary = game.state.phase === "SHIFT_COMPLETE" || game.state.phase === "RUN_WON" ||
     game.state.phase === "RUN_LOST" || (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates === null);
+  const isUpgradeScene = game.state.phase === "CHOOSING_UPGRADE" ||
+    (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates !== null);
+  const showCabinet = !isUpgradeScene && !isRunSummary;
 
   return (
     <div
-      className={`game-screen${effectiveReducedMotion ? " reduce-motion" : ""}`}
+      className={`game-page${effectiveReducedMotion ? " reduce-motion" : ""}`}
       data-reduced-motion={effectiveReducedMotion}
-      data-coin-cabinet="true"
     >
-      <header className="game-header">
+      <header className="hotel-header">
         <div>
-          <p className="eyebrow">功能原型</p>
+          <p className="hotel-sign">MIDNIGHT LUCK</p>
           <h1>午夜好运酒店</h1>
         </div>
-        <span className="phase-badge">{PHASE_LABELS[game.state.phase]}</span>
+        <div className="shift-plaque">
+          <strong>第 {game.state.shift} 班 · {game.state.baseSpinsInShift}/3</strong>
+          <span>{PHASE_LABELS[game.state.phase]}</span>
+        </div>
       </header>
-      <Hud
-        state={game.state}
-        estimate={estimate}
-        estimateStatus={estimateStatus}
-        payoutAmount={settlementPresentation?.summary.total ?? 0}
-        presentedThroughSequence={presentedThroughSequence}
-      />
 
-      {game.state.phase === "CHOOSING_SERVICE" && (
-        <section className="service-chooser" aria-label="选择服务">
-          <h2>今夜与谁合作？</h2>
-          {game.state.serviceCandidates.map((serviceId) => (
-            <button type="button" className="service-choice" key={serviceId} onClick={() => game.send({ type: "SELECT_SERVICE", serviceId })}>
-              <strong>{SERVICE_PRESENTATIONS[serviceId].name}</strong>
-              <span><b>定位</b> {SERVICE_PRESENTATIONS[serviceId].identity}</span>
-              <span><b>行动</b> {SERVICE_PRESENTATIONS[serviceId].action}</span>
-              <span><b>协同</b> {SERVICE_PRESENTATIONS[serviceId].synergies}</span>
-              <span><b>代价／风险</b> {SERVICE_PRESENTATIONS[serviceId].risk}</span>
-            </button>
-          ))}
+      {showCabinet && (
+        <section
+          className={`game-screen cabinet-shell${effectiveReducedMotion ? " reduce-motion" : ""}`}
+          aria-label="午夜好运老虎机"
+          data-reduced-motion={effectiveReducedMotion}
+          data-coin-cabinet="true"
+        >
+          <Hud
+            state={game.state}
+            estimate={estimate}
+            estimateStatus={estimateStatus}
+            payoutAmount={settlementPresentation?.summary.total ?? 0}
+            presentedThroughSequence={presentedThroughSequence}
+          />
+          <div className="cabinet-stage">
+            <SlotMachine
+              state={game.state}
+              motionPlan={visibleMotionPlan}
+              reducedMotion={effectiveReducedMotion}
+              displayGrid={settlementPresentation?.displayGrid ?? null}
+              highlightedLineIds={settlementPresentation?.activeLineIds ?? []}
+              changedCells={settlementPresentation?.changedCells ?? []}
+              highlightedReels={settlementPresentation?.currentEvent?.type === "FOOD_CONSUMED"
+                ? [settlementPresentation.currentEvent.reel]
+                : []}
+              shakePx={settlementFeedback?.shakePx ?? 0}
+            />
+            <PullLever
+              disabled={game.state.phase !== "READY_TO_SPIN"}
+              reducedMotion={effectiveReducedMotion}
+              onPull={() => game.send({ type: "SPIN" })}
+            />
+          </div>
+          <PartsBar
+            state={game.state}
+            activePartId={settlementPresentation?.activePartId ?? null}
+            presentedThroughSequence={presentedThroughSequence}
+          />
+          {game.state.acquiredUpgrades.length > 0 && (
+            <section className="acquired-upgrades" aria-label="已获得升级">
+              <h2>已获得升级</h2>
+              <ul>{game.state.acquiredUpgrades.map((id, index) => <li key={`${id}-${index}`}>{UPGRADES[id].name}</li>)}</ul>
+            </section>
+          )}
+          {!documentHidden && !recoveryOpen && (settlementFeedback?.coinCount ?? 0) > 0 && (
+            <CoinBurst count={settlementFeedback!.coinCount} />
+          )}
         </section>
       )}
 
-      <SlotMachine
-        state={game.state}
-        motionPlan={visibleMotionPlan}
-        reducedMotion={effectiveReducedMotion}
-        displayGrid={settlementPresentation?.displayGrid ?? null}
-        highlightedLineIds={settlementPresentation?.activeLineIds ?? []}
-        changedCells={settlementPresentation?.changedCells ?? []}
-        highlightedReels={settlementPresentation?.currentEvent?.type === "FOOD_CONSUMED"
-          ? [settlementPresentation.currentEvent.reel]
-          : []}
-        shakePx={settlementFeedback?.shakePx ?? 0}
-      />
-      {!documentHidden && !recoveryOpen && (settlementFeedback?.coinCount ?? 0) > 0 && (
-        <CoinBurst count={settlementFeedback!.coinCount} />
-      )}
-      <PartsBar
-        state={game.state}
-        activePartId={settlementPresentation?.activePartId ?? null}
-        presentedThroughSequence={settlementPresentation?.currentEvent?.sequence ?? null}
-      />
-      {game.state.acquiredUpgrades.length > 0 && (
-        <section className="acquired-upgrades" aria-label="已获得升级">
-          <h2>已获得升级</h2>
-          <ul>{game.state.acquiredUpgrades.map((id, index) => <li key={`${id}-${index}`}>{UPGRADES[id].name}</li>)}</ul>
-        </section>
-      )}
-
-      {game.state.phase === "RESOLVING_EFFECTS" && settlementPresentation !== null && (
-        <WinPresentation
-          state={game.state}
-          presentation={settlementPresentation}
-          reducedMotion={effectiveReducedMotion}
-        />
-      )}
-
-      {game.state.phase !== "CHOOSING_SERVICE" && (!isRunSummary || game.state.phase === "SHIFT_COMPLETE") && (
-        <ActionBar state={game.state} onCommand={game.send} />
-      )}
-      {(game.state.phase === "CHOOSING_UPGRADE" || (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates !== null)) && (
-        <>
-          <UpgradePicker state={game.state} onCommand={game.send} currentEstimate={estimate} />
-          {game.state.exitUnlocked && <button type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账离开</button>}
-        </>
-      )}
-      {isRunSummary && (
-        <RunSummary
-          state={game.state}
-          trajectory={trajectory}
-          onCommand={game.send}
-          onRestartSameSeed={restartSameSeed}
-          onRestartNextSeed={restartNextSeed}
-        />
-      )}
-      {(game.state.phase === "READY_TO_SPIN" || game.state.phase === "SPINNING") && (
-        <PullLever
-          disabled={game.state.phase !== "READY_TO_SPIN"}
-          reducedMotion={effectiveReducedMotion}
-          onPull={() => game.send({ type: "SPIN" })}
-        />
-      )}
+      <section className="context-tray" aria-label="当前决策" data-phase={game.state.phase}>
+        {game.state.phase === "CHOOSING_SERVICE" && (
+          <div className="service-chooser" role="group" aria-label="选择服务">
+            <h2>今夜与谁合作？</h2>
+            <p>每位值夜伙伴会改变你准备和干预老虎机的方式。</p>
+            <div className="service-list">
+              {game.state.serviceCandidates.map((serviceId) => (
+                <button type="button" className="service-choice" key={serviceId} onClick={() => game.send({ type: "SELECT_SERVICE", serviceId })}>
+                  <strong>{SERVICE_PRESENTATIONS[serviceId].name}</strong>
+                  <span><b>定位</b> {SERVICE_PRESENTATIONS[serviceId].identity}</span>
+                  <span><b>行动</b> {SERVICE_PRESENTATIONS[serviceId].action}</span>
+                  <span><b>协同</b> {SERVICE_PRESENTATIONS[serviceId].synergies}</span>
+                  <span><b>代价／风险</b> {SERVICE_PRESENTATIONS[serviceId].risk}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {(game.state.phase === "READY_TO_SPIN" || game.state.phase === "SPINNING" ||
+          game.state.phase === "AWAITING_INTERVENTION") && (
+          <ActionBar state={game.state} onCommand={game.send} />
+        )}
+        {game.state.phase === "RESOLVING_EFFECTS" && settlementPresentation !== null && (
+          <WinPresentation
+            state={game.state}
+            presentation={settlementPresentation}
+            reducedMotion={effectiveReducedMotion}
+          />
+        )}
+        {isUpgradeScene && (
+          <>
+            <ActionBar state={game.state} onCommand={game.send} />
+            <UpgradePicker state={game.state} onCommand={game.send} currentEstimate={estimate} />
+            {game.state.exitUnlocked && <button className="cash-out-button" type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账离开</button>}
+          </>
+        )}
+        {isRunSummary && (
+          <>
+            {game.state.phase === "SHIFT_COMPLETE" && <ActionBar state={game.state} onCommand={game.send} />}
+            <RunSummary
+              state={game.state}
+              trajectory={trajectory}
+              onCommand={game.send}
+              onRestartSameSeed={restartSameSeed}
+              onRestartNextSeed={restartNextSeed}
+            />
+          </>
+        )}
+      </section>
 
       <label className="reduce-flash-setting">
-        <input type="checkbox" checked={reduceFlash} onChange={(event) => {
+        <input type="checkbox" aria-label="减少闪烁" checked={reduceFlash} onChange={(event) => {
           const checked = event.target.checked;
           setReduceFlash(checked);
           try { localStorage.setItem(REDUCE_FLASH_KEY, checked ? "1" : "0"); } catch { /* optional setting */ }
         }} />
-        减少闪烁
+        减弱动态与闪烁
       </label>
 
       <div className="game-feedback" aria-live="assertive">
         {game.error !== null ? `${game.error.code}: ${game.error.message}` : ""}
       </div>
-      {game.events.length > 0 && <p className="event-status" aria-live="polite">已记录 {game.events.length} 个新事件</p>}
       {recoveryOpen && (
         <div className="recovery-backdrop">
           <section className="recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="recovery-title">

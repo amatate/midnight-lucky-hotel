@@ -66,6 +66,49 @@ describe("UpgradePicker", () => {
     });
   });
 
+  it("expands target controls and a truthful maintenance ticket inside the selected full-width card", async () => {
+    const user = userEvent.setup();
+    const state = upgradeState({
+      reels: [
+        ["lemon", "cherry"],
+        ["lemon", "bell"],
+        ["seven", "blank"]
+      ]
+    });
+    render(<UpgradePicker state={state} onCommand={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "选择柠檬木箱" }));
+
+    const card = screen.getByRole("heading", { name: "柠檬木箱" }).closest("article")!;
+    expect(within(card).getByLabelText("第一目标转轮")).toHaveValue("0");
+    expect(within(card).getByLabelText("第二目标转轮")).toHaveValue("1");
+    const ticket = within(card).getByRole("complementary", { name: "维修票据" });
+    expect(ticket).toHaveTextContent("第1轮：柠檬 1 → 3；总长度 2 → 4");
+    expect(ticket).toHaveTextContent("第2轮：柠檬 1 → 3；总长度 2 → 4");
+    expect(ticket).toHaveTextContent("机会提高");
+    expect(ticket).not.toHaveTextContent(/概率|RTP|%/);
+  });
+
+  it("adds exact probability to the in-card maintenance ticket only after calculator level one", async () => {
+    const user = userEvent.setup();
+    const state = upgradeState({
+      toolLevel: 1,
+      reels: [
+        ["lemon", "cherry"],
+        ["lemon", "bell"],
+        ["seven", "blank"]
+      ]
+    });
+    render(<UpgradePicker state={state} onCommand={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "选择柠檬木箱" }));
+
+    const card = screen.getByRole("heading", { name: "柠檬木箱" }).closest("article")!;
+    const ticket = within(card).getByRole("complementary", { name: "维修票据" });
+    expect(ticket).toHaveTextContent("概率 50.0% → 75.0%");
+    expect(ticket).not.toHaveTextContent(/RTP/);
+  });
+
   it("allows a full part inventory to replace a user-selected slot", async () => {
     const user = userEvent.setup();
     const onCommand = vi.fn<(command: GameCommand) => void>();
@@ -83,6 +126,8 @@ describe("UpgradePicker", () => {
 
     await user.click(screen.getByRole("button", { name: "选择水果沙拉" }));
     await user.selectOptions(screen.getByLabelText("替换部件槽"), "3");
+    const selectedCard = screen.getByRole("heading", { name: "水果沙拉" }).closest("article")!;
+    expect(within(selectedCard).getByText(/将替换槽 4 的午夜钟声 L1/)).toHaveTextContent("水果沙拉会以 L1 装入该槽");
     await user.click(screen.getByRole("button", { name: "获取水果沙拉" }));
 
     expect(onCommand).toHaveBeenCalledWith({

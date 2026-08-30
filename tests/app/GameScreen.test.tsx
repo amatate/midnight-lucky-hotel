@@ -20,7 +20,7 @@ afterEach(() => {
 beforeEach(() => localStorage.clear());
 
 async function chooseFirstService(): Promise<void> {
-  const chooser = screen.getByRole("region", { name: "选择服务" });
+  const chooser = screen.getByRole("group", { name: "选择服务" });
   fireEvent.click(within(chooser).getAllByRole("button")[0]!);
 }
 
@@ -44,6 +44,23 @@ function offeredState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
 }
 
 describe("GameScreen", () => {
+  it("presents one current decision beneath a single physical cabinet with room-number counters", () => {
+    render(<GameScreen seed={39} />);
+
+    const decisions = screen.getAllByRole("region", { name: "当前决策" });
+    expect(decisions).toHaveLength(1);
+    expect(within(decisions[0]!).getByRole("group", { name: "选择服务" })).toBeVisible();
+
+    const cabinet = screen.getByRole("region", { name: "午夜好运老虎机" });
+    const counters = within(cabinet).getByRole("group", { name: "酒店房号计数窗" });
+    expect(within(counters).getByText("余额 ¥100")).toHaveAttribute("data-counter", "bankroll");
+    expect(within(counters).getByText("目标 ¥200")).toHaveAttribute("data-counter", "target");
+    expect(within(counters).getByText("下注 ¥10")).toHaveAttribute("data-counter", "bet");
+    expect(within(cabinet).getByRole("button", { name: "拉动老虎机" })).toBeDisabled();
+    expect(screen.queryByText("功能原型")).not.toBeInTheDocument();
+    expect(screen.getByText("减弱动态与闪烁")).toBeVisible();
+  });
+
   it("explains every offered service's identity, exact action, synergies, and cost before selection", () => {
     const state: RunState = {
       ...createRun(40),
@@ -51,7 +68,8 @@ describe("GameScreen", () => {
     };
     const { container } = render(<GameScreen seed={40} initialState={state} />);
 
-    const chooser = screen.getByRole("region", { name: "选择服务" });
+    const chooser = screen.getByRole("group", { name: "选择服务" });
+    expect(chooser).toBe(within(screen.getByRole("region", { name: "当前决策" })).getByRole("group", { name: "选择服务" }));
     expect(within(chooser).getAllByText("定位")).toHaveLength(3);
     expect(within(chooser).getAllByText("行动")).toHaveLength(3);
     expect(within(chooser).getAllByText("协同")).toHaveLength(3);
@@ -64,7 +82,7 @@ describe("GameScreen", () => {
   it("selects one of three seeded services and exposes a playable normal-bet machine", async () => {
     render(<GameScreen seed={42} />);
 
-    const chooser = screen.getByRole("region", { name: "选择服务" });
+    const chooser = screen.getByRole("group", { name: "选择服务" });
     expect(within(chooser).getAllByRole("button")).toHaveLength(3);
 
     await chooseFirstService();
@@ -241,6 +259,16 @@ describe("GameScreen", () => {
     expect(screen.getByRole("button", { name: "放弃升级" })).toBeVisible();
   });
 
+  it("turns an upgrade boundary into the only full-width decision scene and hides the play cabinet", () => {
+    render(<GameScreen seed={59} initialState={offeredState("lemon-crate")} />);
+
+    const decision = screen.getByRole("region", { name: "当前决策" });
+    expect(within(decision).getByRole("group", { name: "选择升级" })).toBeVisible();
+    expect(within(decision).getAllByTestId("upgrade-card")).toHaveLength(3);
+    expect(screen.queryByRole("region", { name: "午夜好运老虎机" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "老虎机转轮" })).not.toBeInTheDocument();
+  });
+
   it("reveals numeric estimates only at their purchased tool levels", () => {
     const estimate: MachineEstimate = {
       band: "favorable",
@@ -307,6 +335,36 @@ describe("GameScreen", () => {
     expect(screen.getByRole("button", { name: "修复第1轮裂纹（1 小费）" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "修复第2轮裂纹（1 小费）" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "修复第3轮裂纹（1 小费）" })).toBeVisible();
+  });
+
+  it("keeps unaffordable ready actions visible but disables their rejected commands", () => {
+    const onCommand = vi.fn<(command: GameCommand) => void>();
+    const { rerender } = render(<ActionBar state={{
+      ...createRun(15),
+      phase: "READY_TO_SPIN",
+      service: "kitchen",
+      bankroll: 9
+    }} onCommand={onCommand} />);
+
+    const food = screen.getByRole("button", { name: "购买食物（¥10）" });
+    expect(food).toBeDisabled();
+    expect(screen.getByText("余额不足：厨房服务需要 ¥10。")).toBeVisible();
+    fireEvent.click(food);
+    expect(onCommand).not.toHaveBeenCalled();
+
+    rerender(<ActionBar state={{
+      ...createRun(16),
+      phase: "READY_TO_SPIN",
+      service: "chapel",
+      bankroll: 0.5,
+      partSlots: [{ id: "martyr-coin", level: 1 }, null, null, null, null]
+    }} onCommand={onCommand} />);
+
+    const martyr = screen.getByRole("button", { name: "启用殉道者硬币（献祭 ¥1）" });
+    expect(martyr).toBeDisabled();
+    expect(screen.getByText("余额不足：殉道者硬币需要 ¥1。")).toBeVisible();
+    fireEvent.click(martyr);
+    expect(onCommand).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -398,6 +456,6 @@ describe("GameScreen", () => {
     render(<GameScreen seed={65} initialState={{ ...createRun(65), phase: "RUN_LOST", shift: 5, bankroll: 4 }} />);
     expect(screen.getByRole("heading", { name: "本局失败" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "同种子重开" }));
-    expect(screen.getByRole("region", { name: "选择服务" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "选择服务" })).toBeVisible();
   });
 });

@@ -46,16 +46,25 @@ export function Hud({
   const foodBuffs = visibleFoodBuffs(state, presentedThroughSequence);
   return (
     <section className="hud" aria-label="本局状态">
-      <div className="hud-primary" data-payout-active={payoutAmount > 0 ? "true" : undefined}>
-        <strong
-          className={payoutAmount > 0 ? "is-payout-destination" : undefined}
-          data-coin-destination="true"
-        >余额 ¥{state.bankroll}</strong>
-        {payoutAmount > 0 && <span className="sr-only" aria-live="polite">本转到账 +¥{payoutAmount}</span>}
-        <span>目标 ¥{state.checkoutTarget}</span>
-        <span>第 {state.shift} 班 · {state.baseSpinsInShift}/3</span>
-        <span>下注 ¥{getCurrentBet(state)}</span>
-      </div>
+      <dl className="room-counters" role="group" aria-label="酒店房号计数窗" data-payout-active={payoutAmount > 0 ? "true" : undefined}>
+        <div className="room-counter room-counter-bankroll">
+          <dt className="sr-only">余额</dt>
+          <dd
+            className={payoutAmount > 0 ? "is-payout-destination" : undefined}
+            data-counter="bankroll"
+            data-coin-destination="true"
+          >余额 ¥{state.bankroll}</dd>
+        </div>
+        <div className="room-counter">
+          <dt className="sr-only">目标</dt>
+          <dd data-counter="target">目标 ¥{state.checkoutTarget}</dd>
+        </div>
+        <div className="room-counter">
+          <dt className="sr-only">下注</dt>
+          <dd data-counter="bet">下注 ¥{getCurrentBet(state)}</dd>
+        </div>
+      </dl>
+      {payoutAmount > 0 && <span className="sr-only" aria-live="polite">本转到账 +¥{payoutAmount}</span>}
       <div className="hud-resources">
         <span>专注 {state.interventionPoints}/{state.maxInterventionPoints}</span>
         <span>小费 {state.tips}</span>
