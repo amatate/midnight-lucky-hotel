@@ -6,18 +6,25 @@ import {
   needsUpgradeSymbolTarget,
   upgradeSymbolTargets
 } from "@/app/upgrade-choice";
+import { useUpgradePreviewEstimate } from "@/app/useUpgradePreviewEstimate";
+import { describeUpgrade } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
 import type { GameCommand } from "@/core/commands";
 import type { ReelIndex, RunState, UpgradeId } from "@/core/types";
+import type { MachineEstimate } from "@/sim/types";
 
-const ROLE_LABELS = { synergy: "协同", pivot: "转向", wildcard: "变数" } as const;
-const KIND_LABELS = { "reel-mod": "改造转轮", part: "机器部件", tool: "信息工具" } as const;
+const ROLE_LABELS = {
+  synergy: "强化现有组合",
+  pivot: "修补风险／换路线",
+  wildcard: "高风险改规则"
+} as const;
 interface UpgradePickerProps {
   readonly state: RunState;
   readonly onCommand: (command: GameCommand) => void;
+  readonly currentEstimate?: MachineEstimate | null;
 }
 
-export function UpgradePicker({ state, onCommand }: UpgradePickerProps): React.JSX.Element | null {
+export function UpgradePicker({ state, onCommand, currentEstimate = null }: UpgradePickerProps): React.JSX.Element | null {
   const offers = state.currentCandidates;
   const [selectedId, setSelectedId] = useState<UpgradeId | null>(null);
   const [reel, setReel] = useState<ReelIndex>(0);
@@ -34,14 +41,16 @@ export function UpgradePicker({ state, onCommand }: UpgradePickerProps): React.J
     setSelectedId(null);
   }, [offerKey]);
 
-  if (offers === null) return null;
-
   const chosenSymbol = symbolOptions.find(({ reel: optionReel, symbol }) => `${optionReel}:${symbol}` === symbolTargetValue)
     ?? symbolOptions[0];
   const selectedChoice = selectedId === null
     ? null
     : buildUpgradeChoice(state, selectedId, { reel, secondReel, symbolTarget: chosenSymbol, replaceSlot });
   const selectedDefinition = selectedId === null ? null : UPGRADES[selectedId];
+  const previewEstimate = useUpgradePreviewEstimate(state, selectedChoice);
+
+  if (offers === null) return null;
+
   const fullNewPart = selectedId !== null && selectedDefinition?.kind === "part" &&
     state.partSlots.every((part) => part !== null) && !state.partSlots.some((part) => part?.id === selectedId);
 
@@ -61,11 +70,20 @@ export function UpgradePicker({ state, onCommand }: UpgradePickerProps): React.J
       <div className="upgrade-grid">
         {(Object.entries(offers) as [keyof typeof offers, UpgradeId][]).map(([role, id]) => {
           const definition = UPGRADES[id];
+          const presentation = describeUpgrade(state, id);
+          const ownedLevelOne = definition.kind === "part" && state.partSlots.some((part) => part?.id === id && part.level === 1);
           return (
             <article className={`upgrade-card ${selectedId === id ? "is-selected" : ""}`} data-testid="upgrade-card" key={role}>
               <span>{ROLE_LABELS[role]}</span>
-              <h3>{definition.name}</h3>
-              <p>{KIND_LABELS[definition.kind]} · {definition.tags.slice(0, 2).join(" / ")}</p>
+              <h3>{presentation.name}</h3>
+              <p>{presentation.kindLabel} · {presentation.routeLabel}</p>
+              <p><strong>效果</strong> {presentation.effect}</p>
+              {presentation.levelTwoEffect !== null && (
+                <p><strong>{ownedLevelOne ? "L1 → L2" : "L2 效果"}</strong> {presentation.levelTwoEffect.replace(/^L2：/, "")}</p>
+              )}
+              <p><strong>当前影响</strong> {presentation.currentImpact}</p>
+              <p><strong>协同</strong> {presentation.synergy}</p>
+              <p><strong>代价／风险</strong> {presentation.risk}</p>
               <button type="button" onClick={() => {
                 setSelectedId(id);
                 setReel(0);
@@ -112,6 +130,22 @@ export function UpgradePicker({ state, onCommand }: UpgradePickerProps): React.J
               {state.partSlots.map((part, slot) => <option value={slot} key={slot}>槽 {slot + 1} · {part === null ? "空" : UPGRADES[part.id].name}</option>)}
             </select></label>
           )}
+          {(() => {
+            const target = selectedChoice?.action === "apply" ? selectedChoice.target : undefined;
+            const presentation = describeUpgrade(state, selectedId, target, {
+              before: currentEstimate,
+              after: previewEstimate.estimate
+            });
+            return (
+              <div className="upgrade-preview">
+                <p><strong>完整效果：</strong>{presentation.effect}</p>
+                <p><strong>选择后的影响：</strong>{presentation.currentImpact}</p>
+                {state.toolLevel >= 2 && selectedDefinition.kind === "reel-mod" && previewEstimate.status !== "ready" && (
+                  <p>正在配对估算当前机器与改造后机器</p>
+                )}
+              </div>
+            );
+          })()}
           <button
             className="primary-button"
             type="button"

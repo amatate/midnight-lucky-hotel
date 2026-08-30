@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
@@ -23,6 +23,32 @@ function upgradeState(patch: Partial<RunState> = {}): RunState {
 }
 
 describe("UpgradePicker", () => {
+  it("explains all three candidates before selection with exact player-facing role labels and no tags", () => {
+    const { container } = render(<UpgradePicker state={upgradeState()} onCommand={vi.fn()} />);
+
+    expect(screen.getByText("强化现有组合")).toBeVisible();
+    expect(screen.getByText("修补风险／换路线")).toBeVisible();
+    expect(screen.getByText("高风险改规则")).toBeVisible();
+    expect(screen.getAllByText("效果")).toHaveLength(3);
+    expect(screen.getAllByText("当前影响")).toHaveLength(3);
+    expect(screen.getAllByText("协同")).toHaveLength(3);
+    expect(screen.getAllByText("代价／风险")).toHaveLength(3);
+    expect(screen.getByText(/两个不同转轮，各永久加入 2 个柠檬/)).toBeVisible();
+    expect(screen.getByText(/1 个非樱桃、非百搭符号替换为樱桃/)).toBeVisible();
+    expect(screen.getByText(/此前樱桃中奖线数 × 0.5 × 当前下注/)).toBeVisible();
+    expect(container).not.toHaveTextContent(/reel-growth|reel-control|shift-scaling/);
+  });
+
+  it("explains an owned part as an L1 to L2 numerical upgrade before selection", () => {
+    render(<UpgradePicker state={upgradeState({
+      currentCandidates: { synergy: "jam-jar", pivot: "cherry-pitter", wildcard: "lemon-crate" },
+      partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null]
+    })} onCommand={vi.fn()} />);
+
+    const card = screen.getByRole("heading", { name: "果酱罐" }).closest("article")!;
+    expect(within(card).getByText(/L1 → L2/).closest("p")).toHaveTextContent("0.5 × 当前下注提高为 1 × 当前下注");
+  });
+
   it("shows exactly three role cards and confirms a visible valid target", async () => {
     const user = userEvent.setup();
     const onCommand = vi.fn<(command: GameCommand) => void>();

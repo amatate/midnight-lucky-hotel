@@ -40,6 +40,23 @@ function offeredState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
 }
 
 describe("GameScreen", () => {
+  it("explains every offered service's identity, exact action, synergies, and cost before selection", () => {
+    const state: RunState = {
+      ...createRun(40),
+      serviceCandidates: ["repair", "kitchen", "security"]
+    };
+    const { container } = render(<GameScreen seed={40} initialState={state} />);
+
+    const chooser = screen.getByRole("region", { name: "选择服务" });
+    expect(within(chooser).getAllByText("定位")).toHaveLength(3);
+    expect(within(chooser).getAllByText("行动")).toHaveLength(3);
+    expect(within(chooser).getAllByText("协同")).toHaveLength(3);
+    expect(within(chooser).getAllByText("代价／风险")).toHaveLength(3);
+    expect(within(chooser).getByText(/支付 ¥10/)).toHaveTextContent("之后 3 次转动的全部赔付 +25%");
+    expect(within(chooser).getByText(/确定性地让选定转轮/)).toHaveTextContent("占用本转唯一一次干预");
+    expect(container).not.toHaveTextContent(/reel-growth|bankroll-cost|intervention/);
+  });
+
   it("selects one of three seeded services and exposes a playable normal-bet machine", async () => {
     render(<GameScreen seed={42} />);
 
@@ -53,7 +70,7 @@ describe("GameScreen", () => {
     expect(screen.getAllByTestId("reel")).toHaveLength(3);
     expect(screen.getAllByTestId("cell")).toHaveLength(9);
     expect(screen.getAllByTestId("part-slot")).toHaveLength(5);
-    expect(screen.getByText("胜率区间")).toBeVisible();
+    expect(screen.getByText("会计工具")).toBeVisible();
     expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
   });
 
@@ -122,16 +139,24 @@ describe("GameScreen", () => {
     };
     const { rerender } = render(<Hud state={createRun(1)} estimate={estimate} estimateStatus="ready" />);
 
-    expect(screen.getByText("有利")).toBeInTheDocument();
+    expect(screen.queryByText("有利")).not.toBeInTheDocument();
+    expect(screen.queryByText(/符号概率/)).not.toBeInTheDocument();
     expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
     expect(screen.queryByText(/破产风险/)).not.toBeInTheDocument();
 
+    rerender(<Hud state={{ ...createRun(1), toolLevel: 1 }} estimate={estimate} estimateStatus="ready" />);
+    expect(screen.getByText(/计算器 · 每轮符号概率/)).toBeInTheDocument();
+    expect(screen.queryByText("有利")).not.toBeInTheDocument();
+    expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
+
     rerender(<Hud state={{ ...createRun(1), toolLevel: 2 }} estimate={estimate} estimateStatus="ready" />);
-    expect(screen.getByText("RTP 112.0%")).toBeInTheDocument();
+    expect(screen.getByText("估算风险带：有利")).toBeInTheDocument();
+    expect(screen.getByText("估算 RTP 112.0%")).toBeInTheDocument();
+    expect(screen.getByText("估算 95% 区间 101.0%–123.0%")).toBeInTheDocument();
     expect(screen.queryByText(/破产风险/)).not.toBeInTheDocument();
 
     rerender(<Hud state={{ ...createRun(1), toolLevel: 3 }} estimate={estimate} estimateStatus="ready" />);
-    expect(screen.getByText("破产风险 8.0%")).toBeInTheDocument();
+    expect(screen.getByText("观察期破产概率 8.0%")).toBeInTheDocument();
   });
 
   it("shows acquired upgrades as a persistent observable recovery surface", () => {
@@ -201,7 +226,8 @@ describe("GameScreen", () => {
     await user.click(screen.getByRole("button", { name: "获取过载马达" }));
 
     expect(screen.getByText("准备拉动")).toBeVisible();
-    expect(screen.getAllByText("过载马达")).toHaveLength(2);
+    expect(screen.getByText("过载马达 · L1")).toBeVisible();
+    expect(within(screen.getByRole("region", { name: "已获得升级" })).getByText("过载马达")).toBeVisible();
     expect(screen.queryByText("午夜钟声")).not.toBeInTheDocument();
   });
 

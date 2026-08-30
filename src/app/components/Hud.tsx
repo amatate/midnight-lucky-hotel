@@ -21,7 +21,7 @@ interface HudProps {
 }
 
 export function Hud({ state, estimate, estimateStatus }: HudProps): React.JSX.Element {
-  const isWaiting = estimateStatus === "pending" || estimateStatus === "unavailable";
+  const isWaiting = state.toolLevel >= 1 && (estimateStatus === "pending" || estimateStatus === "unavailable");
   return (
     <section className="hud" aria-label="本局状态">
       <div className="hud-primary">
@@ -36,12 +36,12 @@ export function Hud({ state, estimate, estimateStatus }: HudProps): React.JSX.El
         <span>躁动 {state.agitation}</span>
       </div>
       <details className="tool-panel">
-        <summary>胜率区间</summary>
-        {isWaiting && <p>会计仍在计算</p>}
-        {estimate !== null && <p className={`risk-band risk-${estimate.band}`}>{BAND_LABELS[estimate.band]}</p>}
+        <summary>会计工具</summary>
+        {state.toolLevel === 0 && <p>尚未购入计算器；不会显示概率、回报估算或风险带。</p>}
+        {isWaiting && <p>{estimateStatus === "unavailable" ? "会计估算暂不可用" : "会计仍在计算"}</p>}
         {state.toolLevel >= 1 && estimate?.symbolProbabilities !== null && estimate?.symbolProbabilities !== undefined && (
           <div className="tool-readout">
-            <strong>计算器 · 符号概率</strong>
+            <strong>计算器 · 每轮符号概率</strong>
             {estimate.symbolProbabilities.map((reel, index) => (
               <p key={index}>第{index + 1}轮：{Object.entries(reel)
                 .filter(([, value]) => value > 0)
@@ -52,14 +52,15 @@ export function Hud({ state, estimate, estimateStatus }: HudProps): React.JSX.El
         )}
         {state.toolLevel >= 2 && estimate?.rtpMean !== null && estimate?.rtpMean !== undefined && (
           <div className="tool-readout">
-            <p>RTP {percent(estimate.rtpMean)}</p>
-            {estimate.rtp95 !== null && <p>95% 区间 {percent(estimate.rtp95[0])}–{percent(estimate.rtp95[1])}</p>}
+            <p className={`risk-band risk-${estimate.band}`}>估算风险带：{BAND_LABELS[estimate.band]}</p>
+            <p>估算 RTP {percent(estimate.rtpMean)}</p>
+            {estimate.rtp95 !== null && <p>估算 95% 区间 {percent(estimate.rtp95[0])}–{percent(estimate.rtp95[1])}</p>}
           </div>
         )}
         {state.toolLevel >= 3 && estimate?.ruinProbability !== null && estimate?.ruinProbability !== undefined && (
           <div className="tool-readout">
-            <p>破产风险 {percent(estimate.ruinProbability)}</p>
-            <p>赔付波动 {estimate.payoutStandardDeviation?.toFixed(2)}</p>
+            <p>观察期破产概率 {percent(estimate.ruinProbability)}</p>
+            <p>估算赔付波动 {estimate.payoutStandardDeviation?.toFixed(2)}</p>
             <p>预计可承受 {estimate.expectedAffordableSpins?.toFixed(1)} 次</p>
           </div>
         )}

@@ -7,20 +7,15 @@ import { SlotMachine } from "@/app/components/SlotMachine";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
 import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
+import { SYMBOL_LABELS } from "@/app/labels";
+import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
-import type { RunState, ServiceId } from "@/core/types";
+import type { RunState } from "@/core/types";
 import type { GameEvent } from "@/core/events";
 import { createPresentationQueue, type PresentationQueue } from "@/presentation/queue";
 import { playEventTone, unlockAudio } from "@/presentation/audio";
 import { vibrate } from "@/presentation/haptics";
 import type { MachineEstimate } from "@/sim/types";
-
-const SERVICES: Readonly<Record<ServiceId, { readonly name: string; readonly description: string }>> = {
-  repair: { name: "维修间", description: "更多专注；锁住一轮重转另外两轮，班次边界可修裂纹。" },
-  kitchen: { name: "深夜厨房", description: "首转前花 ¥10，向选定转轮加入食物。" },
-  chapel: { name: "小教堂", description: "消耗专注祈祷，让基础符号更易在下一转出现。" },
-  security: { name: "保安室", description: "预览并踢动一轮，但会留下永久裂纹。" }
-};
 
 const PHASE_LABELS = {
   CHOOSING_SERVICE: "选择服务",
@@ -52,12 +47,23 @@ function systemReducedMotion(): boolean {
 function eventLabel(event: GameEvent): string {
   switch (event.type) {
     case "BET_PLACED": return `下注 ¥${event.amount}`;
-    case "LINE_WIN": return `${event.symbol} 连线 +¥${event.amount}`;
+    case "REELS_DRAWN": return "转轮结果已经生成";
+    case "INTERVENTION_USED": return `已使用干预：${event.kind === "respin" ? "重转" : event.kind === "repair-lock" ? "锁轮维修" : event.kind === "kick" ? "踹击" : "祈祷"}`;
+    case "LINE_WIN": return `${SYMBOL_LABELS[event.symbol]}连线 +¥${event.amount}`;
+    case "PART_TRIGGERED": return `部件触发：${UPGRADES[event.partId].name} L${event.level}`;
+    case "PART_DISABLED": return `部件因裂纹失效：${UPGRADES[event.partId].name}`;
+    case "FOOD_CONSUMED": return `第${event.reel + 1}轮食物已消耗`;
     case "PAYOUT_ADDED": return `赔付增加 ¥${event.amount}`;
+    case "SYMBOL_CHANGED": return `第${event.reel + 1}轮图案：${SYMBOL_LABELS[event.from]} → ${SYMBOL_LABELS[event.to]}`;
+    case "RESOURCE_CHANGED": return `${event.resource === "tips" ? "小费" : event.resource === "focus" ? "专注" : event.resource === "omen" ? "恶兆" : event.resource === "agitation" ? "躁动" : "免费转动"} ${event.delta >= 0 ? "+" : ""}${event.delta}`;
+    case "SERVICE_USED": return `${SERVICE_PRESENTATIONS[event.serviceId].name}行动，花费 ¥${event.cost}`;
+    case "CONTRACT_PROGRESS": return `合同进度 ${event.progress}${event.completed ? "，已经完成" : ""}`;
+    case "SPIN_COMMITTED": return `本转已确认，最终赔付 ¥${event.finalPayout}`;
+    case "BLOCK_COMPLETED": return `本段完成，余额 ¥${event.bankroll}`;
+    case "OVERLOAD": return `机器过载 +¥${event.amount}`;
     case "PAYOUT_COMPLETE": return `本次总赔付 ¥${event.total}`;
-    case "PART_TRIGGERED": return `部件触发：${event.partId}`;
-    case "RESOURCE_CHANGED": return `${event.resource} ${event.delta >= 0 ? "+" : ""}${event.delta}`;
-    default: return event.type.replaceAll("_", " ");
+    case "SHIFT_CHANGED": return `进入第 ${event.shift} 班`;
+    case "RUN_ENDED": return event.outcome === "won" ? "本局胜利" : event.outcome === "lost" ? "本局失败" : "已经结账离开";
   }
 }
 
@@ -224,8 +230,11 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
           <h2>今夜与谁合作？</h2>
           {game.state.serviceCandidates.map((serviceId) => (
             <button type="button" className="service-choice" key={serviceId} onClick={() => game.send({ type: "SELECT_SERVICE", serviceId })}>
-              <strong>{SERVICES[serviceId].name}</strong>
-              <span>{SERVICES[serviceId].description}</span>
+              <strong>{SERVICE_PRESENTATIONS[serviceId].name}</strong>
+              <span><b>定位</b> {SERVICE_PRESENTATIONS[serviceId].identity}</span>
+              <span><b>行动</b> {SERVICE_PRESENTATIONS[serviceId].action}</span>
+              <span><b>协同</b> {SERVICE_PRESENTATIONS[serviceId].synergies}</span>
+              <span><b>代价／风险</b> {SERVICE_PRESENTATIONS[serviceId].risk}</span>
             </button>
           ))}
         </section>
@@ -272,7 +281,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
       )}
       {(game.state.phase === "CHOOSING_UPGRADE" || (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates !== null)) && (
         <>
-          <UpgradePicker state={game.state} onCommand={game.send} />
+          <UpgradePicker state={game.state} onCommand={game.send} currentEstimate={estimate} />
           {game.state.exitUnlocked && <button type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账离开</button>}
         </>
       )}

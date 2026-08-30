@@ -11,24 +11,23 @@ export interface EstimateResult {
   readonly status: EstimateStatus;
 }
 
-export function useEstimate(state: RunState): EstimateResult {
-  const requestSequence = useRef(0);
-  const [estimate, setEstimate] = useState<MachineEstimate | null>(null);
-  const [status, setStatus] = useState<EstimateStatus>("idle");
-  const partsKey = state.partSlots.map((part) => part === null ? "-" : `${part.id}:${part.level}`).join("|");
-  const reelsKey = state.reels.map((reel) => reel.join(",")).join("|");
-  const bet = getCurrentBet(state);
-
-  const request = useMemo<EstimateRequest>(() => ({
+export function buildEstimateRequest(state: RunState): EstimateRequest {
+  return {
     reels: state.reels,
     parts: state.partSlots.filter((part) => part !== null),
     toolLevel: state.toolLevel,
     bankroll: state.bankroll,
-    bet,
+    bet: getCurrentBet(state),
     horizonSpins: 12,
     sampleCount: 24,
     simulationSeed: state.initialSeed ^ state.rng.value
-  }), [reelsKey, partsKey, state.toolLevel, state.bankroll, bet, state.initialSeed, state.rng.value]);
+  };
+}
+
+export function useEstimateRequest(request: EstimateRequest | null): EstimateResult {
+  const requestSequence = useRef(0);
+  const [estimate, setEstimate] = useState<MachineEstimate | null>(null);
+  const [status, setStatus] = useState<EstimateStatus>("idle");
 
   useEffect(() => {
     const sequence = ++requestSequence.current;
@@ -39,6 +38,8 @@ export function useEstimate(state: RunState): EstimateResult {
 
     setEstimate(null);
     setStatus("idle");
+
+    if (request === null) return () => { cancelled = true; };
 
     const clearDeadlines = () => {
       if (pendingTimer !== undefined) clearTimeout(pendingTimer);
@@ -114,4 +115,15 @@ export function useEstimate(state: RunState): EstimateResult {
   }, [request]);
 
   return { estimate, status };
+}
+
+export function useEstimate(state: RunState): EstimateResult {
+  const partsKey = state.partSlots.map((part) => part === null ? "-" : `${part.id}:${part.level}`).join("|");
+  const reelsKey = state.reels.map((reel) => reel.join(",")).join("|");
+  const bet = getCurrentBet(state);
+  const request = useMemo<EstimateRequest>(
+    () => buildEstimateRequest(state),
+    [reelsKey, partsKey, state.toolLevel, state.bankroll, bet, state.initialSeed, state.rng.value]
+  );
+  return useEstimateRequest(request);
 }
