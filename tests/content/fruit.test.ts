@@ -373,7 +373,7 @@ describe("fruit-salad", () => {
     expect(result.payout).toBe(expected);
     expect(result.attribution).toMatchObject({ base: 0, part: expected });
     expect(result.events.filter((event) => event.type === "PAYOUT_ADDED")).toEqual([
-      { sequence: 1, type: "PAYOUT_ADDED", amount: expected, source: "part" }
+      { sequence: 2, type: "PAYOUT_ADDED", amount: expected, source: "part" }
     ]);
   });
 
@@ -404,7 +404,7 @@ describe("fruit-salad", () => {
     const result = resolveSpin(state, draw);
 
     expect(result.events.filter((event) => event.type === "PAYOUT_ADDED" && event.source === "part")).toEqual([
-      { sequence: 3, type: "PAYOUT_ADDED", amount: 15, source: "part" }
+      { sequence: 5, type: "PAYOUT_ADDED", amount: 15, source: "part" }
     ]);
     expect(result.attribution).toMatchObject({ base: 12, part: 15 });
   });

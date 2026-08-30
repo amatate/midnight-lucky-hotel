@@ -350,6 +350,12 @@ function dispatchSignal(
     }
     try {
       const effects = registration.handler(context, cloneSignal(signal));
+      if (registration.kind === "part" && effects.length > 0) {
+        const part = state.partSlots[registration.slot];
+        if (part !== null && part !== undefined) {
+          working.drafts.push({ type: "PART_TRIGGERED", partId: part.id, level: part.level });
+        }
+      }
       enqueueEffects(working, effects, registration, appliedMotorGenerated);
     } finally {
       AUTHORIZED_CHAPEL_CONTEXTS.delete(context);
