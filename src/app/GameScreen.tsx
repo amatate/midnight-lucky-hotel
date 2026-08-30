@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActionBar } from "@/app/components/ActionBar";
 import { Hud } from "@/app/components/Hud";
 import { PartsBar } from "@/app/components/PartsBar";
+import { PullLever } from "@/app/components/PullLever";
 import { RunSummary } from "@/app/components/RunSummary";
 import { SlotMachine } from "@/app/components/SlotMachine";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
@@ -66,35 +67,6 @@ function eventLabel(event: GameEvent): string {
     case "SHIFT_CHANGED": return `进入第 ${event.shift} 班`;
     case "RUN_ENDED": return event.outcome === "won" ? "本局胜利" : event.outcome === "lost" ? "本局失败" : "已经结账离开";
   }
-}
-
-function PullControl({ onPull }: { readonly onPull: () => void }): React.JSX.Element {
-  const pointer = useRef<{ readonly id: number; readonly y: number } | null>(null);
-  return (
-    <section className="pull-control" aria-label="拉杆控制">
-      <div
-        className="lever-track"
-        data-testid="pull-gesture"
-        aria-label="向下拉动区域"
-        onPointerDown={(event) => {
-          pointer.current = { id: event.pointerId, y: event.clientY };
-          event.currentTarget.setPointerCapture?.(event.pointerId);
-        }}
-        onPointerUp={(event) => {
-          const start = pointer.current;
-          pointer.current = null;
-          if (start?.id === event.pointerId && event.clientY - start.y >= 48) onPull();
-        }}
-        onPointerCancel={() => { pointer.current = null; }}
-      >
-        <span aria-hidden="true" className="lever-knob">↓</span>
-        <small>下拉 48px</small>
-      </div>
-      <button className="pull-button" type="button" aria-label="拉动老虎机" data-thumb-control="true" onClick={onPull}>
-        拉动老虎机
-      </button>
-    </section>
-  );
 }
 
 interface GameScreenProps {
@@ -302,7 +274,13 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
           onRestartNextSeed={restartNextSeed}
         />
       )}
-      {game.state.phase === "READY_TO_SPIN" && <PullControl onPull={() => game.send({ type: "SPIN" })} />}
+      {(game.state.phase === "READY_TO_SPIN" || game.state.phase === "SPINNING") && (
+        <PullLever
+          disabled={game.state.phase !== "READY_TO_SPIN"}
+          reducedMotion={effectiveReducedMotion}
+          onPull={() => game.send({ type: "SPIN" })}
+        />
+      )}
 
       <label className="reduce-flash-setting">
         <input type="checkbox" checked={reduceFlash} onChange={(event) => {

@@ -15,6 +15,25 @@ export function unlockAudio(): boolean {
   }
 }
 
+export function playLeverDetentTone(): boolean {
+  if (context === null || context.state === "closed") return false;
+  try {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.value = 210;
+    gain.gain.setValueAtTime(0.022, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.035);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.035);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function playEventTone(event: GameEvent): boolean {
   if (context === null || context.state === "closed") return false;
   try {

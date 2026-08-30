@@ -6,3 +6,7 @@ export function vibrate(pattern: number | readonly number[] = 18): boolean {
     return false;
   }
 }
+
+export function vibrateLeverDetent(): boolean {
+  return vibrate(10);
+}

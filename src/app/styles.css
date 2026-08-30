@@ -425,43 +425,156 @@ select {
 
 .pull-control {
   margin-top: auto;
-  padding-top: 4px;
+  padding: 10px;
   display: grid;
-  grid-template-columns: 72px 1fr;
-  gap: 10px;
+  grid-template-columns: 94px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  border: 1px solid rgba(184, 137, 62, 0.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(100deg, rgba(184, 137, 62, 0.13), transparent 34%),
+    #0b0908;
+  box-shadow: inset 0 0 0 2px rgba(11, 9, 8, 0.8), 0 7px 18px rgba(0, 0, 0, 0.3);
 }
 
 .lever-track {
-  min-height: 92px;
-  padding: 6px;
-  display: grid;
-  place-items: center;
+  --pull-progress: 0;
+  position: relative;
+  min-height: 184px;
+  overflow: hidden;
   touch-action: none;
   user-select: none;
-  color: #c6b5d0;
-  border: 1px solid #745a80;
-  border-radius: 16px;
-  background: #1b1227;
+  color: #f2e3c0;
+  border: 2px solid #b8893e;
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 212, 90, 0.1), transparent 24%),
+    linear-gradient(90deg, #0b0908, #211810 52%, #0b0908);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.88);
+}
+
+.lever-slot {
+  position: absolute;
+  inset: 22px 39px 32px;
+  border: 1px solid rgba(184, 137, 62, 0.42);
+  border-radius: 999px;
+  background: #050403;
+  box-shadow: inset 0 0 5px #000;
+}
+
+.lever-detent {
+  position: absolute;
+  top: 108px;
+  left: 26px;
+  width: 12px;
+  height: 2px;
+  background: #ffd45a;
+  box-shadow: 30px 0 #ffd45a;
+  opacity: 0.55;
+}
+
+.lever-shaft {
+  position: absolute;
+  left: 44px;
+  bottom: 28px;
+  width: 6px;
+  height: calc(128px - var(--pull-progress) * 120px);
+  min-height: 8px;
+  border: 1px solid #f2e3c0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6f4c1f, #f2d28f 48%, #8c6229);
+  transform-origin: 50% 100%;
 }
 
 .lever-knob {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  color: #25152f;
+  position: absolute;
+  top: 7px;
+  left: 27px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: #d6b7ff;
+  background:
+    radial-gradient(circle at 34% 28%, #f2e3c0 0 7%, transparent 8%),
+    radial-gradient(circle at 42% 38%, #cf4148, #a92f36 48%, #581317 100%);
+  box-shadow: inset -5px -7px 8px rgba(11, 9, 8, 0.42), 0 4px 7px rgba(0, 0, 0, 0.58);
+  transform: translateY(calc(var(--pull-progress) * 120px));
+  will-change: transform;
+}
+
+.lever-track[data-lever-state="dragging"] .lever-knob,
+.lever-track[data-lever-state="dragging"] .lever-shaft {
+  transition: none;
+}
+
+.lever-track[data-lever-state="impact"] .lever-knob,
+.lever-track[data-lever-state="impact"] .lever-shaft {
+  transition: transform 70ms cubic-bezier(0.2, 0.85, 0.25, 1), height 70ms cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+
+.lever-track[data-actuation="button"][data-lever-state="impact"] .lever-knob,
+.lever-track[data-actuation="button"][data-lever-state="impact"] .lever-shaft {
+  transition-duration: 45ms;
+}
+
+.lever-track[data-lever-state="returning"] .lever-knob,
+.lever-track[data-lever-state="returning"] .lever-shaft {
+  transition: transform 210ms cubic-bezier(0.34, 1.56, 0.64, 1), height 210ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lever-track[data-actuation="button"][data-lever-state="returning"] .lever-knob,
+.lever-track[data-actuation="button"][data-lever-state="returning"] .lever-shaft {
+  transition-duration: 140ms;
 }
 
 .lever-track small {
+  position: absolute;
+  inset: auto 3px 7px;
+  color: rgba(242, 227, 192, 0.72);
   font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-align: center;
 }
 
 .pull-button {
-  min-height: 92px;
-  font-size: 1.2rem;
-  letter-spacing: 0.05em;
+  min-height: 184px;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  color: #f2e3c0;
+  border: 2px solid #b8893e;
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 212, 90, 0.12), transparent 38%),
+    #a92f36;
+  box-shadow: inset 0 0 0 3px rgba(11, 9, 8, 0.22), inset 0 -9px 0 rgba(11, 9, 8, 0.2);
+  font-size: 1.18rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 0 rgba(11, 9, 8, 0.42);
+}
+
+.pull-button > span {
+  color: #ffd45a;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+}
+
+.pull-button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: inset 0 0 0 3px rgba(11, 9, 8, 0.28), inset 0 -4px 0 rgba(11, 9, 8, 0.22);
+}
+
+.pull-control.reduce-motion .lever-knob,
+.pull-control.reduce-motion .lever-shaft {
+  transform: none;
+  transition: none;
+}
+
+.pull-control.reduce-motion .lever-track[data-lever-state="impact"],
+.pull-control.reduce-motion .lever-track[data-lever-state="returning"] {
+  border-color: #ffd45a;
+  transition: border-color 160ms ease-out;
 }
 
 .upgrade-picker {

@@ -113,19 +113,38 @@ describe("GameScreen", () => {
     expect(screen.getByText("第 1 班 · 1/3")).toBeVisible();
   });
 
-  it("uses a dedicated 48px downward pointer gesture without firing below the threshold", async () => {
+  it("uses the physical lever's 82% journey without firing below the threshold", async () => {
     render(<GameScreen seed={7} />);
     await chooseFirstService();
     const lever = screen.getByTestId("pull-gesture");
 
     fireEvent.pointerDown(lever, { clientY: 10, pointerId: 1 });
-    fireEvent.pointerUp(lever, { clientY: 57, pointerId: 1 });
+    fireEvent.pointerMove(lever, { clientY: 108.3, pointerId: 1 });
+    fireEvent.pointerUp(lever, { clientY: 108.3, pointerId: 1 });
     expect(screen.queryByText("转轮旋转中")).not.toBeInTheDocument();
 
     fireEvent.pointerDown(lever, { clientY: 10, pointerId: 2 });
-    fireEvent.pointerUp(lever, { clientY: 58, pointerId: 2 });
+    fireEvent.pointerMove(lever, { clientY: 108.4, pointerId: 2 });
+    fireEvent.pointerUp(lever, { clientY: 108.4, pointerId: 2 });
     expect(screen.getByText("转轮旋转中")).toBeVisible();
     expect(screen.getByText("余额 ¥90")).toBeVisible();
+  });
+
+  it("keeps the lever mounted and disabled through its impact while the reels start", async () => {
+    vi.useFakeTimers();
+    render(<GameScreen seed={8} />);
+    await chooseFirstService();
+
+    fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
+
+    const lever = screen.getByTestId("pull-gesture");
+    expect(screen.getByText("转轮旋转中")).toBeVisible();
+    expect(lever).toHaveAttribute("data-lever-state", "impact");
+    expect(screen.getByRole("button", { name: "拉动老虎机" })).toBeDisabled();
+    await act(async () => vi.advanceTimersByTimeAsync(70));
+    expect(lever).toHaveAttribute("data-lever-state", "returning");
+    await act(async () => vi.advanceTimersByTimeAsync(210));
+    expect(lever).toHaveAttribute("data-lever-state", "idle");
   });
 
   it("reaches a three-card upgrade boundary after three presented base spins", async () => {
