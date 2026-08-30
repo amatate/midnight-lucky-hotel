@@ -149,6 +149,28 @@ describe("PullLever", () => {
     expect(track).toHaveAttribute("data-lever-state", "idle");
   });
 
+  it("emits the detent before a fast threshold pull with no pointer move", () => {
+    const feedbackOrder: string[] = [];
+    Object.defineProperty(navigator, "vibrate", {
+      configurable: true,
+      value: vi.fn(() => {
+        feedbackOrder.push("detent");
+        return true;
+      })
+    });
+    const onPull = vi.fn(() => feedbackOrder.push("pull"));
+    render(<PullLever reducedMotion={false} onPull={onPull} />);
+    const track = screen.getByTestId("pull-gesture");
+
+    fireEvent.pointerDown(track, { clientY: 20, pointerId: 6 });
+    fireEvent.pointerUp(track, { clientY: 118.4, pointerId: 6 });
+
+    expect(navigator.vibrate).toHaveBeenCalledTimes(1);
+    expect(navigator.vibrate).toHaveBeenCalledWith(10);
+    expect(feedbackOrder).toEqual(["detent", "pull"]);
+    expect(onPull).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels an owned pointer and ignores a later release", () => {
     const onPull = vi.fn();
     render(<PullLever reducedMotion={false} onPull={onPull} />);
@@ -193,6 +215,39 @@ describe("PullLever", () => {
     expect(track).toHaveAttribute("data-pull-progress", "0");
     expect(button).toBeDisabled();
     expect(onPull).not.toHaveBeenCalled();
+  });
+
+  it("cancels and releases an owned drag when rerendered disabled", async () => {
+    vi.useFakeTimers();
+    const onPull = vi.fn();
+    const { rerender } = render(<PullLever reducedMotion={false} onPull={onPull} />);
+    const track = screen.getByTestId("pull-gesture");
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    Object.defineProperties(track, {
+      setPointerCapture: { configurable: true, value: setPointerCapture },
+      releasePointerCapture: { configurable: true, value: releasePointerCapture }
+    });
+
+    fireEvent.pointerDown(track, { clientY: 20, pointerId: 12 });
+    fireEvent.pointerMove(track, { clientY: 80, pointerId: 12 });
+    expect(track).toHaveAttribute("data-lever-state", "dragging");
+    expect(track).toHaveAttribute("data-pull-progress", "0.5");
+
+    rerender(<PullLever disabled reducedMotion={false} onPull={onPull} />);
+
+    expect(setPointerCapture).toHaveBeenCalledWith(12);
+    expect(releasePointerCapture).toHaveBeenCalledWith(12);
+    expect(track).toHaveAttribute("aria-disabled", "true");
+    expect(track).toHaveAttribute("data-pull-progress", "0");
+    expect(track).toHaveAttribute("data-lever-state", "returning");
+    fireEvent.pointerMove(track, { clientY: 140, pointerId: 12 });
+    fireEvent.pointerUp(track, { clientY: 140, pointerId: 12 });
+    expect(navigator.vibrate).not.toHaveBeenCalled();
+    expect(onPull).not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTimeAsync(210));
+    expect(track).toHaveAttribute("data-lever-state", "idle");
   });
 
   it("routes the fallback button through one shortened guarded pull", async () => {

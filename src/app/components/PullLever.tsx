@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { playLeverDetentTone, unlockAudio } from "@/presentation/audio";
 import { vibrateLeverDetent } from "@/presentation/haptics";
 
@@ -44,6 +44,13 @@ function releaseCapture(gesture: Gesture): void {
   }
 }
 
+function emitDetent(gesture: Gesture): void {
+  if (gesture.detentFired) return;
+  gesture.detentFired = true;
+  playLeverDetentTone();
+  vibrateLeverDetent();
+}
+
 export function PullLever({ disabled = false, reducedMotion, onPull }: PullLeverProps): React.JSX.Element {
   const gestureRef = useRef<Gesture | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -80,11 +87,7 @@ export function PullLever({ disabled = false, reducedMotion, onPull }: PullLever
     const gesture = gestureRef.current;
     if (gesture === null || gesture.pointerId !== event.pointerId) return null;
     const exactProgress = clampProgress(event.clientY - gesture.startY);
-    if (!gesture.detentFired && exactProgress >= DETENT_PROGRESS) {
-      gesture.detentFired = true;
-      playLeverDetentTone();
-      vibrateLeverDetent();
-    }
+    if (exactProgress >= DETENT_PROGRESS) emitDetent(gesture);
     setVisual({ progress: displayedProgress(exactProgress), motion: "dragging", actuation: "pointer" });
     return exactProgress;
   };
@@ -93,11 +96,21 @@ export function PullLever({ disabled = false, reducedMotion, onPull }: PullLever
     const gesture = gestureRef.current;
     if (gesture === null || gesture.pointerId !== event.pointerId) return;
     const progress = cancelled ? 0 : clampProgress(event.clientY - gesture.startY);
+    if (!cancelled && progress >= DETENT_PROGRESS) emitDetent(gesture);
     releaseCapture(gesture);
     gestureRef.current = null;
     if (!cancelled && progress >= TRIGGER_PROGRESS) triggerPull("pointer");
     else beginReturn("pointer");
   };
+
+  useLayoutEffect(() => {
+    if (!disabled || busyRef.current || gestureRef.current === null) return;
+    const gesture = gestureRef.current;
+    gestureRef.current = null;
+    releaseCapture(gesture);
+    clearTimers();
+    beginReturn("pointer");
+  }, [disabled]);
 
   useEffect(() => () => {
     clearTimers();
