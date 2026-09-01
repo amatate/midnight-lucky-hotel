@@ -9,34 +9,64 @@ import { decodeRunStateV2 } from "@/persistence/schema-v2";
 interface MigratedEvents {
   readonly events: readonly GameEvent[];
   readonly opaqueSequences: ReadonlySet<number>;
+  readonly omittedOpaqueAwards: readonly {
+    readonly sequence: number;
+    readonly amount: number;
+  }[];
 }
 
 function migrateEvents(events: readonly GameEventV1[]): MigratedEvents | null {
   const migrated: GameEvent[] = [];
   const opaqueSequences = new Set<number>();
-  let lastTriggeredPart: PartId | null = null;
+  const omittedOpaqueAwards: { sequence: number; amount: number }[] = [];
+  let triggeredPart: PartId | null = null;
+  let triggerCount = 0;
+  let inPartPayoutBlock = false;
 
   for (const event of events) {
-    if (event.type === "PART_TRIGGERED") lastTriggeredPart = event.partId;
+    const isPartPayout = event.type === "PAYOUT_ADDED" && event.source === "part";
+    if (event.type === "PART_TRIGGERED") {
+      if (inPartPayoutBlock) {
+        triggeredPart = event.partId;
+        triggerCount = 1;
+      } else {
+        triggeredPart ??= event.partId;
+        triggerCount += 1;
+      }
+      inPartPayoutBlock = false;
+    } else if (isPartPayout) {
+      inPartPayoutBlock = true;
+    } else {
+      triggeredPart = null;
+      triggerCount = 0;
+      inPartPayoutBlock = false;
+    }
     let next: unknown = event;
     if (event.type === "LINE_WIN" && !("preMultiplierAmount" in event)) {
       next = { ...event, preMultiplierAmount: event.amount, appliedMultiplier: 1 };
     } else if (event.type === "PAYOUT_ADDED" && !("preMultiplierAmount" in event)) {
       if (event.source === "overload") return null;
       if (event.source === "part") {
-        if (lastTriggeredPart === null) return null;
-        next = { ...event, preMultiplierAmount: event.amount, appliedMultiplier: 1, partId: lastTriggeredPart };
-        if (lastTriggeredPart === "fruit-salad") opaqueSequences.add(event.sequence);
+        if (triggerCount !== 1 || triggeredPart === null) {
+          omittedOpaqueAwards.push({ sequence: event.sequence, amount: event.amount });
+          continue;
+        }
+        next = { ...event, preMultiplierAmount: event.amount, appliedMultiplier: 1, partId: triggeredPart };
+        if (triggeredPart === "fruit-salad") opaqueSequences.add(event.sequence);
       } else {
         next = { ...event, preMultiplierAmount: event.amount, appliedMultiplier: 1 };
       }
     } else if (event.type === "OVERLOAD" && !("preMultiplierAmount" in event)) {
       next = { ...event, preMultiplierAmount: event.amount, appliedMultiplier: 1 };
     }
+    if (event.type === "PAYOUT_ADDED" && event.source === "part"
+      && "partId" in event && event.partId === "fruit-salad") {
+      opaqueSequences.add(event.sequence);
+    }
     if (!isGameEventV2(next)) return null;
     migrated.push(next);
   }
-  return { events: migrated, opaqueSequences };
+  return { events: migrated, opaqueSequences, omittedOpaqueAwards };
 }
 
 function legacyAward(event: GameEvent, opaqueSequences: ReadonlySet<number>): ReceiptAward | null {
@@ -93,7 +123,10 @@ function resolvingReceipt(
   const awards = segment.flatMap((event) => {
     const award = legacyAward(event, migrated.opaqueSequences);
     return award === null ? [] : [award];
-  });
+  }).concat(migrated.omittedOpaqueAwards
+    .filter((award) => award.sequence > migrated.events[lastDrawIndex]!.sequence && award.sequence < completion.sequence)
+    .map((award) => ({ ...award, kind: "opaque", formula: { kind: "legacy-unavailable" } } as const)))
+    .sort((left, right) => left.sequence - right.sequence);
   const totalPayout = awards.reduce((total, award) => safeMoney(total + award.amount), 0);
   if (totalPayout !== completion.total) return null;
   const bankrollAfter = state.bankroll;

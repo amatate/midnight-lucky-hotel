@@ -24,6 +24,18 @@ function dispatch(state: RunState, command: GameCommand): RunState {
   return result.state;
 }
 
+function asPreV2State(state: RunState): Record<string, unknown> {
+  const projected = structuredClone(state) as unknown as Record<string, unknown>;
+  delete projected.schemaVersion;
+  delete projected.spinHistory;
+  delete projected.nextSpinOrdinal;
+  if (projected.pendingSpin !== null && typeof projected.pendingSpin === "object") {
+    delete (projected.pendingSpin as Record<string, unknown>).bankrollBefore;
+    delete (projected.pendingSpin as Record<string, unknown>).wager;
+  }
+  return projected;
+}
+
 function winningAwaitingState(seed = 7): RunState {
   let state = selectService(createRun(seed));
   state = dispatch(state, { type: "SPIN" });
@@ -263,16 +275,50 @@ describe("dispatchCommand", () => {
     const third = nextInt(second.rng, ready.reels[2].length);
     const result = dispatchCommand(ready, { type: "SPIN" });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error.message);
-    expect(result.state).toMatchObject({
+    const expectedDraw = {
+      strips: ready.reels,
+      stops: [2, 6, 3] as const,
+      grid: [
+        ["cherry", "bell", "blank"],
+        ["blank", "cherry", "seven"],
+        ["blank", "cherry", "seven"]
+      ] as const,
+      rng: { value: 4_231_026_141 },
+      entryIds: [
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+      ],
+      visibleSourceIds: [[2, 3, 4], [6, 7, 8], [3, 4, 5]]
+    } as const;
+    const {
+      schemaVersion: _schemaVersion,
+      spinHistory: _spinHistory,
+      nextSpinOrdinal: _nextSpinOrdinal,
+      ...readyPreV2
+    } = ready;
+    const expectedPreV2State = {
+      ...readyPreV2,
       phase: "SPINNING",
       bankroll: 90,
+      rng: { value: 4_231_026_141 },
       shiftWager: 10,
-      rng: third.rng,
-      pendingSpin: { isFree: false, draw: { stops: [first.value, second.value, third.value] } },
-      expenses: { wagers: 10 }
-    });
+      pendingSpin: { isFree: false, draw: expectedDraw },
+      pendingEvents: [
+        { sequence: 1, type: "BET_PLACED", amount: 10 },
+        { sequence: 2, type: "REELS_DRAWN", draw: expectedDraw }
+      ],
+      expenses: { ...ready.expenses, wagers: 10 },
+      commandHistory: [...ready.commandHistory, { type: "SPIN" }]
+    };
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.error.message);
+    expect(ready.rng).toEqual({ value: 3_031_295_998 });
+    expect(first).toEqual({ value: 2, rng: { value: 567_894_515 } });
+    expect(second).toEqual({ value: 6, rng: { value: 2_399_460_328 } });
+    expect(third).toEqual({ value: 3, rng: { value: 4_231_026_141 } });
+    expect(asPreV2State(result.state)).toEqual(expectedPreV2State);
     expect(result.events.map((event) => [event.sequence, event.type])).toEqual([
       [1, "BET_PLACED"],
       [2, "REELS_DRAWN"]

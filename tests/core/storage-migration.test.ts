@@ -145,6 +145,62 @@ describe("schema v1 migration", () => {
     }));
   });
 
+  it("keeps an amount-only part payout opaque when multiple triggers make its identity ambiguous", () => {
+    const resolving = accept(awaitingWinningState(208), { type: "ACCEPT_OUTCOME" });
+    const legacy = asV1(resolving);
+    legacy.pendingEvents = [
+      { sequence: 1, type: "REELS_DRAWN", draw: resolving.pendingSpin!.draw },
+      { sequence: 2, type: "PART_TRIGGERED", partId: "lemon-infection", level: 1 },
+      { sequence: 3, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
+      { sequence: 4, type: "PAYOUT_ADDED", source: "part", amount: 5 },
+      { sequence: 5, type: "PAYOUT_COMPLETE", total: 5 }
+    ];
+    localStorage.setItem(LEGACY_RUN_STORAGE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadRun();
+
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.state.spinHistory[0]!.awards).toEqual([{
+      sequence: 4,
+      kind: "opaque",
+      formula: { kind: "legacy-unavailable" },
+      amount: 5
+    }]);
+    expect(loaded.state.pendingEvents.some((event) => event.type === "PAYOUT_ADDED" && event.sequence === 4)).toBe(false);
+  });
+
+  it("keeps a transitional formula-bearing Fruit Salad generic payout opaque", () => {
+    const resolving = accept(awaitingWinningState(209), { type: "ACCEPT_OUTCOME" });
+    const legacy = asV1(resolving);
+    legacy.pendingEvents = [
+      { sequence: 1, type: "REELS_DRAWN", draw: resolving.pendingSpin!.draw },
+      { sequence: 2, type: "PART_TRIGGERED", partId: "fruit-salad", level: 1 },
+      {
+        sequence: 3,
+        type: "PAYOUT_ADDED",
+        source: "part",
+        partId: "fruit-salad",
+        preMultiplierAmount: 5,
+        appliedMultiplier: 1,
+        amount: 5
+      },
+      { sequence: 4, type: "PAYOUT_COMPLETE", total: 5 }
+    ];
+    localStorage.setItem(LEGACY_RUN_STORAGE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadRun();
+
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.state.spinHistory[0]!.awards).toEqual([{
+      sequence: 3,
+      kind: "opaque",
+      formula: { kind: "legacy-unavailable" },
+      amount: 5
+    }]);
+  });
+
   it("blocks v1 fallback when a present v2 snapshot is invalid", () => {
     writeLegacy(readyState(205));
     localStorage.setItem(RUN_STORAGE_KEY, "{");
