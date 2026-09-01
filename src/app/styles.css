@@ -1178,6 +1178,8 @@ select {
   gap: 8px;
 }
 
+.payout-values { display: contents; }
+
 .payout-amount {
   color: var(--payout-gold);
   font-size: clamp(1.9rem, 9vw, 2.8rem);

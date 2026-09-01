@@ -60,19 +60,22 @@ export function Hud({
             className={activePayout > 0 ? "is-payout-destination" : undefined}
             data-counter="bankroll"
             data-coin-destination="true"
-          >{settlementPresentation === null
-              ? `余额 ¥${state.bankroll}`
-              : <>
-                  余额 ¥<AnimatedMoney
+          >
+            <span aria-hidden="true" className="bankroll-visual">
+              余额 ¥{settlementPresentation === null
+                ? state.bankroll
+                : <AnimatedMoney
                     target={settlementPresentation.visibleBankrollTarget}
                     durationMs={settlementPresentation.moneyDurationMs}
                     resetKey={settlementPresentation.moneyResetKey}
                     animationKey={settlementPresentation.moneyAnimationKey}
                     reducedMotion={reducedMotion}
-                    accessibleLabel={`余额 ¥${settlementPresentation.visibleBankrollTarget}`}
-                  />
-                </>
-            }</dd>
+                  />}
+            </span>
+            <span className="sr-only bankroll-value">
+              ¥{settlementPresentation?.visibleBankrollTarget ?? state.bankroll}
+            </span>
+          </dd>
         </div>
         <div className="room-counter">
           <dt className="sr-only">目标</dt>

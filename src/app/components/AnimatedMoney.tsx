@@ -56,16 +56,18 @@ export function AnimatedMoney({
       return cancelFrame;
     }
 
-    const changed = animationKeyRef.current !== animationKey || targetRef.current !== normalizedTarget;
-    if (!changed) return cancelFrame;
-    animationKeyRef.current = animationKey;
-    targetRef.current = normalizedTarget;
-
     if (reducedMotion || durationMs <= 0) {
+      animationKeyRef.current = animationKey;
+      targetRef.current = normalizedTarget;
       displayedRef.current = normalizedTarget;
       setDisplayed(normalizedTarget);
       return cancelFrame;
     }
+
+    const changed = animationKeyRef.current !== animationKey || targetRef.current !== normalizedTarget;
+    if (!changed) return cancelFrame;
+    animationKeyRef.current = animationKey;
+    targetRef.current = normalizedTarget;
 
     const startedAt = performance.now();
     const from = displayedRef.current;

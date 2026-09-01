@@ -69,4 +69,19 @@ describe("AnimatedMoney", () => {
     expect(raf).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("cancels an in-flight tween and snaps when reduced motion is enabled mid-animation", async () => {
+    const { rerender } = render(
+      <AnimatedMoney target={0} durationMs={360} resetKey="spin-1" animationKey="spin-1:start" reducedMotion={false} />
+    );
+    rerender(<AnimatedMoney target={35} durationMs={360} resetKey="spin-1" animationKey="spin-1:award" reducedMotion={false} />);
+    await act(async () => vi.advanceTimersByTimeAsync(160));
+    expect(Number(screen.getByTestId("animated-money").textContent)).toBeGreaterThan(0);
+    expect(Number(screen.getByTestId("animated-money").textContent)).toBeLessThan(35);
+
+    rerender(<AnimatedMoney target={35} durationMs={360} resetKey="spin-1" animationKey="spin-1:award" reducedMotion />);
+
+    expect(screen.getByTestId("animated-money")).toHaveTextContent("35");
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

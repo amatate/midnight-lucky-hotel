@@ -65,6 +65,7 @@ function presentation(
   return {
     summary: currentSummary,
     currentEvent,
+    explanationEvents: [],
     eventIndex: currentEvent === null ? 0 : 1,
     eventTotal: currentEvent === null ? 0 : 1,
     activeLineIds: currentEvent?.type === "LINE_WIN" ? [currentEvent.lineId as "top"] : [],
@@ -257,7 +258,92 @@ describe("WinPresentation", () => {
     expect(within(region).getByText(/飞向余额/)).toHaveTextContent("110");
     expect(region).not.toHaveTextContent("35");
     expect(region).not.toHaveTextContent("125");
-    expect(within(region).getByText("本转累计 ¥20，余额 ¥110")).toHaveClass("sr-only");
+    const visualMoney = region.querySelector(".payout-values");
+    expect(visualMoney).not.toBeNull();
+    expect(visualMoney).toHaveAttribute("aria-hidden", "true");
+    expect(visualMoney).toHaveTextContent("+¥20飞向余额 ¥110");
+    const statuses = within(region).getAllByRole("status");
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0]).toHaveAttribute("aria-live", "polite");
+    expect(statuses[0]).toHaveTextContent(/^本转累计 ¥20，余额 ¥110$/);
+  });
+
+  it("exposes one semantic HUD balance value without repeating the existing balance label", () => {
+    const currentPresentation = presentation(null, summary({ total: 20 }), {
+      visibleBankrollTarget: 110,
+      visiblePayoutTarget: 20
+    });
+    render(<Hud
+      state={state([], { bankroll: 120 })}
+      estimate={null}
+      estimateStatus="idle"
+      settlementPresentation={currentPresentation}
+    />);
+
+    const balance = document.querySelector<HTMLElement>('[data-counter="bankroll"]');
+    expect(balance).not.toBeNull();
+    const visualBalance = balance!.querySelector(".bankroll-visual");
+    expect(visualBalance).toHaveAttribute("aria-hidden", "true");
+    expect(visualBalance).toHaveTextContent("余额 ¥110");
+    const semanticValue = balance!.querySelector(".bankroll-value");
+    expect(semanticValue).not.toBeNull();
+    expect(semanticValue).toHaveClass("sr-only");
+    expect(semanticValue).toHaveTextContent(/^¥110$/);
+    expect(semanticValue).not.toHaveTextContent("余额");
+  });
+
+  it("renders every explanation in one grouped causal frame in source order", () => {
+    const explanations = [
+      { sequence: 2, type: "PART_TRIGGERED", partId: "lemon-infection", level: 1 },
+      { sequence: 3, type: "SYMBOL_CHANGED", reel: 0, row: 1, from: "cherry", to: "lemon" },
+      { sequence: 4, type: "FOOD_CONSUMED", reel: 1 }
+    ] as const satisfies readonly GameEvent[];
+    render(<WinPresentation
+      state={state(explanations)}
+      presentation={presentation(explanations[2], summary(), {
+        explanationEvents: explanations,
+        eventIndex: 4,
+        eventTotal: 6
+      })}
+      reducedMotion={false}
+    />);
+
+    const frame = document.querySelector<HTMLElement>(".explanation-frame");
+    expect(frame).not.toBeNull();
+    expect([...frame!.querySelectorAll(".explanation-label")].map((label) => label.textContent)).toEqual([
+      "柠檬感染 L1：准备替换中奖线外的字面图案",
+      "第1轮第2格：樱桃 → 柠檬",
+      "第2轮食物已消耗：这份食物提供 1 层 +25%，接下来 3 次转动有效；多份食物的层数可叠加"
+    ]);
+  });
+
+  it("masks final-value events inside a grouped explanation until staged targets reach them", () => {
+    const explanations = [
+      { sequence: 1, type: "PART_TRIGGERED", partId: "lemon-infection", level: 1 },
+      { sequence: 2, type: "SPIN_COMMITTED", interventionUsed: false, preInterventionPaying: true, finalPayout: 35 },
+      { sequence: 3, type: "BLOCK_COMPLETED", bankroll: 125 }
+    ] as const satisfies readonly GameEvent[];
+    render(<WinPresentation
+      state={state(explanations, { bankroll: 125 })}
+      presentation={presentation(explanations[2], summary({ total: 35, tier: "chain" }), {
+        explanationEvents: explanations,
+        settlementStartBankroll: 90,
+        visiblePayoutTarget: 0,
+        visibleBankrollTarget: 90,
+        awardDelta: 0
+      })}
+      reducedMotion={false}
+    />);
+
+    const frame = document.querySelector<HTMLElement>(".explanation-frame");
+    expect(frame).not.toBeNull();
+    expect([...frame!.querySelectorAll(".explanation-label")].map((label) => label.textContent)).toEqual([
+      "柠檬感染 L1：准备替换中奖线外的字面图案",
+      "本转正在确认",
+      "本段正在结算"
+    ]);
+    expect(frame).not.toHaveTextContent("35");
+    expect(frame).not.toHaveTextContent("125");
   });
 
   it("does not leak an opaque completion award total during its ignition frame", () => {
@@ -316,7 +402,7 @@ describe("WinPresentation", () => {
     />);
 
     const region = screen.getByRole("region", { name: "结算演出队列" });
-    expect(within(region).getByText("本转累计 ¥35，余额 ¥135")).toBeVisible();
+    expect(within(region).getByText("本转累计 ¥35，余额 ¥135")).toHaveClass("sr-only");
     expect(within(region).getByText(/飞向余额/)).toHaveTextContent("135");
     expect(within(region).getByText("1 条中奖线 · 1 次部件触发 · 因果链 2")).toBeVisible();
     expect(within(region).getByText("樱桃顶线 +¥20")).toBeVisible();
@@ -340,7 +426,7 @@ describe("WinPresentation", () => {
     />);
 
     const region = screen.getByRole("region", { name: "结算演出队列" });
-    expect(within(region).getByText("本转累计 ¥80，余额 ¥180")).toBeVisible();
+    expect(within(region).getByText("本转累计 ¥80，余额 ¥180")).toHaveClass("sr-only");
     expect(within(region).getByText(/飞向余额/)).toHaveTextContent("180");
     expect(within(region).getByText("机器过载 +¥80")).toBeVisible();
     expect(within(region).queryByTestId("coin-burst")).not.toBeInTheDocument();

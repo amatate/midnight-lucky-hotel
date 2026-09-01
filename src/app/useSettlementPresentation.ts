@@ -14,6 +14,7 @@ import { summarizePresentation, type PresentationSummary } from "@/presentation/
 export interface SettlementPresentationState {
   readonly summary: PresentationSummary;
   readonly currentEvent: GameEvent | null;
+  readonly explanationEvents: readonly GameEvent[];
   readonly eventIndex: number;
   readonly eventTotal: number;
   readonly activeLineIds: readonly LineWin["lineId"][];
@@ -51,12 +52,14 @@ interface PresentationStep {
   readonly bankrollTarget: number;
   readonly awardDelta: number;
   readonly moneyAnimationKey: string;
+  readonly explanationEvents?: readonly GameEvent[];
 }
 
 interface PresentationView {
   readonly key: string | null;
   readonly stepIndex: number;
   readonly currentEvent: GameEvent | null;
+  readonly explanationEvents: readonly GameEvent[];
   readonly eventIndex: number;
   readonly displayGrid: Grid | null;
   readonly changedCells: readonly { reel: ReelIndex; row: RowIndex }[];
@@ -85,7 +88,7 @@ interface PresentationCycle {
 }
 
 const EMPTY_VIEW: PresentationView = {
-  key: null, stepIndex: 0, currentEvent: null, eventIndex: 0, displayGrid: null, changedCells: [], delayMs: 0,
+  key: null, stepIndex: 0, currentEvent: null, explanationEvents: [], eventIndex: 0, displayGrid: null, changedCells: [], delayMs: 0,
   visiblePayoutTarget: 0, visibleBankrollTarget: 0, awardDelta: 0, moneyAnimationKey: "idle", moneyDurationMs: 0,
   done: false, accelerated: false
 };
@@ -131,6 +134,14 @@ function scaleTimeline(steps: readonly PresentationStep[], tier: PresentationSum
     return steps.map((step, index) => index === target ? { ...step, durationMs: step.durationMs + minimum - natural } : step);
   }
   return steps;
+}
+
+function presentationPacingTier(
+  summaryTier: PresentationSummary["tier"],
+  awardCount: number
+): PresentationSummary["tier"] {
+  if (summaryTier === "none" || summaryTier === "runaway") return summaryTier;
+  return summaryTier === "chain" || awardCount >= 2 ? "chain" : "win";
 }
 
 function buildSteps(
@@ -190,14 +201,22 @@ function buildSteps(
       run.push({ event: candidate, eventIndex: cursor + 1 });
       cursor += 1;
     }
-    const durationMs = run.length === 0 ? 0 : 160 / run.length;
-    result.push(...run.map(({ event: explanation, eventIndex }) => ({
-      kind: "explanation" as const, event: explanation, eventIndex, durationMs, payoutTarget,
-      bankrollTarget: safeMoney(settlementStartBankroll + payoutTarget), awardDelta: 0,
-      moneyAnimationKey: `${key}:explain:${explanation.sequence}`
-    })));
+    const finalExplanation = run.at(-1);
+    if (finalExplanation !== undefined) {
+      result.push({
+        kind: "explanation",
+        event: finalExplanation.event,
+        explanationEvents: run.map(({ event: explanation }) => explanation),
+        eventIndex: finalExplanation.eventIndex,
+        durationMs: 160,
+        payoutTarget,
+        bankrollTarget: safeMoney(settlementStartBankroll + payoutTarget),
+        awardDelta: 0,
+        moneyAnimationKey: `${key}:explain:${run[0]!.event.sequence}-${finalExplanation.event.sequence}`
+      });
+    }
   }
-  return scaleTimeline(result, summary.tier);
+  return scaleTimeline(result, presentationPacingTier(summary.tier, awards.length));
 }
 
 function acceleratedSegmentMs(cycle: PresentationCycle, acceleratedFromIndex: number): number {
@@ -229,12 +248,24 @@ function viewForStep(
       moneyAnimationKey: `${cycle.key}:complete`, done: true, accelerated
     };
   }
-  const replayFrame = step.event === null ? undefined : cycle.replay.frames.find((frame) => frame.sequence === step.event?.sequence);
+  const explanationSequences = new Set(step.explanationEvents?.map((event) => event.sequence) ?? []);
+  const explanationFrames = step.kind === "explanation"
+    ? cycle.replay.frames.filter((frame) => explanationSequences.has(frame.sequence))
+    : [];
+  const replayFrame = step.kind === "explanation"
+    ? explanationFrames.at(-1)
+    : step.event === null ? undefined : cycle.replay.frames.find((frame) => frame.sequence === step.event?.sequence);
+  const changedCells = explanationFrames.reduce<{ reel: ReelIndex; row: RowIndex }[]>((cells, frame) => {
+    for (const cell of frame.changedCells) {
+      if (!cells.some((candidate) => candidate.reel === cell.reel && candidate.row === cell.row)) cells.push(cell);
+    }
+    return cells;
+  }, []);
   const durationMs = stepDuration(cycle, stepIndex, accelerated, reducedMotion, acceleratedFromIndex);
   return {
-    key: cycle.key, stepIndex, currentEvent: step.event, eventIndex: step.eventIndex,
+    key: cycle.key, stepIndex, currentEvent: step.event, explanationEvents: step.explanationEvents ?? [], eventIndex: step.eventIndex,
     displayGrid: step.event?.type === "PAYOUT_COMPLETE" ? cycle.resolvedGrid : replayFrame?.grid ?? previousGrid,
-    changedCells: step.kind === "explanation" ? replayFrame?.changedCells ?? [] : [],
+    changedCells: step.kind === "explanation" ? changedCells : [],
     delayMs: durationMs, visiblePayoutTarget: step.payoutTarget, visibleBankrollTarget: step.bankrollTarget,
     awardDelta: step.awardDelta, moneyAnimationKey: step.moneyAnimationKey,
     moneyDurationMs: step.kind === "money" ? durationMs : 0, done: false, accelerated
@@ -363,7 +394,7 @@ export function useSettlementPresentation(options: SettlementPresentationOptions
     unlockAudio();
     setView((current) => current.key !== key ? current : {
       ...current, stepIndex: cycle.steps.length, currentEvent: null, eventIndex: cycle.eventTotal,
-      displayGrid: cycle.resolvedGrid ?? current.displayGrid, changedCells: [], delayMs: 0,
+      explanationEvents: [], displayGrid: cycle.resolvedGrid ?? current.displayGrid, changedCells: [], delayMs: 0,
       visiblePayoutTarget: cycle.finalPayout, visibleBankrollTarget: cycle.finalBankroll, awardDelta: 0,
       moneyAnimationKey: `${key}:skip`, moneyDurationMs: 0, done: true
     });
@@ -374,10 +405,12 @@ export function useSettlementPresentation(options: SettlementPresentationOptions
   return {
     summary: cycle.summary,
     currentEvent: visible.currentEvent,
+    explanationEvents: visible.explanationEvents,
     eventIndex: visible.eventIndex,
     eventTotal: cycle.eventTotal,
     activeLineIds: activeLineIds(visible.currentEvent),
-    activePartId: visible.currentEvent?.type === "PART_TRIGGERED" ? visible.currentEvent.partId : null,
+    activePartId: [...visible.explanationEvents].reverse().find((event) => event.type === "PART_TRIGGERED")?.partId
+      ?? (visible.currentEvent?.type === "PART_TRIGGERED" ? visible.currentEvent.partId : null),
     changedCells: visible.changedCells,
     displayGrid: visible.displayGrid,
     done: visible.done,

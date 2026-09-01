@@ -349,8 +349,53 @@ describe("useSettlementPresentation", () => {
       };
     };
     await completionTime(stateWithAwards(1), 700);
-    await completionTime(stateWithAwards(2), 1_000);
+    await completionTime(stateWithAwards(2), 1_280);
     await completionTime(stateWithAwards(128), 2_200);
+  });
+
+  it("coalesces a consecutive explanatory run into one ordered 160ms frame with its final replay grid", async () => {
+    vi.useFakeTimers();
+    const changed: Grid = [
+      ["cherry", "lemon", "blank"],
+      ["cherry", "lemon", "blank"],
+      ["cherry", "bell", "blank"]
+    ];
+    const events = [
+      { sequence: 1, type: "REELS_DRAWN", draw: { strips: REPLAY_GRID, stops: [0, 0, 0], grid: REPLAY_GRID, rng: { value: 1 } } },
+      { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "service" },
+      { sequence: 3, type: "PART_TRIGGERED", partId: "lemon-infection", level: 1 },
+      { sequence: 4, type: "SYMBOL_CHANGED", reel: 0, row: 1, from: "cherry", to: "lemon" },
+      { sequence: 5, type: "FOOD_CONSUMED", reel: 1 },
+      { sequence: 6, type: "PAYOUT_ADDED", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "service" },
+      { sequence: 7, type: "PAYOUT_COMPLETE", total: 20 }
+    ] as const satisfies readonly GameEvent[];
+    const unresolved = manualResolvingState(events, { bankroll: 110 });
+    const state: RunState = {
+      ...unresolved,
+      pendingSpin: unresolved.pendingSpin === null ? null : {
+        ...unresolved.pendingSpin,
+        draw: { ...unresolved.pendingSpin.draw, grid: changed }
+      }
+    };
+    const { result } = renderHook(() => useSettlementPresentation({
+      state,
+      paused: false,
+      reducedMotion: false,
+      onCommand: vi.fn()
+    }));
+
+    await advancePresentationUntil(() => result.current?.explanationEvents.length === 3);
+    expect(result.current?.explanationEvents.map((event) => event.sequence)).toEqual([3, 4, 5]);
+    expect(result.current?.currentEvent?.sequence).toBe(5);
+    expect(result.current?.eventIndex).toBe(5);
+    expect(result.current?.changedCells).toEqual([{ reel: 0, row: 1 }]);
+    expect(result.current?.displayGrid).toEqual(changed);
+
+    await act(async () => vi.advanceTimersByTimeAsync(159));
+    expect(result.current?.explanationEvents.map((event) => event.sequence)).toEqual([3, 4, 5]);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(result.current?.explanationEvents).toEqual([]);
+    expect(result.current?.currentEvent?.sequence).toBe(6);
   });
 
   it("starts at the first causal event, highlights line before part, and advances the replay grid only on the matching change", async () => {
@@ -394,9 +439,6 @@ describe("useSettlementPresentation", () => {
     await advancePresentationUntil(() => result.current?.activePartId === "lemon-infection");
     expect(result.current?.activeLineIds).toEqual([]);
     expect(result.current?.activePartId).toBe("lemon-infection");
-    expect(result.current?.displayGrid).toEqual(REPLAY_GRID);
-    await advancePresentationUntil(() => result.current?.changedCells.length === 1);
-    expect(result.current?.activePartId).toBeNull();
     expect(result.current?.changedCells).toEqual([{ reel: 0, row: 1 }]);
     expect(result.current?.displayGrid).toEqual(changed);
     await advancePresentationUntil(() => result.current?.currentEvent?.type === "PAYOUT_COMPLETE");
@@ -881,7 +923,7 @@ describe("presentation recovery UI", () => {
     expect(within(dialog).getByRole("button", { name: "继续演出" })).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "直接结算" })).toBeVisible();
     const receipt = saved.spinHistory.at(-1)!;
-    expect(screen.getByText(`余额 ¥${receipt.bankrollBefore - receipt.wager}`, { selector: ".sr-only" })).toBeVisible();
+    expect(document.querySelector(".bankroll-value")).toHaveTextContent(`¥${receipt.bankrollBefore - receipt.wager}`);
   });
 
   it("wires the current causal event to exact line cells, the equipped part lamp, and a truthful reel highlight", async () => {
@@ -908,8 +950,6 @@ describe("presentation recovery UI", () => {
     const activeParts = screen.getAllByTestId("part-slot").filter((slot) => slot.getAttribute("data-active") === "true");
     expect(activeParts).toHaveLength(1);
     expect(activeParts[0]).toHaveTextContent("果酱罐 · L1");
-    expect(screen.getByText("食物加成 0 层")).toBeVisible();
-    await advancePresentationUntil(() => screen.queryByText(/第2轮食物已消耗/) !== null);
     expect(screen.getAllByTestId("reel").map((reel) => reel.getAttribute("data-reel-highlighted"))).toEqual([
       null, "true", null
     ]);
@@ -971,10 +1011,9 @@ describe("presentation recovery UI", () => {
 
     expect(screen.getByText(/本转状态：未触发/)).toBeInTheDocument();
     expect(screen.getAllByTestId("part-slot").filter((slot) => slot.getAttribute("data-active") === "true")).toHaveLength(0);
-    await advancePresentationUntil(() => screen.queryByText(/本转状态：已经触发/) !== null);
-    expect(screen.getByText(/本转状态：已经触发/)).toBeInTheDocument();
-    expect(screen.getAllByTestId("part-slot")[0]).toHaveAttribute("data-active", "true");
     await advancePresentationUntil(() => screen.queryByText(/本转状态：因可见裂纹失效/) !== null);
+    expect(screen.getByText(/果酱罐：/)).toBeVisible();
+    expect(screen.getByText(/部件因裂纹失效：果酱罐/)).toBeVisible();
     expect(screen.getByText(/本转状态：因可见裂纹失效/)).toBeInTheDocument();
     expect(screen.getAllByTestId("part-slot").filter((slot) => slot.getAttribute("data-active") === "true")).toHaveLength(0);
   });

@@ -79,23 +79,34 @@ export interface WinPresentationProps {
   readonly reducedMotion: boolean;
 }
 
+function stagedEventLabel(
+  state: RunState,
+  event: GameEvent | null,
+  visiblePayoutTarget: number,
+  visibleBankrollTarget: number
+): string {
+  if (event?.type === "PAYOUT_COMPLETE" && visiblePayoutTarget !== event.total) return "赔付正在入账";
+  if (event?.type === "SPIN_COMMITTED" && visiblePayoutTarget !== event.finalPayout) return "本转正在确认";
+  if (event?.type === "BLOCK_COMPLETED" && visibleBankrollTarget !== event.bankroll) return "本段正在结算";
+  return settlementEventLabel(state, event);
+}
+
 export function WinPresentation({ state, presentation, reducedMotion }: WinPresentationProps): React.JSX.Element {
   const plan = feedbackPlan(presentation.summary.tier, reducedMotion);
   const lineCount = presentation.summary.lines.length;
   const partCount = presentation.summary.partTriggers.length;
-  let eventLabel: string;
-  if (presentation.currentEvent?.type === "PAYOUT_COMPLETE"
-    && presentation.visiblePayoutTarget !== presentation.currentEvent.total) {
-    eventLabel = "赔付正在入账";
-  } else if (presentation.currentEvent?.type === "SPIN_COMMITTED"
-    && presentation.visiblePayoutTarget !== presentation.currentEvent.finalPayout) {
-    eventLabel = "本转正在确认";
-  } else if (presentation.currentEvent?.type === "BLOCK_COMPLETED"
-    && presentation.visibleBankrollTarget !== presentation.currentEvent.bankroll) {
-    eventLabel = "本段正在结算";
-  } else {
-    eventLabel = settlementEventLabel(state, presentation.currentEvent);
-  }
+  const eventLabel = stagedEventLabel(
+    state,
+    presentation.currentEvent,
+    presentation.visiblePayoutTarget,
+    presentation.visibleBankrollTarget
+  );
+  const explanationLabels = presentation.explanationEvents.map((event) => stagedEventLabel(
+    state,
+    event,
+    presentation.visiblePayoutTarget,
+    presentation.visibleBankrollTarget
+  ));
   return (
     <section
       className={`presentation-panel win-presentation tone-${plan.tone}${reducedMotion ? " reduce-flash" : ""}`}
@@ -107,32 +118,42 @@ export function WinPresentation({ state, presentation, reducedMotion }: WinPrese
         <strong>{presentation.summary.tier === "runaway" ? "机器失控" : presentation.summary.tier === "chain" ? "构筑连锁" : presentation.summary.tier === "win" ? "中奖" : "本转结果"}</strong>
         <span data-testid="presentation-progress">事件 {presentation.eventTotal > 0 ? Math.max(1, presentation.eventIndex) : 0}/{presentation.eventTotal}</span>
       </header>
-      <div className={`payout-stage${presentation.awardDelta > 0 ? " is-money-moving" : ""}`} aria-live="polite">
-        <strong className="payout-amount">
-          +¥<AnimatedMoney
-            target={presentation.visiblePayoutTarget}
-            durationMs={presentation.moneyDurationMs}
-            resetKey={presentation.moneyResetKey}
-            animationKey={presentation.moneyAnimationKey}
-            reducedMotion={reducedMotion}
-            accessibleLabel={`本转累计 ¥${presentation.visiblePayoutTarget}，余额 ¥${presentation.visibleBankrollTarget}`}
-          />
-        </strong>
-        <span className="payout-destination">
-          飞向余额 ¥<AnimatedMoney
-            target={presentation.visibleBankrollTarget}
-            durationMs={presentation.moneyDurationMs}
-            resetKey={presentation.moneyResetKey}
-            animationKey={presentation.moneyAnimationKey}
-            reducedMotion={reducedMotion}
-          />
+      <div className={`payout-stage${presentation.awardDelta > 0 ? " is-money-moving" : ""}`}>
+        <div aria-hidden="true" className="payout-values">
+          <strong className="payout-amount">
+            +¥<AnimatedMoney
+              target={presentation.visiblePayoutTarget}
+              durationMs={presentation.moneyDurationMs}
+              resetKey={presentation.moneyResetKey}
+              animationKey={presentation.moneyAnimationKey}
+              reducedMotion={reducedMotion}
+            />
+          </strong>
+          <span className="payout-destination">
+            飞向余额 ¥<AnimatedMoney
+              target={presentation.visibleBankrollTarget}
+              durationMs={presentation.moneyDurationMs}
+              resetKey={presentation.moneyResetKey}
+              animationKey={presentation.moneyAnimationKey}
+              reducedMotion={reducedMotion}
+            />
+          </span>
+        </div>
+        <span className="sr-only" role="status" aria-live="polite">
+          本转累计 ¥{presentation.visiblePayoutTarget}，余额 ¥{presentation.visibleBankrollTarget}
         </span>
       </div>
       <p className="cause-summary">{lineCount} 条中奖线 · {partCount} 次部件触发 · 因果链 {presentation.summary.chainLength}</p>
-      <div className="event-card" aria-live="polite">{
+      <div className={`event-card${explanationLabels.length > 0 ? " explanation-frame" : ""}`}>{
         presentation.summary.tier === "none"
           ? `空手而归 / 本转支出 ¥${state.pendingSpin?.wager ?? 0}`
-          : eventLabel
+          : explanationLabels.length > 0
+            ? explanationLabels.map((label, index) => (
+                <span className="explanation-label" key={presentation.explanationEvents[index]!.sequence}>
+                  {index > 0 && <br />}{label}
+                </span>
+              ))
+            : eventLabel
       }</div>
       {!presentation.done && (
         <div className="presentation-actions">
