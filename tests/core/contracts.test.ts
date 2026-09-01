@@ -298,6 +298,8 @@ describe("contract progress from committed events", () => {
       contract: base({ target: 1 }),
       pendingSpin: {
         isFree: false,
+        bankrollBefore: selected.state.bankroll + 10,
+        wager: 10,
         draw: {
           strips: [["cherry"], ["cherry"], ["cherry"]],
           stops: [0, 0, 0],

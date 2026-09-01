@@ -22,7 +22,12 @@ function oracle(draw: ReelDraw, patch: {
     betMode: "normal",
     reels: draw.strips,
     agitation: patch.agitation,
-    pendingSpin: { draw, isFree: false }
+    pendingSpin: {
+      draw,
+      isFree: false,
+      bankrollBefore: patch.bankroll + patch.currentBet,
+      wager: patch.currentBet
+    }
   };
   const settled = resolveSpin(state, draw);
   return {

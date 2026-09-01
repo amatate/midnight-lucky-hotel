@@ -47,6 +47,8 @@ function stateWithGrid(grid: Grid, phase: RunPhase): RunState {
     service: "kitchen",
     pendingSpin: {
       isFree: false,
+      bankrollBefore: 110,
+      wager: 10,
       draw: {
         strips: base.reels,
         stops: [0, 0, 0],

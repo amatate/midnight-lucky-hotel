@@ -121,6 +121,8 @@ function manualResolvingState(events: readonly GameEvent[], patch: Partial<RunSt
     bankroll: 120,
     pendingSpin: {
       isFree: false,
+      bankrollBefore: 110,
+      wager: 10,
       draw: { strips: base.reels, stops: [0, 0, 0], grid: REPLAY_GRID, rng: base.rng }
     },
     pendingEvents: events,
@@ -545,7 +547,7 @@ describe("useSettlementPresentation", () => {
       phase: "AWAITING_INTERVENTION",
       service: "kitchen",
       reels: strips,
-      pendingSpin: { isFree: false, draw },
+      pendingSpin: { isFree: false, draw, bankrollBefore: 110, wager: 10 },
       pendingEvents: [{ sequence: 1, type: "REELS_DRAWN", draw }]
     };
     const accepted = dispatchCommand(awaiting, { type: "ACCEPT_OUTCOME" });
@@ -599,7 +601,7 @@ describe("useSettlementPresentation", () => {
       { sequence: 1, type: "REELS_DRAWN", draw },
       { sequence: 2, type: "FOOD_CONSUMED", reel: 0 }
     ], {
-      pendingSpin: { isFree: false, draw: { ...draw, grid: authoritative } }
+      pendingSpin: { ...base.pendingSpin!, draw: { ...draw, grid: authoritative } }
     });
     const observedAtComplete: { readonly done: string | null; readonly firstSymbol: string | null }[] = [];
     const onCommand = vi.fn<(command: GameCommand) => void>(() => {
@@ -633,7 +635,7 @@ describe("useSettlementPresentation", () => {
     ];
     const resolving = manualResolvingState([], {
       pendingSpin: {
-        isFree: false,
+        ...base.pendingSpin!,
         draw: { strips: base.reels, stops: [0, 0, 0], grid: authoritative, rng: base.rng }
       }
     });
@@ -677,7 +679,7 @@ describe("useSettlementPresentation", () => {
     const resolving = manualResolvingState([
       { sequence: 1, type: "REELS_DRAWN", draw }
     ], {
-      pendingSpin: { isFree: false, draw: { ...draw, grid: authoritative } }
+      pendingSpin: { ...base.pendingSpin!, draw: { ...draw, grid: authoritative } }
     });
     const observedAtComplete: { readonly done: string | null; readonly firstSymbol: string | null }[] = [];
     const onCommand = vi.fn<(command: GameCommand) => void>(() => {

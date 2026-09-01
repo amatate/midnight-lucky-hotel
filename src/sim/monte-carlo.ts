@@ -176,7 +176,7 @@ function simulateGeneral(request: ValidatedRequest, sampleIndex: number): Trajec
       expenses: isFree
         ? state.expenses
         : { ...state.expenses, wagers: roundMoney(state.expenses.wagers + request.bet) },
-      pendingSpin: { draw, isFree }
+      pendingSpin: { draw, isFree, bankrollBefore: state.bankroll, wager: isFree ? 0 : request.bet }
     };
     const settlement = resolveSpin(settlementState, draw);
     state = { ...settlement.state, phase: "READY_TO_SPIN", pendingSpin: null };

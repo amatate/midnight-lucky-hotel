@@ -33,7 +33,7 @@ function settlementState(draw: ReelDraw, part: PartInstance, patch: Partial<RunS
     ...state,
     phase: "AWAITING_INTERVENTION",
     reels: draw.strips,
-    pendingSpin: { draw, isFree: false },
+    pendingSpin: { draw, isFree: false, bankrollBefore: 110, wager: 10 },
     partSlots: [part, null, null, null, null],
     ...patch
   };

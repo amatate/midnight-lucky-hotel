@@ -155,6 +155,13 @@ export interface SpinReceipt {
   readonly bankrollAfter: Money;
 }
 
+export interface PendingSpin {
+  readonly draw: ReelDraw;
+  readonly isFree: boolean;
+  readonly bankrollBefore: Money;
+  readonly wager: Money;
+}
+
 export type UpgradeId =
   | "lemon-crate"
   | "cherry-pitter"
@@ -325,7 +332,7 @@ export interface ShiftSnapshot {
 }
 
 export interface RunState {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly initialSeed: number;
   readonly rng: RngState;
   readonly phase: RunPhase;
@@ -344,7 +351,7 @@ export interface RunState {
   readonly reels: ReelSet;
   readonly temporaryReelAdditions: ReelSet;
   readonly pendingPrayer: BaseSymbolId | null;
-  readonly pendingSpin: { readonly draw: ReelDraw; readonly isFree: boolean } | null;
+  readonly pendingSpin: PendingSpin | null;
   readonly freeSpinQueue: number;
   readonly service: ServiceId | null;
   readonly serviceCandidates: readonly [ServiceId, ServiceId, ServiceId];
@@ -368,6 +375,8 @@ export interface RunState {
   readonly currentCandidates: CandidateSet | null;
   readonly acquiredUpgrades: readonly UpgradeId[];
   readonly pendingEvents: readonly GameEvent[];
+  readonly spinHistory: readonly SpinReceipt[];
+  readonly nextSpinOrdinal: number;
   readonly attribution: Readonly<Record<AttributionSource, number>>;
   readonly expenses: Readonly<Record<ExpenseSource, Money>>;
   readonly shiftHistory: readonly ShiftSnapshot[];

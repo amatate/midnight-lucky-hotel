@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createRun, dispatchCommand } from "@/core/run";
 import type { ReelDraw, RunState } from "@/core/types";
-import { clearRun, loadRun, RUN_STORAGE_KEY, saveRun } from "@/persistence/storage";
+import { clearRun, LEGACY_RUN_STORAGE_KEY, loadRun, RUN_STORAGE_KEY, saveRun } from "@/persistence/storage";
 
 function accept(state: RunState, command: Parameters<typeof dispatchCommand>[1]): RunState {
   const result = dispatchCommand(state, command);
@@ -78,7 +78,7 @@ function expectInvalid(value: unknown): void {
 describe("run storage", () => {
   beforeEach(() => localStorage.clear());
 
-  it("round-trips a schema 1 run as an independent value", () => {
+  it("round-trips a schema 2 run as an independent value", () => {
     const state = { ...createRun(42), bankroll: 87.5 };
     saveRun(state);
 
@@ -93,7 +93,7 @@ describe("run storage", () => {
 
   it.each([
     ["malformed JSON", "{"],
-    ["wrong schema", JSON.stringify({ ...createRun(1), schemaVersion: 2 })],
+    ["wrong schema", JSON.stringify({ ...createRun(1), schemaVersion: 1 })],
     ["invalid phase", JSON.stringify({ ...createRun(1), phase: "BROKEN" })],
     ["non-finite money", JSON.stringify({ ...createRun(1), bankroll: "NaN" })],
     ["missing RNG", JSON.stringify((({ rng: _rng, ...rest }) => rest)(createRun(1)))]
@@ -314,6 +314,19 @@ describe("run storage", () => {
     set.mockRestore();
     const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new DOMException("denied"); });
     expect(() => clearRun()).not.toThrow();
+    remove.mockRestore();
+  });
+
+  it("uses the exact versioned keys and clears both independently when one removal fails", () => {
+    expect(RUN_STORAGE_KEY).toBe("midnight-lucky-hotel.run.v2");
+    expect(LEGACY_RUN_STORAGE_KEY).toBe("midnight-lucky-hotel.run.v1");
+    const remove = vi.spyOn(Storage.prototype, "removeItem")
+      .mockImplementationOnce(() => { throw new DOMException("denied"); })
+      .mockImplementation(() => undefined);
+
+    expect(() => clearRun()).not.toThrow();
+    expect(remove).toHaveBeenNthCalledWith(1, RUN_STORAGE_KEY);
+    expect(remove).toHaveBeenNthCalledWith(2, LEGACY_RUN_STORAGE_KEY);
     remove.mockRestore();
   });
 

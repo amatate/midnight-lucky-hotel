@@ -72,7 +72,7 @@ describe("buyFood", () => {
           ],
           rng: ready.rng
         };
-        return { ...ready, pendingSpin: { draw, isFree: false } };
+        return { ...ready, pendingSpin: { draw, isFree: false, bankrollBefore: ready.bankroll + 10, wager: 10 } };
       },
       reel: 0,
       code: "INVALID_PHASE",
@@ -141,7 +141,7 @@ describe("buyFood", () => {
     const state: RunState = {
       ...purchased.state,
       phase: "AWAITING_INTERVENTION",
-      pendingSpin: { draw, isFree: false }
+      pendingSpin: { draw, isFree: false, bankrollBefore: purchased.state.bankroll + 10, wager: 10 }
     };
 
     const result = resolveSpin(state, draw);

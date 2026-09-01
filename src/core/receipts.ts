@@ -233,6 +233,11 @@ function isKnownFormula(value: unknown, amount: Money): value is Extract<Receipt
     && safePayout(value.preMultiplierAmount * value.appliedMultiplier) === amount;
 }
 
+function isReceiptFormula(value: unknown, amount: Money): value is ReceiptFormula {
+  return isKnownFormula(value, amount)
+    || (isRecord(value) && value.kind === "legacy-unavailable");
+}
+
 function isReceiptAward(value: unknown): value is ReceiptAward {
   if (!isRecord(value) || !isNonnegativeSafeInteger(value.sequence) || !isNonnegativeMoney(value.amount) || typeof value.kind !== "string") return false;
   switch (value.kind) {
@@ -240,18 +245,18 @@ function isReceiptAward(value: unknown): value is ReceiptAward {
       return LINE_IDS.has(value.lineId as LineWin["lineId"])
         && SYMBOL_IDS.has(value.symbol as SymbolId)
         && typeof value.source === "string" && value.source !== "overload" && ATTRIBUTION_SOURCES.has(value.source as AttributionSource)
-        && isKnownFormula(value.formula, value.amount);
+        && isReceiptFormula(value.formula, value.amount);
     case "pattern-line":
       return value.patternId === "fruit-salad" && value.partId === "fruit-salad"
         && LINE_IDS.has(value.lineId as LineWin["lineId"])
-        && isKnownFormula(value.formula, value.amount);
+        && isReceiptFormula(value.formula, value.amount);
     case "part-bonus":
-      return value.source === "part" && PART_IDS.has(value.partId as PartId) && isKnownFormula(value.formula, value.amount);
+      return value.source === "part" && PART_IDS.has(value.partId as PartId) && isReceiptFormula(value.formula, value.amount);
     case "bonus":
       return typeof value.source === "string" && value.source !== "part" && value.source !== "overload"
-        && ATTRIBUTION_SOURCES.has(value.source as AttributionSource) && isKnownFormula(value.formula, value.amount);
+        && ATTRIBUTION_SOURCES.has(value.source as AttributionSource) && isReceiptFormula(value.formula, value.amount);
     case "overload":
-      return value.source === "overload" && isKnownFormula(value.formula, value.amount);
+      return value.source === "overload" && isReceiptFormula(value.formula, value.amount);
     case "opaque":
       return isRecord(value.formula) && value.formula.kind === "legacy-unavailable";
     default:
@@ -278,7 +283,10 @@ export function isSpinReceipt(value: unknown): value is SpinReceipt {
   const awards = value.awards as readonly ReceiptAward[];
   if (!awards.every((award, index) => index === 0 || award.sequence > awards[index - 1]!.sequence)) return false;
   const opaque = awards.filter((award) => award.kind === "opaque");
-  if (opaque.length > 0 && (awards.length !== 1 || value.totalPayout <= 0)) return false;
+  if (opaque.some((award) => award.amount <= 0)
+    || (opaque.length > 0 && awards.length > 1 && !awards.every((award) => award.formula.kind === "legacy-unavailable"))) {
+    return false;
+  }
   return awards.reduce<Money>((sum, award) => safeMoney(sum + award.amount), 0) === value.totalPayout;
 }
 

@@ -21,7 +21,7 @@ function resolveSyntheticSpin(seed: number, symbols: readonly number[]) {
     phase: "AWAITING_INTERVENTION",
     service: initial.serviceCandidates[0],
     reels,
-    pendingSpin: { draw, isFree: false }
+    pendingSpin: { draw, isFree: false, bankrollBefore: initial.bankroll + initial.baseBet, wager: initial.baseBet }
   };
   return { state, result: resolveSpin(state, draw) };
 }

@@ -108,7 +108,7 @@ function presentationFixture(seed: number, tier: FeedbackTier): {
       bankroll: 100 + fixed.total,
       shiftPayout: fixed.total,
       reels: FIXTURE_STRIPS,
-      pendingSpin: { draw, isFree: false },
+      pendingSpin: { ...resolved.pendingSpin!, draw },
       pendingEvents: fixed.events,
       partSlots,
       counters: { blankCharge: 0, cherryWinsThisShift: tier === "chain" ? 1 : 0 },

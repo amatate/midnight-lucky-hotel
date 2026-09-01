@@ -48,6 +48,8 @@ function state(events: readonly GameEvent[], patch: Partial<RunState> = {}): Run
     bankroll: 120,
     pendingSpin: {
       isFree: false,
+      bankrollBefore: 110,
+      wager: 10,
       draw: { strips: base.reels, stops: [0, 0, 0], grid: GRID, rng: base.rng }
     },
     pendingEvents: events,

@@ -12,9 +12,10 @@ import type { GameEvent, GameEventDraft } from "@/core/events";
 import { getCurrentBet, getMinimumBet, roundMoney } from "@/core/progression";
 import { evaluateBaseWins } from "@/core/paylines";
 import { nextInt } from "@/core/random";
+import { appendSpinReceipt, finalizeSpinReceipt, type SpinReceiptBuildInput } from "@/core/receipts";
 import { advanceReel, drawReels, normalizeDrawIdentity } from "@/core/reels";
 import { resolveSpin } from "@/core/settlement";
-import type { ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId } from "@/core/types";
+import type { ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId, SettlementResult } from "@/core/types";
 import { applyUpgrade, declineUpgrade } from "@/core/upgrades";
 
 const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security"];
@@ -111,7 +112,7 @@ export function createRun(seed: number): RunState {
   const serviceChoice = chooseServiceCandidates({ value: seed });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     initialSeed: seed,
     rng: serviceChoice.rng,
     phase: "CHOOSING_SERVICE",
@@ -156,6 +157,8 @@ export function createRun(seed: number): RunState {
     currentCandidates: null,
     acquiredUpgrades: [],
     pendingEvents: [],
+    spinHistory: [],
+    nextSpinOrdinal: 1,
     attribution: { base: 0, part: 0, intervention: 0, service: 0, agitation: 0, overload: 0 },
     expenses: { wagers: 0, kitchen: 0, chapel: 0, repair: 0 },
     shiftHistory: [],
@@ -227,7 +230,7 @@ function spin(state: RunState, command: Extract<GameCommand, { type: "SPIN" }>):
     rng: draw.rng,
     shiftWager: isFree ? state.shiftWager : roundMoney(state.shiftWager + bet),
     freeSpinQueue: isFree ? state.freeSpinQueue - 1 : state.freeSpinQueue,
-    pendingSpin: { draw, isFree },
+    pendingSpin: { draw, isFree, bankrollBefore: state.bankroll, wager: isFree ? 0 : bet },
     interventionUsedThisSpin: state.interventionUsedThisSpin,
     expenses: isFree ? state.expenses : { ...state.expenses, wagers: roundMoney(state.expenses.wagers + bet) }
   });
@@ -284,12 +287,45 @@ function respinReel(state: RunState, command: Extract<GameCommand, { type: "RESP
   });
 }
 
+export function appendSettlementReceipt(
+  state: RunState,
+  settlement: SettlementResult,
+  mode: "strict" | "production-fallback"
+): RunState {
+  if (state.pendingSpin === null || settlement.state.pendingSpin === null) {
+    throw new Error("accepted settlement requires a pending spin");
+  }
+  const input: SpinReceiptBuildInput = {
+    ordinal: state.nextSpinOrdinal,
+    shift: state.shift,
+    afterHoursLevel: state.afterHoursLevel,
+    isFree: state.pendingSpin.isFree,
+    baseSpinIndex: state.pendingSpin.isFree ? null : (state.baseSpinsInShift + 1) as 1 | 2 | 3,
+    bankrollBefore: state.pendingSpin.bankrollBefore,
+    wager: state.pendingSpin.wager,
+    finalGrid: settlement.state.pendingSpin.draw.grid,
+    bankrollAfter: settlement.state.bankroll,
+    settlementEvents: settlement.events
+  };
+  const receipt = finalizeSpinReceipt(input, mode);
+  return {
+    ...settlement.state,
+    spinHistory: appendSpinReceipt(state.spinHistory, receipt),
+    nextSpinOrdinal: state.nextSpinOrdinal + 1
+  };
+}
+
 function acceptOutcome(state: RunState, command: Extract<GameCommand, { type: "ACCEPT_OUTCOME" }>): DispatchResult {
   if (!supportsPhase(state, "AWAITING_INTERVENTION")) return invalidPhase(state, command);
   if (state.pendingSpin === null) return rejected(state, "INVALID_TARGET", "there is no pending spin");
 
   const settlement = resolveSpin(state, state.pendingSpin.draw);
-  return accepted(settlement.state, command, settlement.events, {
+  const receiptState = appendSettlementReceipt(
+    state,
+    settlement,
+    import.meta.env.PROD ? "production-fallback" : "strict"
+  );
+  return accepted(receiptState, command, settlement.events, {
     phase: "RESOLVING_EFFECTS",
   });
 }

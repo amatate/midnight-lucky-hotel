@@ -25,7 +25,7 @@ function readyKickState(patch: Partial<RunState> = {}): RunState {
     phase: "AWAITING_INTERVENTION",
     service: "security",
     reels: strips,
-    pendingSpin: { draw, isFree: false },
+    pendingSpin: { draw, isFree: false, bankrollBefore: 110, wager: 10 },
     interventionPoints: 0,
     ...patch
   };
@@ -103,6 +103,8 @@ describe("security kick", () => {
       pendingPrayer: "seven",
       pendingSpin: {
         isFree: false,
+        bankrollBefore: 110,
+        wager: 10,
         draw: {
           strips: [
             [...permanent[0], "seven", "seven"],
@@ -182,6 +184,8 @@ describe("security kick", () => {
       partSlots: [{ id: "blank-capacitor", level: 1 }, null, null, null, { id: "jam-jar", level: 1 }],
       pendingSpin: {
         isFree: false,
+        bankrollBefore: 110,
+        wager: 10,
         draw: {
           strips,
           stops: [0, 0, 0],
@@ -213,6 +217,8 @@ describe("security kick", () => {
       reels: strips,
       pendingSpin: {
         isFree: false,
+        bankrollBefore: 110,
+        wager: 10,
         draw: {
           strips,
           stops: [0, 0, 0],
@@ -250,6 +256,8 @@ describe("security kick", () => {
       reels: strips,
       pendingSpin: {
         isFree: false,
+        bankrollBefore: 110,
+        wager: 10,
         draw: {
           strips,
           stops: [0, 0, 0],

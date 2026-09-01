@@ -26,7 +26,7 @@ function settlementState(
     ...createRun(123),
     phase: "AWAITING_INTERVENTION",
     reels: draw.strips,
-    pendingSpin: { draw, isFree: false },
+    pendingSpin: { draw, isFree: false, bankrollBefore: 110, wager: 10 },
     partSlots: slots as unknown as RunState["partSlots"],
     ...patch
   };

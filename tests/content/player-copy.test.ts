@@ -251,7 +251,7 @@ describe("player-facing content", () => {
     const resolving: RunState = {
       ...ready,
       phase: "RESOLVING_EFFECTS",
-      pendingSpin: { draw: drawReels(ready.reels, ready.rng), isFree: false }
+      pendingSpin: { draw: drawReels(ready.reels, ready.rng), isFree: false, bankrollBefore: 14, wager: 10 }
     };
     const resolvingCopy = describeEquippedPart(resolving, resolving.partSlots[0]!);
     expect(resolvingCopy.currentImpact).toContain("本次演出完成时将自动消耗并救援 ¥20");

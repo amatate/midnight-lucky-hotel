@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { nextInt } from "@/core/random";
-import { createRun, dispatchCommand } from "@/core/run";
+import { createRun, dispatchCommand, appendSettlementReceipt } from "@/core/run";
+import { SpinReceiptInvariantError } from "@/core/receipts";
+import { resolveSpin } from "@/core/settlement";
+import { normalizeDrawIdentity } from "@/core/reels";
 import type { GameCommand } from "@/core/commands";
-import type { RunState } from "@/core/types";
+import type { Grid, RunState, SettlementResult } from "@/core/types";
 
 function selectService(state: RunState): RunState {
   const result = dispatchCommand(state, {
@@ -21,6 +24,26 @@ function dispatch(state: RunState, command: GameCommand): RunState {
   return result.state;
 }
 
+function winningAwaitingState(seed = 7): RunState {
+  let state = selectService(createRun(seed));
+  state = dispatch(state, { type: "SPIN" });
+  state = dispatch(state, { type: "REELS_STOPPED" });
+  return {
+    ...state,
+    pendingSpin: {
+      ...state.pendingSpin!,
+      draw: {
+        ...state.pendingSpin!.draw,
+        grid: [
+          ["blank", "lemon", "blank"],
+          ["blank", "wild", "blank"],
+          ["blank", "lemon", "blank"]
+        ]
+      }
+    }
+  };
+}
+
 describe("createRun", () => {
   it("creates a complete serializable service-selection state with three unique seeded candidates", () => {
     const first = createRun(8675309);
@@ -28,7 +51,7 @@ describe("createRun", () => {
 
     expect(first).toEqual(repeated);
     expect(first).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       initialSeed: 8675309,
       phase: "CHOOSING_SERVICE",
       bankroll: 100,
@@ -59,6 +82,8 @@ describe("createRun", () => {
       currentCandidates: null,
       acquiredUpgrades: [],
       pendingEvents: [],
+      spinHistory: [],
+      nextSpinOrdinal: 1,
       attribution: { base: 0, part: 0, intervention: 0, service: 0, agitation: 0, overload: 0 },
       expenses: { wagers: 0, kitchen: 0, chapel: 0, repair: 0 },
       shiftHistory: [],
@@ -72,6 +97,135 @@ describe("createRun", () => {
 });
 
 describe("dispatchCommand", () => {
+  it("captures paid-spin metadata before deduction and appends exactly one receipt on accept", () => {
+    const before = selectService(createRun(42));
+    const spinning = dispatch(before, { type: "SPIN" });
+    expect(spinning.pendingSpin).toMatchObject({ bankrollBefore: 100, wager: 10, isFree: false });
+
+    const awaiting = dispatch(spinning, { type: "REELS_STOPPED" });
+    const resolving = dispatch(awaiting, { type: "ACCEPT_OUTCOME" });
+    expect(resolving.spinHistory).toHaveLength(1);
+    expect(resolving.nextSpinOrdinal).toBe(2);
+
+    const completed = dispatch(resolving, { type: "PRESENTATION_COMPLETE" });
+    expect(completed.pendingEvents).toEqual([]);
+    expect(completed.spinHistory).toEqual(resolving.spinHistory);
+  });
+
+  it("captures free-spin identity with zero wager and the undeducted bankroll", () => {
+    const ready = { ...selectService(createRun(43)), freeSpinQueue: 1 };
+    const spinning = dispatch(ready, { type: "SPIN" });
+
+    expect(spinning.pendingSpin).toMatchObject({
+      bankrollBefore: ready.bankroll,
+      wager: 0,
+      isFree: true
+    });
+    expect(spinning.bankroll).toBe(ready.bankroll);
+  });
+
+  it("does not append a duplicate receipt when accept is rejected or presentation completes", () => {
+    const awaiting = dispatch(dispatch(selectService(createRun(44)), { type: "SPIN" }), { type: "REELS_STOPPED" });
+    const resolving = dispatch(awaiting, { type: "ACCEPT_OUTCOME" });
+    const duplicate = dispatchCommand(resolving, { type: "ACCEPT_OUTCOME" });
+
+    expect(duplicate).toEqual({
+      ok: false,
+      state: resolving,
+      error: { code: "INVALID_PHASE", message: "ACCEPT_OUTCOME is invalid during RESOLVING_EFFECTS" }
+    });
+    const completed = dispatch(resolving, { type: "PRESENTATION_COMPLETE" });
+    expect(completed.spinHistory).toEqual(resolving.spinHistory);
+    expect(completed.nextSpinOrdinal).toBe(resolving.nextSpinOrdinal);
+  });
+
+  it("records the settlement-resolved final grid rather than the initially accepted grid", () => {
+    const base = dispatch(dispatch(selectService(createRun(45)), { type: "SPIN" }), { type: "REELS_STOPPED" });
+    const acceptedGrid: Grid = [
+      ["food", "cherry", "lemon"],
+      ["blank", "cherry", "lemon"],
+      ["blank", "lemon", "bell"]
+    ];
+    const strips = [
+      ["food", "cherry", "lemon", "blank"],
+      ["blank", "cherry", "lemon", "bell"],
+      ["blank", "lemon", "bell", "seven"]
+    ] as const;
+    const awaiting: RunState = {
+      ...base,
+      reels: strips,
+      pendingSpin: {
+        ...base.pendingSpin!,
+        draw: normalizeDrawIdentity({ strips, stops: [0, 0, 0], grid: acceptedGrid, rng: base.rng })
+      }
+    };
+
+    const resolving = dispatch(awaiting, { type: "ACCEPT_OUTCOME" });
+
+    expect(resolving.spinHistory[0]!.finalGrid).toEqual(resolving.pendingSpin!.draw.grid);
+    expect(resolving.spinHistory[0]!.finalGrid).not.toEqual(acceptedGrid);
+  });
+
+  it("caps retained receipt history at 100 while preserving increasing ordinals", () => {
+    const firstAwaiting = winningAwaitingState(46);
+    const firstResolving = dispatch(firstAwaiting, { type: "ACCEPT_OUTCOME" });
+    const template = firstResolving.spinHistory[0]!;
+    const ready = dispatch(firstResolving, { type: "PRESENTATION_COMPLETE" });
+    const withHistory: RunState = {
+      ...ready,
+      spinHistory: Array.from({ length: 100 }, (_unused, index) => ({ ...template, ordinal: index + 1 })),
+      nextSpinOrdinal: 101
+    };
+    const awaiting = dispatch(dispatch(withHistory, { type: "SPIN" }), { type: "REELS_STOPPED" });
+    const resolving = dispatch(awaiting, { type: "ACCEPT_OUTCOME" });
+
+    expect(resolving.spinHistory).toHaveLength(100);
+    expect(resolving.spinHistory[0]!.ordinal).toBe(2);
+    expect(resolving.spinHistory.at(-1)!.ordinal).toBe(101);
+    expect(resolving.nextSpinOrdinal).toBe(102);
+  });
+
+  it("throws a typed invariant reason in strict receipt mode without mutating the awaiting state", () => {
+    const awaiting = winningAwaitingState(47);
+    const before = structuredClone(awaiting);
+    const settlement = resolveSpin(awaiting, awaiting.pendingSpin!.draw);
+    const badSettlement: SettlementResult = {
+      ...settlement,
+      events: settlement.events.map((event) => event.type === "PAYOUT_COMPLETE"
+        ? { ...event, total: event.total + 1 }
+        : event)
+    };
+
+    expect(() => appendSettlementReceipt(awaiting, badSettlement, "strict")).toThrowError(
+      expect.objectContaining({ name: "SpinReceiptInvariantError", reason: "PAYOUT_MISMATCH" })
+    );
+    expect(awaiting).toEqual(before);
+    expect(SpinReceiptInvariantError).toBeDefined();
+  });
+
+  it("uses one conserved opaque award for the same malformed candidate in production fallback mode", () => {
+    const awaiting = winningAwaitingState(48);
+    const settlement = resolveSpin(awaiting, awaiting.pendingSpin!.draw);
+    const badSettlement: SettlementResult = {
+      ...settlement,
+      events: settlement.events.map((event) => event.type === "LINE_WIN"
+        ? { ...event, preMultiplierAmount: event.preMultiplierAmount + 1 }
+        : event)
+    };
+
+    const resolving = appendSettlementReceipt(awaiting, badSettlement, "production-fallback");
+
+    expect(resolving.spinHistory).toHaveLength(1);
+    expect(resolving.spinHistory[0]!.awards).toEqual([expect.objectContaining({
+      kind: "opaque",
+      amount: resolving.spinHistory[0]!.totalPayout,
+      formula: { kind: "legacy-unavailable" }
+    })]);
+    expect(resolving.spinHistory[0]!.bankrollAfter).toBe(
+      resolving.spinHistory[0]!.bankrollBefore - resolving.spinHistory[0]!.wager + resolving.spinHistory[0]!.totalPayout
+    );
+  });
+
   it("selects only an offered service and enters READY_TO_SPIN", () => {
     const initial = createRun(12);
     const selected = dispatchCommand(initial, {
@@ -292,7 +446,7 @@ describe("dispatchCommand", () => {
     const winningState: RunState = {
       ...state,
       pendingSpin: {
-        isFree: false,
+        ...state.pendingSpin!,
         draw: {
           ...state.pendingSpin!.draw,
           grid: [

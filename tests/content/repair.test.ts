@@ -179,7 +179,7 @@ describe("repair crack removal", () => {
 
     for (const invalid of [
       { ...base, phase: "READY_TO_SPIN" as const },
-      { ...base, pendingSpin: base.pendingSpin ?? ({ draw: { strips: base.reels, stops: [0, 0, 0], grid: [["crack", "crack", "crack"], ["blank", "blank", "blank"], ["lemon", "lemon", "lemon"]], rng: base.rng }, isFree: false } as const) },
+      { ...base, pendingSpin: base.pendingSpin ?? ({ draw: { strips: base.reels, stops: [0, 0, 0], grid: [["crack", "crack", "crack"], ["blank", "blank", "blank"], ["lemon", "lemon", "lemon"]], rng: base.rng }, isFree: false, bankrollBefore: base.bankroll + 10, wager: 10 } as const) },
       { ...base, service: "chapel" as const },
       { ...base, tips: 0 },
       { ...base, reels: [["cherry"], ["blank"], ["lemon"]] as const }

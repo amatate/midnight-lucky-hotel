@@ -44,7 +44,7 @@ function settlementState(
     ...createRun(23),
     phase: "AWAITING_INTERVENTION",
     reels: draw.strips,
-    pendingSpin: { draw, isFree: false },
+    pendingSpin: { draw, isFree: false, bankrollBefore: 110, wager: 10 },
     partSlots,
     ...patch
   };
@@ -271,7 +271,7 @@ describe("chapel prayer", () => {
 
   it.each([
     ["wrong phase", chapelReady({ phase: "SPINNING" }), "INVALID_PHASE"],
-    ["pending spin", chapelReady({ pendingSpin: { draw: makeDraw(deadGrid), isFree: false } }), "INVALID_PHASE"],
+    ["pending spin", chapelReady({ pendingSpin: { draw: makeDraw(deadGrid), isFree: false, bankrollBefore: 110, wager: 10 } }), "INVALID_PHASE"],
     ["wrong service", chapelReady({ service: "kitchen" }), "INVALID_TARGET"],
     ["already prayed", chapelReady({ shiftFlags: { ...chapelReady().shiftFlags, prayerUsed: true } }), "RESOURCE_EXHAUSTED"],
     ["no focus", chapelReady({ interventionPoints: 0 }), "RESOURCE_EXHAUSTED"]

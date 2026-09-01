@@ -11,7 +11,7 @@ export function roundMoney(value: number): Money {
   return Math.round(value * 100) / 100;
 }
 
-export function getCurrentBet(state: RunState): number {
+export function getCurrentBet(state: Pick<RunState, "baseBet" | "betMode" | "afterHoursLevel">): number {
   const afterHoursScale = 1.25 ** state.afterHoursLevel;
   return roundMoney(state.baseBet * BET_MULTIPLIER[state.betMode] * afterHoursScale);
 }
