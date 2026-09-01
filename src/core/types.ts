@@ -89,6 +89,72 @@ export type PartId =
   | "overload-motor"
   | "safety-fuse";
 
+export type ReceiptFormula =
+  | { readonly kind: "known"; readonly preMultiplierAmount: number; readonly appliedMultiplier: number }
+  | { readonly kind: "legacy-unavailable" };
+
+export type ReceiptAward =
+  | {
+      readonly sequence: number;
+      readonly kind: "line";
+      readonly lineId: LineWin["lineId"];
+      readonly symbol: SymbolId;
+      readonly source: Exclude<AttributionSource, "overload">;
+      readonly formula: ReceiptFormula;
+      readonly amount: Money;
+    }
+  | {
+      readonly sequence: number;
+      readonly kind: "pattern-line";
+      readonly patternId: "fruit-salad";
+      readonly partId: "fruit-salad";
+      readonly lineId: LineWin["lineId"];
+      readonly formula: ReceiptFormula;
+      readonly amount: Money;
+    }
+  | {
+      readonly sequence: number;
+      readonly kind: "part-bonus";
+      readonly source: "part";
+      readonly partId: PartId;
+      readonly formula: ReceiptFormula;
+      readonly amount: Money;
+    }
+  | {
+      readonly sequence: number;
+      readonly kind: "bonus";
+      readonly source: Exclude<AttributionSource, "part" | "overload">;
+      readonly formula: ReceiptFormula;
+      readonly amount: Money;
+    }
+  | {
+      readonly sequence: number;
+      readonly kind: "overload";
+      readonly source: "overload";
+      readonly formula: ReceiptFormula;
+      readonly amount: Money;
+    }
+  | {
+      readonly sequence: number;
+      readonly kind: "opaque";
+      readonly formula: { readonly kind: "legacy-unavailable" };
+      readonly amount: Money;
+    };
+
+export interface SpinReceipt {
+  readonly ordinal: number;
+  readonly shift: number;
+  readonly afterHoursLevel: number;
+  readonly isFree: boolean;
+  readonly baseSpinIndex: 1 | 2 | 3 | null;
+  readonly bankrollBefore: Money;
+  readonly wager: Money;
+  readonly finalGrid: Grid;
+  readonly awards: readonly ReceiptAward[];
+  readonly totalPayout: Money;
+  readonly bankrollAfter: Money;
+}
+
 export type UpgradeId =
   | "lemon-crate"
   | "cherry-pitter"
