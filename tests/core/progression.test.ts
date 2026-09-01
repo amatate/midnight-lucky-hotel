@@ -156,7 +156,7 @@ describe("spin progression", () => {
     expect(completed.state.partSlots[1]).toBeNull();
     expect(completed.events).toEqual([
       { sequence: 1, type: "PART_TRIGGERED", partId: "safety-fuse", level: 2 },
-      { sequence: 2, type: "PAYOUT_ADDED", amount: 40, source: "part" }
+      { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 40, appliedMultiplier: 1, amount: 40, source: "part", partId: "safety-fuse" }
     ]);
     expect(resolving).toEqual(snapshot);
   });
@@ -275,7 +275,7 @@ describe("spin progression", () => {
     expect(rescued.state.partSlots).toEqual([null, null, { id: "safety-fuse", level: 2 }, null, null]);
     expect(rescued.events).toEqual([
       { sequence: 1, type: "PART_TRIGGERED", partId: "safety-fuse", level: 1 },
-      { sequence: 2, type: "PAYOUT_ADDED", amount: 20, source: "part" }
+      { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "part", partId: "safety-fuse" }
     ]);
     expect(ready).toEqual(snapshot);
 

@@ -9,16 +9,9 @@ import type {
   ResolveSignal,
   SymbolId
 } from "@/core/types";
+import { PAYLINES } from "@/core/paylines";
 
 const FRUIT_PART_IDS = new Set<PartId>(["lemon-infection", "jam-jar", "fruit-salad", "leftovers"]);
-
-const PAYLINES = [
-  { lineId: "top", cells: [[0, 0], [1, 0], [2, 0]] },
-  { lineId: "middle", cells: [[0, 1], [1, 1], [2, 1]] },
-  { lineId: "bottom", cells: [[0, 2], [1, 2], [2, 2]] },
-  { lineId: "diagonal-down", cells: [[0, 0], [1, 1], [2, 2]] },
-  { lineId: "diagonal-up", cells: [[0, 2], [1, 1], [2, 0]] }
-] as const satisfies readonly Pick<LineWin, "lineId" | "cells">[];
 
 function isFruitPart(part: PartInstance): boolean {
   return FRUIT_PART_IDS.has(part.id);
@@ -90,7 +83,13 @@ function fruitSaladEffects(part: PartInstance, context: ResolveContext, signal: 
     ) {
       return [];
     }
-    return [{ type: "ADD_PAYOUT", amount: multiplier * context.currentBet, source: "part" }];
+    return [{
+      type: "ADD_PATTERN_PAYOUT",
+      patternId: "fruit-salad",
+      partId: "fruit-salad",
+      lineId: line.lineId,
+      amount: multiplier * context.currentBet
+    }];
   });
 }
 

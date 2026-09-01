@@ -7,8 +7,36 @@ import type {
   ReelIndex,
   RowIndex,
   ServiceId,
+  LineWin,
   SymbolId
 } from "@/core/types";
+
+type FormulaFields = {
+  readonly preMultiplierAmount: number;
+  readonly appliedMultiplier: number;
+  readonly amount: number;
+};
+
+type PayoutAddedEvent =
+  | ({
+      readonly sequence: number;
+      readonly type: "PAYOUT_ADDED";
+      readonly source: "part";
+      readonly partId: PartId;
+    } & FormulaFields)
+  | ({
+      readonly sequence: number;
+      readonly type: "PAYOUT_ADDED";
+      readonly source: Exclude<AttributionSource, "part" | "overload">;
+    } & FormulaFields);
+
+type PatternLineWinEvent = {
+  readonly sequence: number;
+  readonly type: "PATTERN_LINE_WIN";
+  readonly patternId: "fruit-salad";
+  readonly partId: "fruit-salad";
+  readonly lineId: LineWin["lineId"];
+} & FormulaFields;
 
 export type GameEvent =
   | { readonly sequence: number; readonly type: "BET_PLACED"; readonly amount: number }
@@ -22,20 +50,18 @@ export type GameEvent =
   | {
       readonly sequence: number;
       readonly type: "LINE_WIN";
-      readonly lineId: string;
+      readonly lineId: LineWin["lineId"];
       readonly symbol: SymbolId;
+      readonly source: Exclude<AttributionSource, "overload">;
+      readonly preMultiplierAmount: number;
+      readonly appliedMultiplier: number;
       readonly amount: number;
-      readonly source: AttributionSource;
     }
   | { readonly sequence: number; readonly type: "PART_TRIGGERED"; readonly partId: PartId; readonly level: 1 | 2 }
   | { readonly sequence: number; readonly type: "PART_DISABLED"; readonly partId: PartId; readonly slot: number }
   | { readonly sequence: number; readonly type: "FOOD_CONSUMED"; readonly reel: ReelIndex }
-  | {
-      readonly sequence: number;
-      readonly type: "PAYOUT_ADDED";
-      readonly amount: number;
-      readonly source: AttributionSource;
-    }
+  | PayoutAddedEvent
+  | PatternLineWinEvent
   | {
       readonly sequence: number;
       readonly type: "SYMBOL_CHANGED";
@@ -66,7 +92,7 @@ export type GameEvent =
       readonly finalPayout: number;
     }
   | { readonly sequence: number; readonly type: "BLOCK_COMPLETED"; readonly bankroll: number }
-  | { readonly sequence: number; readonly type: "OVERLOAD"; readonly amount: number }
+  | ({ readonly sequence: number; readonly type: "OVERLOAD" } & FormulaFields)
   | { readonly sequence: number; readonly type: "PAYOUT_COMPLETE"; readonly total: number }
   | { readonly sequence: number; readonly type: "SHIFT_CHANGED"; readonly shift: number }
   | { readonly sequence: number; readonly type: "RUN_ENDED"; readonly outcome: "won" | "lost" | "cashed-out" };

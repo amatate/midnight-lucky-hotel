@@ -54,7 +54,7 @@ function fixedEvents(tier: FeedbackTier, draw: ReelDraw): {
     return {
       events: [
         { sequence: 1, type: "REELS_DRAWN", draw },
-        { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 10, source: "base" },
+        { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "base" },
         { sequence: 3, type: "PAYOUT_COMPLETE", total: 10 }
       ],
       total: 10,
@@ -65,10 +65,10 @@ function fixedEvents(tier: FeedbackTier, draw: ReelDraw): {
     return {
       events: [
         { sequence: 1, type: "REELS_DRAWN", draw },
-        { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 10, source: "base" },
-        { sequence: 3, type: "LINE_WIN", lineId: "middle", symbol: "cherry", amount: 10, source: "base" },
+        { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "base" },
+        { sequence: 3, type: "LINE_WIN", lineId: "middle", symbol: "cherry", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "base" },
         { sequence: 4, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
-        { sequence: 5, type: "PAYOUT_ADDED", amount: 10, source: "part" },
+        { sequence: 5, type: "PAYOUT_ADDED", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "part", partId: "jam-jar" },
         { sequence: 6, type: "PAYOUT_COMPLETE", total: 30 }
       ],
       total: 30,
@@ -78,10 +78,10 @@ function fixedEvents(tier: FeedbackTier, draw: ReelDraw): {
   return {
     events: [
       { sequence: 1, type: "REELS_DRAWN", draw },
-      { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 20, source: "base" },
+      { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" },
       { sequence: 3, type: "PART_TRIGGERED", partId: "overload-motor", level: 1 },
-      { sequence: 4, type: "PAYOUT_ADDED", amount: 20, source: "part" },
-      { sequence: 5, type: "OVERLOAD", amount: 60 },
+      { sequence: 4, type: "PAYOUT_ADDED", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "part", partId: "overload-motor" },
+      { sequence: 5, type: "OVERLOAD", preMultiplierAmount: 60, appliedMultiplier: 1, amount: 60 },
       { sequence: 6, type: "PAYOUT_COMPLETE", total: 100 }
     ],
     total: 100,

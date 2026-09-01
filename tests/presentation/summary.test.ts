@@ -22,41 +22,69 @@ describe("summarizePresentation", () => {
 
   it("maps every payline id to literal cells without deriving expectations from PAYLINES", () => {
     const events: GameEvent[] = [
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 1, source: "base" },
-      { sequence: 2, type: "LINE_WIN", lineId: "middle", symbol: "lemon", amount: 2, source: "base" },
-      { sequence: 3, type: "LINE_WIN", lineId: "bottom", symbol: "bell", amount: 3, source: "base" },
-      { sequence: 4, type: "LINE_WIN", lineId: "diagonal-down", symbol: "seven", amount: 4, source: "base" },
-      { sequence: 5, type: "LINE_WIN", lineId: "diagonal-up", symbol: "wild", amount: 5, source: "base" },
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 1, appliedMultiplier: 1, amount: 1, source: "base" },
+      { sequence: 2, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 2, appliedMultiplier: 1, amount: 2, source: "base" },
+      { sequence: 3, type: "LINE_WIN", lineId: "bottom", symbol: "bell", preMultiplierAmount: 3, appliedMultiplier: 1, amount: 3, source: "base" },
+      { sequence: 4, type: "LINE_WIN", lineId: "diagonal-down", symbol: "seven", preMultiplierAmount: 4, appliedMultiplier: 1, amount: 4, source: "base" },
+      { sequence: 5, type: "LINE_WIN", lineId: "diagonal-up", symbol: "wild", preMultiplierAmount: 5, appliedMultiplier: 1, amount: 5, source: "base" },
       { sequence: 6, type: "PAYOUT_COMPLETE", total: 15 }
     ];
 
     expect(summarizePresentation(events, 10).lines).toEqual([
-      { sequence: 1, lineId: "top", symbol: "cherry", amount: 1, cells: [[0, 0], [1, 0], [2, 0]] },
-      { sequence: 2, lineId: "middle", symbol: "lemon", amount: 2, cells: [[0, 1], [1, 1], [2, 1]] },
-      { sequence: 3, lineId: "bottom", symbol: "bell", amount: 3, cells: [[0, 2], [1, 2], [2, 2]] },
+      { sequence: 1, kind: "symbol", lineId: "top", symbol: "cherry", source: "base", amount: 1, cells: [[0, 0], [1, 0], [2, 0]] },
+      { sequence: 2, kind: "symbol", lineId: "middle", symbol: "lemon", source: "base", amount: 2, cells: [[0, 1], [1, 1], [2, 1]] },
+      { sequence: 3, kind: "symbol", lineId: "bottom", symbol: "bell", source: "base", amount: 3, cells: [[0, 2], [1, 2], [2, 2]] },
       {
         sequence: 4,
         lineId: "diagonal-down",
-        symbol: "seven",
+        kind: "symbol", symbol: "seven", source: "base",
         amount: 4,
         cells: [[0, 0], [1, 1], [2, 2]]
       },
       {
         sequence: 5,
         lineId: "diagonal-up",
-        symbol: "wild",
+        kind: "symbol", symbol: "wild", source: "base",
         amount: 5,
         cells: [[0, 2], [1, 1], [2, 0]]
       }
     ]);
   });
 
+  it("keeps pattern lines distinct from symbol lines while counting them in the visual chain", () => {
+    const events: GameEvent[] = [
+      {
+        sequence: 1,
+        type: "PATTERN_LINE_WIN",
+        patternId: "fruit-salad",
+        partId: "fruit-salad",
+        lineId: "top",
+        preMultiplierAmount: 15,
+        appliedMultiplier: 1,
+        amount: 15
+      },
+      { sequence: 2, type: "PAYOUT_COMPLETE", total: 15 }
+    ];
+
+    expect(summarizePresentation(events, 10)).toMatchObject({
+      lines: [{
+        kind: "pattern",
+        lineId: "top",
+        patternId: "fruit-salad",
+        partId: "fruit-salad",
+        amount: 15,
+        cells: [[0, 0], [1, 0], [2, 0]]
+      }],
+      chainLength: 1
+    });
+  });
+
   it("enters chain at two line wins and counts only lines plus part triggers in chainLength", () => {
     const events: GameEvent[] = [
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 1, source: "base" },
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 1, appliedMultiplier: 1, amount: 1, source: "base" },
       { sequence: 2, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
       { sequence: 3, type: "RESOURCE_CHANGED", resource: "tips", delta: 1 },
-      { sequence: 4, type: "LINE_WIN", lineId: "bottom", symbol: "cherry", amount: 1, source: "base" },
+      { sequence: 4, type: "LINE_WIN", lineId: "bottom", symbol: "cherry", preMultiplierAmount: 1, appliedMultiplier: 1, amount: 1, source: "base" },
       { sequence: 5, type: "PAYOUT_COMPLETE", total: 2 }
     ];
 
@@ -105,7 +133,7 @@ describe("summarizePresentation", () => {
       { sequence: 1, type: "BET_PLACED", amount: 10 },
       { sequence: 2, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
       { sequence: 3, type: "PART_DISABLED", partId: "jam-jar", slot: 0 },
-      { sequence: 4, type: "PAYOUT_ADDED", amount: 1, source: "part" },
+      { sequence: 4, type: "PAYOUT_ADDED", preMultiplierAmount: 1, appliedMultiplier: 1, amount: 1, source: "part", partId: "jam-jar" },
       { sequence: 5, type: "SYMBOL_CHANGED", reel: 0, row: 0, from: "blank", to: "cherry" },
       { sequence: 6, type: "RESOURCE_CHANGED", resource: "tips", delta: 1 },
       { sequence: 7, type: "FOOD_CONSUMED", reel: 2 },
@@ -125,7 +153,7 @@ describe("summarizePresentation", () => {
     const events: GameEvent[] = [
       { sequence: 1, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
       { sequence: 2, type: "PART_DISABLED", partId: "jam-jar", slot: 0 },
-      { sequence: 3, type: "PAYOUT_ADDED", amount: 1, source: "part" },
+      { sequence: 3, type: "PAYOUT_ADDED", preMultiplierAmount: 1, appliedMultiplier: 1, amount: 1, source: "part", partId: "jam-jar" },
       { sequence: 4, type: "SYMBOL_CHANGED", reel: 0, row: 0, from: "blank", to: "cherry" },
       { sequence: 5, type: "RESOURCE_CHANGED", resource: "tips", delta: 1 },
       { sequence: 6, type: "FOOD_CONSUMED", reel: 2 },
@@ -159,7 +187,7 @@ describe("summarizePresentation", () => {
 
   it("gives overload runaway priority even when authoritative total is zero", () => {
     const events: GameEvent[] = [
-      { sequence: 1, type: "OVERLOAD", amount: 250 },
+      { sequence: 1, type: "OVERLOAD", preMultiplierAmount: 250, appliedMultiplier: 1, amount: 250 },
       { sequence: 2, type: "PAYOUT_COMPLETE", total: 0 }
     ];
 
@@ -172,14 +200,14 @@ describe("summarizePresentation", () => {
 
   it("uses the last payout completion and otherwise falls back to award-event amounts", () => {
     const authoritative: GameEvent[] = [
-      { sequence: 1, type: "PAYOUT_ADDED", amount: 100, source: "part" },
+      { sequence: 1, type: "PAYOUT_ADDED", preMultiplierAmount: 100, appliedMultiplier: 1, amount: 100, source: "part", partId: "jam-jar" },
       { sequence: 2, type: "PAYOUT_COMPLETE", total: 10 },
       { sequence: 3, type: "PAYOUT_COMPLETE", total: 20 }
     ];
     const fallback: GameEvent[] = [
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 3, source: "base" },
-      { sequence: 2, type: "PAYOUT_ADDED", amount: 2, source: "part" },
-      { sequence: 3, type: "OVERLOAD", amount: 4 }
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 3, appliedMultiplier: 1, amount: 3, source: "base" },
+      { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 2, appliedMultiplier: 1, amount: 2, source: "part", partId: "jam-jar" },
+      { sequence: 3, type: "OVERLOAD", preMultiplierAmount: 4, appliedMultiplier: 1, amount: 4 }
     ];
 
     expect(summarizePresentation(authoritative, 10).total).toBe(20);

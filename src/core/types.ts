@@ -124,6 +124,13 @@ export type UpgradeRoute = "fruit" | "chapel" | "violent" | "neutral" | "informa
 
 export type Effect =
   | { readonly type: "ADD_PAYOUT"; readonly amount: number; readonly source: AttributionSource }
+  | {
+      readonly type: "ADD_PATTERN_PAYOUT";
+      readonly patternId: "fruit-salad";
+      readonly partId: "fruit-salad";
+      readonly lineId: LineWin["lineId"];
+      readonly amount: number;
+    }
   | { readonly type: "TRANSFORM_CELL"; readonly reel: ReelIndex; readonly row: RowIndex; readonly symbol: SymbolId }
   | { readonly type: "ADD_TO_REEL"; readonly reel: ReelIndex; readonly symbol: SymbolId; readonly count: number }
   | { readonly type: "REMOVE_FROM_REEL"; readonly reel: ReelIndex; readonly symbol: SymbolId; readonly count: number }

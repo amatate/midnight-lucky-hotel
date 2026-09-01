@@ -244,9 +244,9 @@ describe("contract progress from committed events", () => {
 
   it("counts only matching committed base line wins", () => {
     const events: readonly GameEvent[] = [
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 8, source: "base" },
-      { sequence: 2, type: "LINE_WIN", lineId: "middle", symbol: "cherry", amount: 8, source: "part" },
-      { sequence: 3, type: "LINE_WIN", lineId: "bottom", symbol: "lemon", amount: 12, source: "base" }
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 8, appliedMultiplier: 1, amount: 8, source: "base" },
+      { sequence: 2, type: "LINE_WIN", lineId: "middle", symbol: "cherry", preMultiplierAmount: 8, appliedMultiplier: 1, amount: 8, source: "part" },
+      { sequence: 3, type: "LINE_WIN", lineId: "bottom", symbol: "lemon", preMultiplierAmount: 12, appliedMultiplier: 1, amount: 12, source: "base" }
     ];
     expect(updateContract(base({}), events)).toMatchObject({ progress: 1, completed: false });
   });

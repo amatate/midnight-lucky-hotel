@@ -153,7 +153,7 @@ describe("resolveSpin presentation part events", () => {
     const result = resolveSpin(settlementState(draw, { id: "jam-jar", level: 1 }), draw);
 
     expect(
-      result.events.flatMap((event) => {
+      result.events.flatMap<readonly [string, string]>((event) => {
         if (event.type === "LINE_WIN") return [[event.type, event.lineId]];
         if (event.type === "PART_TRIGGERED") return [[event.type, event.partId]];
         return [];

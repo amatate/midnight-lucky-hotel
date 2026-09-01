@@ -40,6 +40,7 @@ export function settlementEventLabel(state: RunState, event: GameEvent | null): 
     case "REELS_DRAWN": return "真实转轮结果已停稳";
     case "INTERVENTION_USED": return `干预生效：${event.kind === "respin" ? "重转" : event.kind === "repair-lock" ? "锁轮维修" : event.kind === "kick" ? "踹击" : "祈祷"}`;
     case "LINE_WIN": return `${SYMBOL_LABELS[event.symbol]}${LINE_LABELS[event.lineId] ?? event.lineId} +¥${event.amount}`;
+    case "PATTERN_LINE_WIN": return `水果沙拉·${LINE_LABELS[event.lineId] ?? event.lineId} +¥${event.amount}`;
     case "PART_TRIGGERED": {
       if (event.partId === "jam-jar") {
         const final = state.counters.cherryWinsThisShift;

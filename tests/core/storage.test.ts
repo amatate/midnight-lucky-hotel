@@ -284,7 +284,7 @@ describe("run storage", () => {
       ]
     })],
     ["malformed event variant", () => ({
-      ...createRun(8), pendingEvents: [{ sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "dragon", amount: 1, source: "base" }]
+      ...createRun(8), pendingEvents: [{ sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "dragon", amount: 1, source: "base" }] as unknown as RunState["pendingEvents"]
     })],
     ["malformed command variant", () => ({
       ...createRun(8), commandHistory: [{ type: "RESPIN_REEL", reelIndex: 7 }]

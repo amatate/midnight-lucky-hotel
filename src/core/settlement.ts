@@ -364,30 +364,57 @@ function dispatchSignal(
   }
 }
 
+type PayoutCause =
+  | { readonly kind: "line"; readonly win: LineWin; readonly source: Exclude<AttributionSource, "overload"> }
+  | { readonly kind: "bonus"; readonly source: Exclude<AttributionSource, "part" | "overload"> }
+  | { readonly kind: "part-bonus"; readonly partId: PartId }
+  | {
+      readonly kind: "pattern-line";
+      readonly patternId: "fruit-salad";
+      readonly partId: "fruit-salad";
+      readonly lineId: LineWin["lineId"];
+    }
+  | { readonly kind: "overload" };
+
 function addPayout(
   working: WorkingState,
-  rawAmount: number,
-  source: AttributionSource,
-  buffMultiplier: number,
-  event: "line" | "effect" | "overload",
-  win?: LineWin
+  preMultiplierAmount: number,
+  appliedMultiplier: number,
+  cause: PayoutCause
 ): void {
-  const amount = safePayout(rawAmount * buffMultiplier);
+  const amount = safePayout(preMultiplierAmount * appliedMultiplier);
   if (amount === 0) return;
+  const source: AttributionSource = cause.kind === "line" || cause.kind === "bonus"
+    ? cause.source
+    : cause.kind === "overload" ? "overload" : "part";
   working.payout = safeMoney(working.payout + amount);
   working.attribution[source] = safeMoney(working.attribution[source] + amount);
-  if (event === "line" && win !== undefined) {
+  if (cause.kind === "line") {
     working.drafts.push({
       type: "LINE_WIN",
-      lineId: win.lineId,
-      symbol: win.symbol,
+      lineId: cause.win.lineId,
+      symbol: cause.win.symbol,
+      preMultiplierAmount,
+      appliedMultiplier,
       amount,
-      source
+      source: cause.source
     });
-  } else if (event === "effect") {
-    working.drafts.push({ type: "PAYOUT_ADDED", amount, source });
-  } else if (event === "overload") {
-    working.drafts.push({ type: "OVERLOAD", amount });
+  } else if (cause.kind === "bonus") {
+    working.drafts.push({ type: "PAYOUT_ADDED", preMultiplierAmount, appliedMultiplier, amount, source: cause.source });
+  } else if (cause.kind === "part-bonus") {
+    working.drafts.push({ type: "PAYOUT_ADDED", preMultiplierAmount, appliedMultiplier, amount, source: "part", partId: cause.partId });
+  } else if (cause.kind === "pattern-line") {
+    working.drafts.push({
+      type: "PATTERN_LINE_WIN",
+      patternId: cause.patternId,
+      partId: cause.partId,
+      lineId: cause.lineId,
+      preMultiplierAmount,
+      appliedMultiplier,
+      amount
+    });
+  } else {
+    working.drafts.push({ type: "OVERLOAD", preMultiplierAmount, appliedMultiplier, amount });
   }
 }
 
@@ -406,7 +433,7 @@ function awardNewLines(
     const key = lineWinKey(win);
     if (working.awardedWinKeys.has(key)) continue;
     working.awardedWinKeys.add(key);
-    addPayout(working, win.multiplier * currentBet, "base", buffMultiplier, "line", win);
+    addPayout(working, win.multiplier * currentBet, buffMultiplier, { kind: "line", win, source: "base" });
     dispatchSignal(
       state,
       currentBet,
@@ -475,7 +502,7 @@ function triggerOverload(currentBet: number, working: WorkingState): void {
   working.queue.length = 0;
   working.overloaded = true;
   working.effectCount += 1;
-  addPayout(working, 25 * currentBet, "overload", 1, "overload");
+  addPayout(working, 25 * currentBet, 1, { kind: "overload" });
 }
 
 function applyEffect(
@@ -490,7 +517,21 @@ function applyEffect(
 ): void {
   switch (effect.type) {
     case "ADD_PAYOUT":
-      addPayout(working, effect.amount, effect.source, buffMultiplier, "effect");
+      if (effect.source === "part") {
+        if (appliedOrigin?.kind === "part") {
+          addPayout(working, effect.amount, buffMultiplier, { kind: "part-bonus", partId: appliedOrigin.partId });
+        }
+      } else if (effect.source !== "overload") {
+        addPayout(working, effect.amount, buffMultiplier, { kind: "bonus", source: effect.source });
+      }
+      break;
+    case "ADD_PATTERN_PAYOUT":
+      addPayout(working, effect.amount, buffMultiplier, {
+        kind: "pattern-line",
+        patternId: effect.patternId,
+        partId: effect.partId,
+        lineId: effect.lineId
+      });
       break;
     case "TRANSFORM_CELL": {
       const from = working.grid[effect.reel][effect.row];
@@ -857,7 +898,7 @@ export function resolveSpin(
   const preAgitationPayout = working.payout;
   let agitation = state.agitation;
   if (preAgitationPayout > 0 && agitation > 0) {
-    addPayout(working, agitation * 0.5 * currentBet, "agitation", buffMultiplier, "effect");
+    addPayout(working, agitation * 0.5 * currentBet, buffMultiplier, { kind: "bonus", source: "agitation" });
     working.drafts.push({ type: "RESOURCE_CHANGED", resource: "agitation", delta: -agitation });
     agitation = 0;
   } else if (preAgitationPayout === 0 && agitation < 5) {

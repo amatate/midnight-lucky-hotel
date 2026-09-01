@@ -337,6 +337,9 @@ describe("jam-jar", () => {
     expect(
       result.events.filter((event) => event.type === "PAYOUT_ADDED").map((event) => event.amount)
     ).toEqual(level === 1 ? [5, 10, 15, 20] : [10, 20, 30, 40]);
+    expect(result.events.filter((event) => event.type === "PAYOUT_ADDED").every((event) =>
+      event.source === "part" && event.partId === "jam-jar"
+    )).toBe(true);
   });
 
   it("uses earlier shift wins and applies active food buffs to its attributed award", () => {
@@ -372,8 +375,48 @@ describe("fruit-salad", () => {
 
     expect(result.payout).toBe(expected);
     expect(result.attribution).toMatchObject({ base: 0, part: expected });
-    expect(result.events.filter((event) => event.type === "PAYOUT_ADDED")).toEqual([
-      { sequence: 2, type: "PAYOUT_ADDED", amount: expected, source: "part" }
+    const patternEvents = result.events.filter((event) => event.type === "PATTERN_LINE_WIN");
+    expect(patternEvents).toEqual([expect.objectContaining({
+      patternId: "fruit-salad",
+      partId: "fruit-salad",
+      lineId: "top",
+      preMultiplierAmount: expected,
+      appliedMultiplier: 1,
+      amount: expected
+    })]);
+    expect(result.events).not.toContainEqual(expect.objectContaining({
+      type: "PAYOUT_ADDED",
+      amount: expected
+    }));
+  });
+
+  it("applies active food multiplier once to each pattern line", () => {
+    const draw = makeDraw([
+      ["cherry", "blank", "blank"],
+      ["lemon", "blank", "blank"],
+      ["bell", "blank", "blank"]
+    ]);
+
+    const result = resolveSpin(settlementState(draw, { id: "fruit-salad", level: 1 }, {
+      buffs: [{ id: "food", spinsRemaining: 2, additivePayout: 0.25 }]
+    }), draw);
+
+    expect(result.events.filter((event) => event.type === "PATTERN_LINE_WIN")).toEqual([
+      expect.objectContaining({ preMultiplierAmount: 15, appliedMultiplier: 1.25, amount: 18.75 })
+    ]);
+  });
+
+  it("emits qualifying pattern lines once in canonical payline order", () => {
+    const draw = makeDraw([
+      ["cherry", "cherry", "blank"],
+      ["lemon", "lemon", "blank"],
+      ["bell", "bell", "blank"]
+    ]);
+
+    const result = resolveSpin(settlementState(draw, { id: "fruit-salad", level: 1 }), draw);
+
+    expect(result.events.filter((event) => event.type === "PATTERN_LINE_WIN").map((event) => event.lineId)).toEqual([
+      "top", "middle"
     ]);
   });
 
@@ -403,8 +446,8 @@ describe("fruit-salad", () => {
 
     const result = resolveSpin(state, draw);
 
-    expect(result.events.filter((event) => event.type === "PAYOUT_ADDED" && event.source === "part")).toEqual([
-      { sequence: 5, type: "PAYOUT_ADDED", amount: 15, source: "part" }
+    expect(result.events.filter((event) => event.type === "PATTERN_LINE_WIN")).toEqual([
+      expect.objectContaining({ patternId: "fruit-salad", lineId: "top", amount: 15 })
     ]);
     expect(result.attribution).toMatchObject({ base: 12, part: 15 });
   });

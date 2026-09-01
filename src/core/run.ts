@@ -95,7 +95,14 @@ function safetyFuseRescue(state: RunState): {
   if (!result.consumed) return null;
   const events = sequenceEvents(state, [
     { type: "PART_TRIGGERED", partId: "safety-fuse", level: fuse.level },
-    { type: "PAYOUT_ADDED", amount: result.payout, source: "part" }
+    {
+      type: "PAYOUT_ADDED",
+      preMultiplierAmount: result.payout,
+      appliedMultiplier: 1,
+      amount: result.payout,
+      source: "part",
+      partId: "safety-fuse"
+    }
   ]);
   return { state: result.state, events };
 }

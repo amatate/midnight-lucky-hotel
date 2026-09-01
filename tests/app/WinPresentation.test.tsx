@@ -23,8 +23,10 @@ function summary(patch: Partial<PresentationSummary> = {}): PresentationSummary 
     total: 20,
     lines: [{
       sequence: 1,
+      kind: "symbol",
       lineId: "top",
       symbol: "cherry",
+      source: "base",
       amount: 20,
       cells: [[0, 0], [1, 0], [2, 0]]
     }],
@@ -227,7 +229,7 @@ describe("food buff tickets", () => {
 
 describe("WinPresentation", () => {
   it("keeps exact payout, balance destination, line count, part count, and cause chain visible", () => {
-    const event = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 20, source: "base" } as const;
+    const event = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" } as const;
     const currentSummary = summary({
       total: 35,
       partTriggers: [{ sequence: 2, partId: "jam-jar", level: 1 }],
@@ -250,7 +252,7 @@ describe("WinPresentation", () => {
   });
 
   it("keeps the full static result accessible while reduced motion removes coins and shake", () => {
-    const event = { sequence: 1, type: "OVERLOAD", amount: 80 } as const;
+    const event = { sequence: 1, type: "OVERLOAD", preMultiplierAmount: 80, appliedMultiplier: 1, amount: 80 } as const;
     render(<WinPresentation
       state={state([event], { bankroll: 180 })}
       presentation={presentation(event, summary({
@@ -308,7 +310,7 @@ describe("WinPresentation", () => {
   });
 
   it("names an added payout by its truthful source instead of calling every award a chain", () => {
-    const event = { sequence: 1, type: "PAYOUT_ADDED", amount: 15, source: "service" } as const;
+    const event = { sequence: 1, type: "PAYOUT_ADDED", preMultiplierAmount: 15, appliedMultiplier: 1, amount: 15, source: "service" } as const;
     render(<WinPresentation state={state([event])} presentation={presentation(event)} reducedMotion={false} />);
 
     expect(screen.getByText("服务追加赔付 +¥15")).toBeVisible();

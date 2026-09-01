@@ -315,7 +315,7 @@ describe("dispatchCommand", () => {
       attribution: { base: 12 }
     });
     expect(accepted.events).toEqual([
-      { sequence: 3, type: "LINE_WIN", lineId: "middle", symbol: "lemon", amount: 12, source: "base" },
+      { sequence: 3, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 12, appliedMultiplier: 1, amount: 12, source: "base" },
       { sequence: 4, type: "PAYOUT_COMPLETE", total: 12 }
     ]);
   });

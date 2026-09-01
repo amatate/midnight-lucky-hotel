@@ -247,6 +247,10 @@ function eventBase(value: PlainRecord, keys: readonly string[]): boolean {
   return hasShape(value, ["sequence", "type", ...keys]) && isSafeInteger(value.sequence, 1);
 }
 
+function hasFormulaFields(value: PlainRecord): boolean {
+  return isFiniteSafe(value.preMultiplierAmount) && isFiniteSafe(value.appliedMultiplier) && isFiniteSafe(value.amount);
+}
+
 function isGameEvent(value: unknown): value is GameEvent {
   if (!isPlainRecord(value) || typeof value.type !== "string") return false;
   switch (value.type) {
@@ -256,14 +260,32 @@ function isGameEvent(value: unknown): value is GameEvent {
       if (!eventBase(value, ["kind", "target"]) || !isEnum(value.kind, new Set(["respin", "repair-lock", "kick", "prayer"]))) return false;
       return value.kind === "prayer" ? isEnum(value.target, BASE_SYMBOLS) : isReelIndex(value.target);
     }
-    case "LINE_WIN": return eventBase(value, ["lineId", "symbol", "amount", "source"]) &&
-      isEnum(value.lineId, LINE_IDS) && isEnum(value.symbol, SYMBOLS) && isFiniteSafe(value.amount) && isEnum(value.source, ATTRIBUTION);
+    case "LINE_WIN": return (
+      eventBase(value, ["lineId", "symbol", "amount", "source"]) &&
+      isEnum(value.lineId, LINE_IDS) && isEnum(value.symbol, SYMBOLS) && isFiniteSafe(value.amount) && isEnum(value.source, ATTRIBUTION)
+    ) || (
+      eventBase(value, ["lineId", "symbol", "preMultiplierAmount", "appliedMultiplier", "amount", "source"]) &&
+      isEnum(value.lineId, LINE_IDS) && isEnum(value.symbol, SYMBOLS) && hasFormulaFields(value) &&
+      isEnum(value.source, ATTRIBUTION) && value.source !== "overload"
+    );
     case "PART_TRIGGERED": return eventBase(value, ["partId", "level"]) && PARTS.has(value.partId as PartId) &&
       (value.level === 1 || value.level === 2);
     case "PART_DISABLED": return eventBase(value, ["partId", "slot"]) && PARTS.has(value.partId as PartId) &&
       isSafeInteger(value.slot, 0, 4);
     case "FOOD_CONSUMED": return eventBase(value, ["reel"]) && isReelIndex(value.reel);
-    case "PAYOUT_ADDED": return eventBase(value, ["amount", "source"]) && isFiniteSafe(value.amount) && isEnum(value.source, ATTRIBUTION);
+    case "PAYOUT_ADDED": return (
+      eventBase(value, ["amount", "source"]) && isFiniteSafe(value.amount) && isEnum(value.source, ATTRIBUTION)
+    ) || (
+      eventBase(value, ["preMultiplierAmount", "appliedMultiplier", "amount", "source", "partId"]) &&
+      hasFormulaFields(value) && value.source === "part" && PARTS.has(value.partId as PartId)
+    ) || (
+      eventBase(value, ["preMultiplierAmount", "appliedMultiplier", "amount", "source"]) &&
+      hasFormulaFields(value) && isEnum(value.source, ATTRIBUTION) && value.source !== "part" && value.source !== "overload"
+    );
+    case "PATTERN_LINE_WIN": return eventBase(value, [
+      "patternId", "partId", "lineId", "preMultiplierAmount", "appliedMultiplier", "amount"
+    ]) && value.patternId === "fruit-salad" && value.partId === "fruit-salad" &&
+      isEnum(value.lineId, LINE_IDS) && hasFormulaFields(value);
     case "SYMBOL_CHANGED": return eventBase(value, ["reel", "row", "from", "to"]) && isReelIndex(value.reel) &&
       isReelIndex(value.row) && isEnum(value.from, SYMBOLS) && isEnum(value.to, SYMBOLS);
     case "RESOURCE_CHANGED": return eventBase(value, ["resource", "delta"]) &&
@@ -274,7 +296,11 @@ function isGameEvent(value: unknown): value is GameEvent {
     case "SPIN_COMMITTED": return eventBase(value, ["interventionUsed", "preInterventionPaying", "finalPayout"]) &&
       isBoolean(value.interventionUsed) && isBoolean(value.preInterventionPaying) && isFiniteSafe(value.finalPayout);
     case "BLOCK_COMPLETED": return eventBase(value, ["bankroll"]) && isFiniteSafe(value.bankroll);
-    case "OVERLOAD": return eventBase(value, ["amount"]) && isFiniteSafe(value.amount);
+    case "OVERLOAD": return (
+      eventBase(value, ["amount"]) && isFiniteSafe(value.amount)
+    ) || (
+      eventBase(value, ["preMultiplierAmount", "appliedMultiplier", "amount"]) && hasFormulaFields(value)
+    );
     case "PAYOUT_COMPLETE": return eventBase(value, ["total"]) && isFiniteSafe(value.total);
     case "SHIFT_CHANGED": return eventBase(value, ["shift"]) && isSafeInteger(value.shift, 1);
     case "RUN_ENDED": return eventBase(value, ["outcome"]) && isEnum(value.outcome, new Set(["won", "lost", "cashed-out"]));

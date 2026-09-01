@@ -1,16 +1,19 @@
 import type { GameEvent } from "@/core/events";
 import { PAYLINES } from "@/core/paylines";
-import type { LineWin, PartId, SymbolId } from "@/core/types";
+import type { AttributionSource, LineWin, PartId, SymbolId } from "@/core/types";
 
 export type FeedbackTier = "none" | "win" | "chain" | "runaway";
 
-export interface PresentationLine {
+interface PresentationLineBase {
   readonly sequence: number;
   readonly lineId: LineWin["lineId"];
-  readonly symbol: SymbolId;
   readonly amount: number;
   readonly cells: LineWin["cells"];
 }
+
+export type PresentationLine =
+  | (PresentationLineBase & { readonly kind: "symbol"; readonly symbol: SymbolId; readonly source: Exclude<AttributionSource, "overload"> })
+  | (PresentationLineBase & { readonly kind: "pattern"; readonly patternId: "fruit-salad"; readonly partId: "fruit-salad" });
 
 export interface PresentationPartTrigger {
   readonly sequence: number;
@@ -39,17 +42,19 @@ const VISIBLE_EFFECT_TYPES = new Set<GameEvent["type"]>([
 ]);
 
 function presentationLines(events: readonly GameEvent[]): PresentationLine[] {
-  return events.flatMap((event) => {
-    if (event.type !== "LINE_WIN") return [];
+  return events.flatMap<PresentationLine>((event) => {
+    if (event.type !== "LINE_WIN" && event.type !== "PATTERN_LINE_WIN") return [];
     const payline = PAYLINES.find((candidate) => candidate.lineId === event.lineId);
     if (payline === undefined) return [];
-    return [{
+    const common = {
       sequence: event.sequence,
       lineId: payline.lineId,
-      symbol: event.symbol,
       amount: event.amount,
       cells: payline.cells
-    }];
+    } as const;
+    return event.type === "LINE_WIN"
+      ? [{ ...common, kind: "symbol", symbol: event.symbol, source: event.source }]
+      : [{ ...common, kind: "pattern", patternId: event.patternId, partId: event.partId }];
   });
 }
 
@@ -64,7 +69,10 @@ function presentationTotal(events: readonly GameEvent[]): number {
   let fallbackTotal = 0;
   for (const event of events) {
     if (event.type === "PAYOUT_COMPLETE") completedTotal = event.total;
-    if (event.type === "LINE_WIN" || event.type === "PAYOUT_ADDED" || event.type === "OVERLOAD") {
+    if (
+      event.type === "LINE_WIN" || event.type === "PATTERN_LINE_WIN" ||
+      event.type === "PAYOUT_ADDED" || event.type === "OVERLOAD"
+    ) {
       fallbackTotal += event.amount;
     }
   }

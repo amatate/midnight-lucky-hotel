@@ -319,11 +319,31 @@ describe("resolveSpin payout and queue behavior", () => {
     expect(result.attribution).toMatchObject({ base: 12, agitation: 15 });
     expect(result.state.agitation).toBe(0);
     expect(result.events).toEqual([
-      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", amount: 12, source: "base" },
-      { sequence: 2, type: "PAYOUT_ADDED", amount: 15, source: "agitation" },
+      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 12, appliedMultiplier: 1, amount: 12, source: "base" },
+      { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 15, appliedMultiplier: 1, amount: 15, source: "agitation" },
       { sequence: 3, type: "RESOURCE_CHANGED", resource: "agitation", delta: -3 },
       { sequence: 4, type: "PAYOUT_COMPLETE", total: 27 }
     ]);
+  });
+
+  it("keeps the unrounded operand until the final payout normalization", () => {
+    const draw = makeDraw(deadGrid);
+    const award: EffectHandler = (_context, signal) => signal.type === "GRID_ACCEPTED"
+      ? [{ type: "ADD_PAYOUT", amount: 1.5625, source: "service" }]
+      : [];
+    const state = settlementState(draw, {
+      buffs: Array.from({ length: 4 }, () => ({ id: "food" as const, spinsRemaining: 2, additivePayout: 0.25 }))
+    });
+
+    const result = resolveSpin(state, draw, [system(award)]);
+
+    expect(result.events.find((event) => event.type === "PAYOUT_ADDED")).toMatchObject({
+      type: "PAYOUT_ADDED",
+      source: "service",
+      preMultiplierAmount: 1.5625,
+      appliedMultiplier: 2,
+      amount: 3.13
+    });
   });
 
   it("applies existing buffs to every ordinary payout source while keeping attribution distinct", () => {
@@ -338,10 +358,11 @@ describe("resolveSpin payout and queue behavior", () => {
         : [];
     const state = settlementState(draw, {
       agitation: 2,
-      buffs: [{ id: "food", spinsRemaining: 2, additivePayout: 0.25 }]
+      buffs: [{ id: "food", spinsRemaining: 2, additivePayout: 0.25 }],
+      partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null]
     });
 
-    const result = resolveSpin(state, draw, [system(handler)]);
+    const result = resolveSpin(state, draw, [{ kind: "part", slot: 0, partId: "jam-jar", handler }]);
 
     expect(result.attribution).toEqual({
       base: 15,
@@ -360,7 +381,7 @@ describe("resolveSpin payout and queue behavior", () => {
     const handler: EffectHandler = (_context, signal) => {
       if (signal.type === "GRID_ACCEPTED") {
         return [
-          { type: "ADD_PAYOUT", amount: 1, source: "part" },
+          { type: "ADD_PAYOUT", amount: 1, source: "service" },
           { type: "ADD_PAYOUT", amount: 2, source: "service" }
         ];
       }
@@ -412,6 +433,7 @@ describe("resolveSpin payout and queue behavior", () => {
     expect(Number.isSafeInteger(result.state.bankroll * 100)).toBe(true);
     expect(result.attribution.part).toBe(0);
     expect(result.attribution.service).toBe(0);
+    expect(result.events.filter((event) => event.type === "PAYOUT_ADDED" && event.source === "service")).toEqual([]);
   });
 
   it("deduplicates already-awarded lines during reevaluation", () => {
@@ -422,7 +444,7 @@ describe("resolveSpin payout and queue behavior", () => {
     const result = resolveSpin(settlementState(draw), draw, [system(handler)]);
 
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toEqual([
-      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", amount: 12, source: "base" }
+      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 12, appliedMultiplier: 1, amount: 12, source: "base" }
     ]);
     expect(result.payout).toBe(12);
   });
@@ -469,7 +491,7 @@ describe("resolveSpin payout and queue behavior", () => {
     expect(result.payout).toBe(250);
     expect(result.attribution.overload).toBe(250);
     expect(result.events.filter((event) => event.type === "OVERLOAD")).toEqual([
-      { sequence: 1, type: "OVERLOAD", amount: 250 }
+      { sequence: 1, type: "OVERLOAD", preMultiplierAmount: 250, appliedMultiplier: 1, amount: 250 }
     ]);
   });
 

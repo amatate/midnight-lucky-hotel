@@ -19,7 +19,7 @@ import { vibrateSettlement } from "@/presentation/haptics";
 const events: readonly GameEvent[] = [
   { sequence: 3, type: "PAYOUT_COMPLETE", total: 25 },
   { sequence: 1, type: "BET_PLACED", amount: 10 },
-  { sequence: 2, type: "PAYOUT_ADDED", amount: 25, source: "base" }
+  { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 25, appliedMultiplier: 1, amount: 25, source: "base" }
 ];
 
 describe("presentation queue", () => {
@@ -209,7 +209,7 @@ describe("useSettlementPresentation", () => {
       { sequence: 1, type: "REELS_DRAWN", draw: { strips: REPLAY_GRID, stops: [0, 0, 0], grid: REPLAY_GRID, rng: { value: 1 } } },
       { sequence: 4, type: "SYMBOL_CHANGED", reel: 0, row: 1, from: "cherry", to: "lemon" },
       { sequence: 3, type: "PART_TRIGGERED", partId: "lemon-infection", level: 1 },
-      { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 20, source: "base" }
+      { sequence: 2, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" }
     ];
     const unresolved = manualResolvingState(events, {
       partSlots: [{ id: "lemon-infection", level: 1 }, null, null, null, null]
@@ -407,7 +407,7 @@ describe("useSettlementPresentation", () => {
     Object.defineProperty(navigator, "vibrate", { configurable: true, value: vi.fn(() => true) });
     expect(unlockAudio()).toBe(true);
     const onCommand = vi.fn<(command: GameCommand) => void>();
-    const line = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 10, source: "base" } as const;
+    const line = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "base" } as const;
     const { rerender } = renderHook(
       ({ paused }) => useSettlementPresentation({
         state: manualResolvingState([line, { sequence: 2, type: "PAYOUT_COMPLETE", total: 10 }]),
@@ -724,7 +724,7 @@ describe("presentation recovery UI", () => {
   it("wires the current causal event to exact line cells, the equipped part lamp, and a truthful reel highlight", async () => {
     vi.useFakeTimers();
     const state = manualResolvingState([
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 10, source: "base" },
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "base" },
       { sequence: 2, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
       { sequence: 3, type: "FOOD_CONSUMED", reel: 1 },
       { sequence: 4, type: "PAYOUT_COMPLETE", total: 10 }
@@ -773,7 +773,7 @@ describe("presentation recovery UI", () => {
       return rect(0, 0, 0, 0);
     });
     const resolving = manualResolvingState([
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 20, source: "base" },
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" },
       { sequence: 2, type: "PAYOUT_COMPLETE", total: 20 }
     ]);
     const { container } = render(createElement(GameScreen, { seed: 707, initialState: resolving }));
@@ -795,7 +795,7 @@ describe("presentation recovery UI", () => {
   it("keeps equipped-part status and disabled-slot eligibility causal to the presented prefix", async () => {
     vi.useFakeTimers();
     const state = manualResolvingState([
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 10, source: "base" },
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "base" },
       { sequence: 2, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
       { sequence: 3, type: "PART_DISABLED", partId: "jam-jar", slot: 0 },
       { sequence: 4, type: "PAYOUT_COMPLETE", total: 10 }
@@ -1015,7 +1015,7 @@ describe("presentation recovery UI", () => {
     vi.useFakeTimers();
     installMotionPreference(true);
     const resolving = manualResolvingState([
-      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", amount: 20, source: "base" },
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" },
       { sequence: 2, type: "PAYOUT_COMPLETE", total: 20 }
     ]);
     render(createElement(GameScreen, { seed: 206, initialState: resolving }));
