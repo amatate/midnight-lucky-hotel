@@ -123,6 +123,21 @@ describe("spin receipts", () => {
       .toEqual({ ok: false, reason: "BALANCE_MISMATCH" });
   });
 
+  it.each([
+    ["line", [
+      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "cherry", source: "overload", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10 },
+      { sequence: 2, type: "PAYOUT_COMPLETE", total: 10 }
+    ]],
+    ["ordinary bonus", [
+      { sequence: 1, type: "PAYOUT_ADDED", source: "overload", preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10 },
+      { sequence: 2, type: "PAYOUT_COMPLETE", total: 10 }
+    ]]
+  ])("rejects an illegal overload source on a %s award", (_label, events) => {
+    const untrustedEvents = events as unknown as readonly GameEvent[];
+    expect(buildSpinReceipt(receiptInput(untrustedEvents, { bankrollAfter: 105 })))
+      .toEqual({ ok: false, reason: "INVALID_EVENT_SEQUENCE" });
+  });
+
   it("rejects more than the receipt award cap", () => {
     const awards = Array.from({ length: MAX_RECEIPT_AWARDS + 1 }, (_, index) => ({
       sequence: index + 1,
@@ -144,7 +159,13 @@ describe("spin receipts", () => {
     ] as const satisfies readonly GameEvent[];
     const input = receiptInput(legacyEvents);
 
-    expect(() => finalizeSpinReceipt(input, "strict")).toThrow(SpinReceiptInvariantError);
+    try {
+      finalizeSpinReceipt(input, "strict");
+      throw new Error("strict fixture unexpectedly returned");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SpinReceiptInvariantError);
+      expect((error as SpinReceiptInvariantError).reason).toBe("PAYOUT_MISMATCH");
+    }
     expect(finalizeSpinReceipt(input, "production-fallback")).toMatchObject({
       awards: [{ sequence: 2, kind: "opaque", formula: { kind: "legacy-unavailable" }, amount: 35 }],
       totalPayout: 35

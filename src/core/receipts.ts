@@ -74,6 +74,10 @@ function isNonnegativeSafeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
+function isOverloadSource(value: unknown): value is "overload" {
+  return value === "overload";
+}
+
 function isEventSequence(events: readonly GameEvent[]): boolean {
   return events.every((event, index) => Number.isSafeInteger(event.sequence)
     && event.sequence >= 0
@@ -113,7 +117,7 @@ function awardFromEvent(event: GameEvent): ReceiptAward | null | "invalid" {
   switch (event.type) {
     case "LINE_WIN": {
       const formula = formulaFromEvent(event);
-      if (formula === null || !LINE_IDS.has(event.lineId) || !SYMBOL_IDS.has(event.symbol) || !ATTRIBUTION_SOURCES.has(event.source)) return "invalid";
+      if (formula === null || isOverloadSource(event.source) || !LINE_IDS.has(event.lineId) || !SYMBOL_IDS.has(event.symbol) || !ATTRIBUTION_SOURCES.has(event.source)) return "invalid";
       return { sequence: event.sequence, kind: "line", lineId: event.lineId, symbol: event.symbol, source: event.source, formula, amount: event.amount };
     }
     case "PATTERN_LINE_WIN": {
@@ -128,6 +132,7 @@ function awardFromEvent(event: GameEvent): ReceiptAward | null | "invalid" {
         if (!("partId" in event) || !PART_IDS.has(event.partId)) return "invalid";
         return { sequence: event.sequence, kind: "part-bonus", source: "part", partId: event.partId, formula, amount: event.amount };
       }
+      if (isOverloadSource(event.source)) return "invalid";
       return { sequence: event.sequence, kind: "bonus", source: event.source, formula, amount: event.amount };
     }
     case "OVERLOAD": {
