@@ -211,6 +211,27 @@ describe("resolveSpin special symbols", () => {
     expect(result.attribution).toMatchObject({ part: 2, intervention: 0, service: 3 });
     expect(result.payout).toBe(5);
   });
+
+  it("rejects a system handler that forges a fruit-salad pattern payout", () => {
+    const draw = makeDraw(deadGrid);
+    const forged: EffectHandler = (_context, signal) => signal.type === "GRID_ACCEPTED"
+      ? [{
+          type: "ADD_PATTERN_PAYOUT",
+          patternId: "fruit-salad",
+          partId: "fruit-salad",
+          lineId: "top",
+          amount: 15
+        }]
+      : [];
+
+    const result = resolveSpin(settlementState(draw, {
+      partSlots: [{ id: "fruit-salad", level: 1 }, null, null, null, null]
+    }), draw, [system(forged)]);
+
+    expect(result.events.some((event) => event.type === "PATTERN_LINE_WIN")).toBe(false);
+    expect(result.attribution.part).toBe(0);
+    expect(result.payout).toBe(0);
+  });
 });
 
 describe("resolveSpin payout and queue behavior", () => {

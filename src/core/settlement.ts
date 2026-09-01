@@ -526,12 +526,14 @@ function applyEffect(
       }
       break;
     case "ADD_PATTERN_PAYOUT":
-      addPayout(working, effect.amount, buffMultiplier, {
-        kind: "pattern-line",
-        patternId: effect.patternId,
-        partId: effect.partId,
-        lineId: effect.lineId
-      });
+      if (appliedOrigin?.kind === "part" && appliedOrigin.partId === effect.partId) {
+        addPayout(working, effect.amount, buffMultiplier, {
+          kind: "pattern-line",
+          patternId: effect.patternId,
+          partId: effect.partId,
+          lineId: effect.lineId
+        });
+      }
       break;
     case "TRANSFORM_CELL": {
       const from = working.grid[effect.reel][effect.row];
