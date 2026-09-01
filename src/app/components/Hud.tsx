@@ -1,4 +1,6 @@
 import { SYMBOL_LABELS } from "@/app/labels";
+import { AnimatedMoney } from "@/app/components/AnimatedMoney";
+import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
 import { getCurrentBet } from "@/core/progression";
 import type { RunState, SymbolId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
@@ -19,6 +21,8 @@ interface HudProps {
   readonly estimate: MachineEstimate | null;
   readonly estimateStatus: EstimateStatus;
   readonly payoutAmount?: number;
+  readonly settlementPresentation?: SettlementPresentationState | null;
+  readonly reducedMotion?: boolean;
   readonly presentedThroughSequence?: number | null | undefined;
 }
 
@@ -40,20 +44,35 @@ export function Hud({
   estimate,
   estimateStatus,
   payoutAmount = 0,
+  settlementPresentation = null,
+  reducedMotion = false,
   presentedThroughSequence
 }: HudProps): React.JSX.Element {
   const isWaiting = state.toolLevel >= 1 && (estimateStatus === "pending" || estimateStatus === "unavailable");
   const foodBuffs = visibleFoodBuffs(state, presentedThroughSequence);
+  const activePayout = settlementPresentation?.awardDelta ?? payoutAmount;
   return (
     <section className="hud" aria-label="本局状态">
-      <dl className="room-counters" role="group" aria-label="酒店房号计数窗" data-payout-active={payoutAmount > 0 ? "true" : undefined}>
+      <dl className="room-counters" role="group" aria-label="酒店房号计数窗" data-payout-active={activePayout > 0 ? "true" : undefined}>
         <div className="room-counter room-counter-bankroll">
           <dt className="sr-only">余额</dt>
           <dd
-            className={payoutAmount > 0 ? "is-payout-destination" : undefined}
+            className={activePayout > 0 ? "is-payout-destination" : undefined}
             data-counter="bankroll"
             data-coin-destination="true"
-          >余额 ¥{state.bankroll}</dd>
+          >{settlementPresentation === null
+              ? `余额 ¥${state.bankroll}`
+              : <>
+                  余额 ¥<AnimatedMoney
+                    target={settlementPresentation.visibleBankrollTarget}
+                    durationMs={settlementPresentation.moneyDurationMs}
+                    resetKey={settlementPresentation.moneyResetKey}
+                    animationKey={settlementPresentation.moneyAnimationKey}
+                    reducedMotion={reducedMotion}
+                    accessibleLabel={`余额 ¥${settlementPresentation.visibleBankrollTarget}`}
+                  />
+                </>
+            }</dd>
         </div>
         <div className="room-counter">
           <dt className="sr-only">目标</dt>
@@ -64,7 +83,6 @@ export function Hud({
           <dd data-counter="bet">下注 ¥{getCurrentBet(state)}</dd>
         </div>
       </dl>
-      {payoutAmount > 0 && <span className="sr-only" aria-live="polite">本转到账 +¥{payoutAmount}</span>}
       <div className="hud-resources">
         <span>专注 {state.interventionPoints}/{state.maxInterventionPoints}</span>
         <span>小费 {state.tips}</span>

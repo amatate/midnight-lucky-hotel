@@ -92,6 +92,32 @@ describe("GameScreen", () => {
     expect(screen.getByText("减弱动态与闪烁")).toBeVisible();
   });
 
+  it("keeps the HUD at the post-wager bankroll until receipt awards are presented", () => {
+    const base = createRun(140);
+    const event = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 35, appliedMultiplier: 1, amount: 35, source: "base" } as const;
+    const resolving: RunState = {
+      ...base,
+      phase: "RESOLVING_EFFECTS",
+      service: "repair",
+      bankroll: 125,
+      pendingSpin: { isFree: false, bankrollBefore: 100, wager: 10, draw: { strips: base.reels, stops: [0, 0, 0], grid: [["cherry", "blank", "blank"], ["cherry", "blank", "blank"], ["cherry", "blank", "blank"]], rng: base.rng } },
+      pendingEvents: [event, { sequence: 2, type: "PAYOUT_COMPLETE", total: 35 }],
+      spinHistory: [{
+        ordinal: 1, shift: 1, afterHoursLevel: 0, isFree: false, baseSpinIndex: 1,
+        bankrollBefore: 100, wager: 10,
+        finalGrid: [["cherry", "blank", "blank"], ["cherry", "blank", "blank"], ["cherry", "blank", "blank"]],
+        awards: [{ sequence: 1, kind: "line", lineId: "top", symbol: "cherry", source: "base", formula: { kind: "known", preMultiplierAmount: 35, appliedMultiplier: 1 }, amount: 35 }],
+        totalPayout: 35, bankrollAfter: 125
+      }],
+      nextSpinOrdinal: 2
+    };
+    render(<GameScreen seed={140} initialState={resolving} />);
+
+    expect(screen.getByText("余额 ¥90", { selector: ".sr-only" })).toBeVisible();
+    expect(screen.queryByText("余额 ¥125")).not.toBeInTheDocument();
+    expect(screen.queryByText("+¥35")).not.toBeInTheDocument();
+  });
+
   it("explains every offered service's identity, exact action, synergies, and cost before selection", () => {
     const state: RunState = {
       ...createRun(40),
@@ -220,7 +246,7 @@ describe("GameScreen", () => {
     expect(screen.getByRole("button", { name: "收下这把" })).toBeVisible();
     await act(async () => vi.advanceTimersByTimeAsync(5_000));
     expect(screen.getByText("等待干预")).toBeVisible();
-    let history = JSON.parse(localStorage.getItem("midnight-lucky-hotel.run.v1")!).commandHistory as readonly GameCommand[];
+    let history = JSON.parse(localStorage.getItem(RUN_STORAGE_KEY)!).commandHistory as readonly GameCommand[];
     expect(history.filter((command) => command.type === "REELS_STOPPED")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "重转第1轮" }));
@@ -229,7 +255,7 @@ describe("GameScreen", () => {
     expect(screen.getByText("转轮旋转中")).toBeVisible();
     await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(screen.getByText("等待干预")).toBeVisible();
-    history = JSON.parse(localStorage.getItem("midnight-lucky-hotel.run.v1")!).commandHistory as readonly GameCommand[];
+    history = JSON.parse(localStorage.getItem(RUN_STORAGE_KEY)!).commandHistory as readonly GameCommand[];
     expect(history.filter((command) => command.type === "REELS_STOPPED")).toHaveLength(2);
 
     expect(screen.queryByRole("button", { name: "收下这把" })).not.toBeInTheDocument();

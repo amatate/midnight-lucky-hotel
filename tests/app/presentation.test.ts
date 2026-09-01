@@ -12,6 +12,7 @@ import { createPresentationQueue } from "@/presentation/queue";
 import { RUN_STORAGE_KEY } from "@/persistence/storage";
 import type { GameCommand } from "@/core/commands";
 import { useSettlementPresentation } from "@/app/useSettlementPresentation";
+import { settlementMoneyDurationMs } from "@/app/useSettlementPresentation";
 import type { Grid, RunState } from "@/core/types";
 import { playEventTone, unlockAudio } from "@/presentation/audio";
 import { vibrateSettlement } from "@/presentation/haptics";
@@ -114,6 +115,24 @@ const REPLAY_GRID: Grid = [
 
 function manualResolvingState(events: readonly GameEvent[], patch: Partial<RunState> = {}): RunState {
   const base = createRun(707);
+  const completion = events.find((event) => event.type === "PAYOUT_COMPLETE");
+  const awards = events.flatMap<RunState["spinHistory"][number]["awards"][number]>((event) => {
+    const formula = "preMultiplierAmount" in event
+      ? { kind: "known" as const, preMultiplierAmount: event.preMultiplierAmount, appliedMultiplier: event.appliedMultiplier }
+      : null;
+    if (event.type === "LINE_WIN" && formula !== null) return [{ sequence: event.sequence, kind: "line", lineId: event.lineId, symbol: event.symbol, source: event.source, formula, amount: event.amount }];
+    if (event.type === "PATTERN_LINE_WIN" && formula !== null) return [{ sequence: event.sequence, kind: "pattern-line", patternId: event.patternId, partId: event.partId, lineId: event.lineId, formula, amount: event.amount }];
+    if (event.type === "PAYOUT_ADDED" && formula !== null) return event.source === "part"
+      ? [{ sequence: event.sequence, kind: "part-bonus", source: "part", partId: event.partId, formula, amount: event.amount }]
+      : [{ sequence: event.sequence, kind: "bonus", source: event.source, formula, amount: event.amount }];
+    if (event.type === "OVERLOAD" && formula !== null) return [{ sequence: event.sequence, kind: "overload", source: "overload", formula, amount: event.amount }];
+    return [];
+  });
+  const defaultHistory: RunState["spinHistory"] = completion?.type === "PAYOUT_COMPLETE" ? [{
+    ordinal: 1, shift: 1, afterHoursLevel: 0, isFree: false, baseSpinIndex: 1,
+    bankrollBefore: 110, wager: 10, finalGrid: REPLAY_GRID, awards,
+    totalPayout: completion.total, bankrollAfter: 100 + completion.total
+  }] : [];
   return {
     ...base,
     phase: "RESOLVING_EFFECTS",
@@ -126,6 +145,8 @@ function manualResolvingState(events: readonly GameEvent[], patch: Partial<RunSt
       draw: { strips: base.reels, stops: [0, 0, 0], grid: REPLAY_GRID, rng: base.rng }
     },
     pendingEvents: events,
+    spinHistory: defaultHistory,
+    nextSpinOrdinal: defaultHistory.length + 1,
     ...patch
   };
 }
@@ -193,10 +214,143 @@ function installMotionPreference(initial: boolean) {
   };
 }
 
+async function advancePresentationUntil(predicate: () => boolean, limit = 700): Promise<void> {
+  for (let index = 0; index < limit && !predicate(); index += 1) {
+    if (vi.getTimerCount() === 0) break;
+    await act(async () => vi.advanceTimersToNextTimerAsync());
+  }
+}
+
 describe("useSettlementPresentation", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+
+  it("stages exact receipt awards into payout and bankroll targets without double-crediting completion", async () => {
+    vi.useFakeTimers();
+    const awardEvents = [
+      { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" },
+      { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 15, appliedMultiplier: 1, amount: 15, source: "service" },
+      { sequence: 3, type: "PAYOUT_COMPLETE", total: 35 }
+    ] as const satisfies readonly GameEvent[];
+    const base = manualResolvingState(awardEvents, { bankroll: 125 });
+    const state: RunState = {
+      ...base,
+      spinHistory: [{
+        ordinal: 1,
+        shift: 1,
+        afterHoursLevel: 0,
+        isFree: false,
+        baseSpinIndex: 1,
+        bankrollBefore: 100,
+        wager: 10,
+        finalGrid: REPLAY_GRID,
+        awards: [
+          { sequence: 1, kind: "line", lineId: "top", symbol: "cherry", source: "base", formula: { kind: "known", preMultiplierAmount: 20, appliedMultiplier: 1 }, amount: 20 },
+          { sequence: 2, kind: "bonus", source: "service", formula: { kind: "known", preMultiplierAmount: 15, appliedMultiplier: 1 }, amount: 15 }
+        ],
+        totalPayout: 35,
+        bankrollAfter: 125
+      }],
+      nextSpinOrdinal: 2
+    };
+    const { result } = renderHook(() => useSettlementPresentation({ state, paused: false, reducedMotion: false, onCommand: vi.fn() }));
+
+    expect(result.current).toMatchObject({
+      settlementStartBankroll: 90,
+      visiblePayoutTarget: 0,
+      visibleBankrollTarget: 90
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(120));
+    await act(async () => vi.advanceTimersByTimeAsync(80));
+    expect(result.current).toMatchObject({ visiblePayoutTarget: 20, visibleBankrollTarget: 110, moneyDurationMs: 360 });
+    await act(async () => vi.advanceTimersByTimeAsync(360));
+    await act(async () => vi.advanceTimersByTimeAsync(180));
+    await act(async () => vi.advanceTimersByTimeAsync(80));
+    await act(async () => vi.advanceTimersByTimeAsync(80));
+    expect(result.current).toMatchObject({ visiblePayoutTarget: 35, visibleBankrollTarget: 125, moneyDurationMs: 360 });
+    await advancePresentationUntil(() => result.current?.done === true);
+    expect(result.current).toMatchObject({ visiblePayoutTarget: 35, visibleBankrollTarget: 125, done: true });
+  });
+
+  it("uses the exact money duration tiers for normal, accelerated, and reduced playback", () => {
+    expect([
+      settlementMoneyDurationMs(10, 10, false, false),
+      settlementMoneyDurationMs(30, 10, false, false),
+      settlementMoneyDurationMs(30.01, 10, false, false)
+    ]).toEqual([240, 360, 520]);
+    expect(settlementMoneyDurationMs(500, 10, true, false)).toBe(80);
+    expect(settlementMoneyDurationMs(500, 10, true, true)).toBe(0);
+  });
+
+  it("skips immediately to the receipt targets and highlights Fruit Salad only on its pattern line award", async () => {
+    vi.useFakeTimers();
+    const events = [
+      { sequence: 1, type: "PART_TRIGGERED", partId: "fruit-salad", level: 1 },
+      { sequence: 2, type: "PATTERN_LINE_WIN", patternId: "fruit-salad", partId: "fruit-salad", lineId: "middle", preMultiplierAmount: 35, appliedMultiplier: 1, amount: 35 },
+      { sequence: 3, type: "PAYOUT_COMPLETE", total: 35 }
+    ] as const satisfies readonly GameEvent[];
+    const base = manualResolvingState(events, { bankroll: 125 });
+    const state: RunState = {
+      ...base,
+      spinHistory: [{
+        ordinal: 1, shift: 1, afterHoursLevel: 0, isFree: false, baseSpinIndex: 1,
+        bankrollBefore: 100, wager: 10, finalGrid: REPLAY_GRID,
+        awards: [{ sequence: 2, kind: "pattern-line", patternId: "fruit-salad", partId: "fruit-salad", lineId: "middle", formula: { kind: "known", preMultiplierAmount: 35, appliedMultiplier: 1 }, amount: 35 }],
+        totalPayout: 35, bankrollAfter: 125
+      }],
+      nextSpinOrdinal: 2
+    };
+    const onCommand = vi.fn<(command: GameCommand) => void>();
+    const { result } = renderHook(() => useSettlementPresentation({ state, paused: false, reducedMotion: false, onCommand }));
+    expect(result.current?.activeLineIds).toEqual([]);
+    await act(async () => vi.advanceTimersByTimeAsync(120));
+    expect(result.current?.currentEvent?.type).toBe("PART_TRIGGERED");
+    expect(result.current?.activeLineIds).toEqual([]);
+    await act(async () => vi.advanceTimersByTimeAsync(160));
+    expect(result.current?.currentEvent?.type).toBe("PATTERN_LINE_WIN");
+    expect(result.current?.activeLineIds).toEqual(["middle"]);
+    act(() => result.current?.skip());
+    expect(result.current).toMatchObject({ visiblePayoutTarget: 35, visibleBankrollTarget: 125, done: true });
+    expect(onCommand.mock.calls).toEqual([[{ type: "PRESENTATION_COMPLETE" }]]);
+  });
+
+  it("finishes no-win at 350ms, ordinary wins within 700-1000ms, chains within 1200-2200ms, and caps 128 awards", async () => {
+    vi.useFakeTimers();
+    const completionTime = async (state: RunState, expected: number) => {
+      const onCommand = vi.fn<(command: GameCommand) => void>();
+      const hook = renderHook(() => useSettlementPresentation({ state, paused: false, reducedMotion: false, onCommand }));
+      const startedAt = Date.now();
+      while (onCommand.mock.calls.length === 0 && vi.getTimerCount() > 0) {
+        await act(async () => vi.advanceTimersToNextTimerAsync());
+      }
+      expect(Date.now() - startedAt).toBeCloseTo(expected, 4);
+      expect(onCommand.mock.calls).toEqual([[{ type: "PRESENTATION_COMPLETE" }]]);
+      hook.unmount();
+    };
+    await completionTime(manualResolvingState([{ sequence: 1, type: "PAYOUT_COMPLETE", total: 0 }]), 350);
+
+    const stateWithAwards = (count: number): RunState => {
+      const awardEvents = Array.from({ length: count }, (_, index) => ({
+        sequence: index + 1, type: "PAYOUT_ADDED" as const, preMultiplierAmount: 10, appliedMultiplier: 1, amount: 10, source: "service" as const
+      }));
+      const allEvents: readonly GameEvent[] = [...awardEvents, { sequence: count + 1, type: "PAYOUT_COMPLETE", total: count * 10 }];
+      const base = manualResolvingState(allEvents, { bankroll: 90 + count * 10 });
+      return {
+        ...base,
+        spinHistory: [{
+          ordinal: 1, shift: 1, afterHoursLevel: 0, isFree: false, baseSpinIndex: 1,
+          bankrollBefore: 100, wager: 10, finalGrid: REPLAY_GRID,
+          awards: awardEvents.map((event) => ({ sequence: event.sequence, kind: "bonus" as const, source: "service" as const, formula: { kind: "known" as const, preMultiplierAmount: 10, appliedMultiplier: 1 }, amount: 10 })),
+          totalPayout: count * 10, bankrollAfter: 90 + count * 10
+        }],
+        nextSpinOrdinal: 2
+      };
+    };
+    await completionTime(stateWithAwards(1), 700);
+    await completionTime(stateWithAwards(2), 1_000);
+    await completionTime(stateWithAwards(128), 2_200);
   });
 
   it("starts at the first causal event, highlights line before part, and advances the replay grid only on the matching change", async () => {
@@ -231,21 +385,21 @@ describe("useSettlementPresentation", () => {
       onCommand
     }));
 
-    expect(result.current?.currentEvent?.sequence).toBe(1);
-    expect(result.current?.eventIndex).toBe(1);
+    expect(result.current?.currentEvent).toBeNull();
+    expect(result.current?.eventIndex).toBe(0);
     expect(result.current?.displayGrid).toEqual(REPLAY_GRID);
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => result.current?.activeLineIds[0] === "top");
     expect(result.current?.activeLineIds).toEqual(["top"]);
     expect(result.current?.displayGrid).toEqual(REPLAY_GRID);
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => result.current?.activePartId === "lemon-infection");
     expect(result.current?.activeLineIds).toEqual([]);
     expect(result.current?.activePartId).toBe("lemon-infection");
     expect(result.current?.displayGrid).toEqual(REPLAY_GRID);
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => result.current?.changedCells.length === 1);
     expect(result.current?.activePartId).toBeNull();
     expect(result.current?.changedCells).toEqual([{ reel: 0, row: 1 }]);
     expect(result.current?.displayGrid).toEqual(changed);
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => result.current?.currentEvent?.type === "PAYOUT_COMPLETE");
     expect(result.current?.currentEvent?.type).toBe("PAYOUT_COMPLETE");
     expect(result.current?.changedCells).toEqual([]);
     expect(result.current?.displayGrid).toEqual(changed);
@@ -262,17 +416,20 @@ describe("useSettlementPresentation", () => {
       onCommand: vi.fn()
     }));
 
-    await act(async () => vi.advanceTimersByTimeAsync(300));
     act(() => result.current?.speedUp());
     expect(result.current?.accelerated).toBe(true);
-    await act(async () => vi.advanceTimersByTimeAsync(49));
+    await act(async () => vi.advanceTimersByTimeAsync(119));
+    expect(result.current?.eventIndex).toBe(0);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(result.current?.eventIndex).toBe(1);
+    await act(async () => vi.advanceTimersByTimeAsync(79));
     expect(result.current?.eventIndex).toBe(1);
     await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(result.current?.eventIndex).toBe(2);
-    await act(async () => vi.advanceTimersByTimeAsync(49));
-    expect(result.current?.eventIndex).toBe(2);
+    await act(async () => vi.advanceTimersByTimeAsync(79));
+    expect(result.current?.visiblePayoutTarget).toBe(0);
     await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(result.current?.eventIndex).toBe(3);
+    expect(result.current?.visiblePayoutTarget).toBe(25);
   });
 
   it("pauses and clears the active timer, then resumes from a fresh full delay", async () => {
@@ -284,16 +441,16 @@ describe("useSettlementPresentation", () => {
       { initialProps: { paused: false } }
     );
 
-    await act(async () => vi.advanceTimersByTimeAsync(200));
+    await act(async () => vi.advanceTimersByTimeAsync(60));
     rerender({ paused: true });
     await act(async () => vi.advanceTimersByTimeAsync(1_000));
-    expect(result.current?.eventIndex).toBe(1);
+    expect(result.current?.eventIndex).toBe(0);
     expect(onCommand).not.toHaveBeenCalled();
     rerender({ paused: false });
-    await act(async () => vi.advanceTimersByTimeAsync(349));
-    expect(result.current?.eventIndex).toBe(1);
+    await act(async () => vi.advanceTimersByTimeAsync(119));
+    expect(result.current?.eventIndex).toBe(0);
     await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(result.current?.eventIndex).toBe(2);
+    expect(result.current?.eventIndex).toBe(1);
   });
 
   it("automatically completes normal and zero-event settlement exactly once, including Strict Mode rerenders", async () => {
@@ -322,7 +479,7 @@ describe("useSettlementPresentation", () => {
       reducedMotion: false,
       onCommand: onEmpty
     }), { wrapper: StrictMode });
-    await act(async () => vi.advanceTimersByTimeAsync(0));
+    await act(async () => vi.advanceTimersByTimeAsync(350));
     expect(onEmpty.mock.calls).toEqual([[{ type: "PRESENTATION_COMPLETE" }]]);
   });
 
@@ -426,11 +583,14 @@ describe("useSettlementPresentation", () => {
     expect(onCommand).not.toHaveBeenCalled();
 
     rerender({ paused: false });
+    await act(async () => vi.advanceTimersByTimeAsync(120));
     expect(starts).toBe(3);
     expect(navigator.vibrate).toHaveBeenCalledTimes(1);
     expect(navigator.vibrate).toHaveBeenCalledWith(12);
     rerender({ paused: false });
     expect(starts).toBe(3);
+    expect(navigator.vibrate).toHaveBeenCalledTimes(1);
+    await advancePresentationUntil(() => onCommand.mock.calls.length === 1);
     expect(navigator.vibrate).toHaveBeenCalledTimes(1);
 
     if (audioDescriptor === undefined) Reflect.deleteProperty(window, "AudioContext");
@@ -520,12 +680,12 @@ describe("useSettlementPresentation", () => {
       { initialProps: { reducedMotion: false } }
     );
 
-    expect(result.current?.currentEvent?.sequence).toBe(1);
+    expect(result.current?.currentEvent).toBeNull();
     await act(async () => vi.advanceTimersByTimeAsync(100));
     rerender({ reducedMotion: true });
-    await act(async () => vi.advanceTimersByTimeAsync(0));
-    expect(result.current?.eventIndex).toBeGreaterThanOrEqual(2);
-    expect(result.current?.eventIndex).toBeLessThanOrEqual(3);
+    await advancePresentationUntil(() => result.current?.done === true);
+    expect(result.current?.visiblePayoutTarget).toBe(25);
+    expect(result.current?.done).toBe(true);
   });
 
   it("uses the authoritative resolved grid at payout and skip after a real food removal without guessing a row", async () => {
@@ -563,9 +723,9 @@ describe("useSettlementPresentation", () => {
       onCommand: onFull
     }));
 
-    expect(full.result.current?.displayGrid).toEqual(original);
+    expect(full.result.current?.displayGrid).toEqual(authoritative);
     while (full.result.current?.currentEvent?.type !== "PAYOUT_COMPLETE") {
-      await act(async () => vi.advanceTimersByTimeAsync(350));
+      await act(async () => vi.advanceTimersToNextTimerAsync());
     }
     expect(full.result.current?.displayGrid).toEqual(authoritative);
     full.unmount();
@@ -720,7 +880,8 @@ describe("presentation recovery UI", () => {
     const dialog = screen.getByRole("dialog", { name: "恢复上次进度" });
     expect(within(dialog).getByRole("button", { name: "继续演出" })).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "直接结算" })).toBeVisible();
-    expect(screen.getByText(`余额 ¥${saved.bankroll}`)).toBeVisible();
+    const receipt = saved.spinHistory.at(-1)!;
+    expect(screen.getByText(`余额 ¥${receipt.bankrollBefore - receipt.wager}`, { selector: ".sr-only" })).toBeVisible();
   });
 
   it("wires the current causal event to exact line cells, the equipped part lamp, and a truthful reel highlight", async () => {
@@ -738,16 +899,17 @@ describe("presentation recovery UI", () => {
     render(createElement(GameScreen, { seed: 707, initialState: state }));
 
     expect(screen.getByText("食物加成 0 层")).toBeVisible();
+    await act(async () => vi.advanceTimersByTimeAsync(120));
     const cells = screen.getAllByTestId("cell");
     expect(cells.filter((cell) => cell.getAttribute("data-highlighted") === "true").map((cell) => cell.getAttribute("data-cell"))).toEqual([
       "0-0", "1-0", "2-0"
     ]);
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => screen.queryByText(/果酱罐：/) !== null);
     const activeParts = screen.getAllByTestId("part-slot").filter((slot) => slot.getAttribute("data-active") === "true");
     expect(activeParts).toHaveLength(1);
     expect(activeParts[0]).toHaveTextContent("果酱罐 · L1");
     expect(screen.getByText("食物加成 0 层")).toBeVisible();
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => screen.queryByText(/第2轮食物已消耗/) !== null);
     expect(screen.getAllByTestId("reel").map((reel) => reel.getAttribute("data-reel-highlighted"))).toEqual([
       null, "true", null
     ]);
@@ -771,7 +933,7 @@ describe("presentation recovery UI", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       if (this.classList.contains("game-screen")) return rect(10, 20, 320, 700);
       if (this.classList.contains("slot-machine")) return rect(30, 260, 280, 180);
-      if (this.classList.contains("is-payout-destination")) return rect(28, 80, 100, 30);
+      if (this.getAttribute("data-coin-destination") === "true") return rect(28, 80, 100, 30);
       return rect(0, 0, 0, 0);
     });
     const resolving = manualResolvingState([
@@ -784,7 +946,8 @@ describe("presentation recovery UI", () => {
     const burst = screen.getByTestId("coin-burst");
     expect(cabinet).toHaveAttribute("data-coin-cabinet", "true");
     expect(screen.getByRole("region", { name: "老虎机转轮" })).toHaveAttribute("data-coin-source", "true");
-    expect(screen.getByText("余额 ¥120")).toHaveAttribute("data-coin-destination", "true");
+    expect(container.querySelector('[data-counter="bankroll"]')).toHaveTextContent("余额 ¥100");
+    expect(container.querySelector('[data-counter="bankroll"]')).toHaveAttribute("data-coin-destination", "true");
     expect(burst.parentElement).toBe(cabinet);
     expect(within(screen.getByRole("region", { name: "结算演出队列" })).queryByTestId("coin-burst")).not.toBeInTheDocument();
     expect(burst).toHaveAttribute("data-source-x", "160");
@@ -808,10 +971,10 @@ describe("presentation recovery UI", () => {
 
     expect(screen.getByText(/本转状态：未触发/)).toBeInTheDocument();
     expect(screen.getAllByTestId("part-slot").filter((slot) => slot.getAttribute("data-active") === "true")).toHaveLength(0);
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => screen.queryByText(/本转状态：已经触发/) !== null);
     expect(screen.getByText(/本转状态：已经触发/)).toBeInTheDocument();
     expect(screen.getAllByTestId("part-slot")[0]).toHaveAttribute("data-active", "true");
-    await act(async () => vi.advanceTimersByTimeAsync(350));
+    await advancePresentationUntil(() => screen.queryByText(/本转状态：因可见裂纹失效/) !== null);
     expect(screen.getByText(/本转状态：因可见裂纹失效/)).toBeInTheDocument();
     expect(screen.getAllByTestId("part-slot").filter((slot) => slot.getAttribute("data-active") === "true")).toHaveLength(0);
   });
@@ -910,7 +1073,7 @@ describe("presentation recovery UI", () => {
     render(createElement(GameScreen, { seed: 85, initialState: resolvingState(85) }));
 
     expect(screen.getByRole("region", { name: "结算演出队列" })).toBeVisible();
-    expect(screen.getByText(/事件 1\/\d+/)).toBeVisible();
+    expect(screen.getByTestId("presentation-progress")).toHaveTextContent(/事件 \d+\/\d+/);
     await user.click(screen.getByRole("button", { name: "直接结算" }));
 
     const persisted = JSON.parse(localStorage.getItem(RUN_STORAGE_KEY)!);
@@ -923,17 +1086,17 @@ describe("presentation recovery UI", () => {
     let isHidden = false;
     vi.spyOn(document, "hidden", "get").mockImplementation(() => isHidden);
     render(createElement(GameScreen, { seed: 86, initialState: resolvingState(86) }));
-    const before = screen.getByText(/事件 1\/\d+/).textContent;
+    const before = screen.getByTestId("presentation-progress").textContent;
 
     isHidden = true;
     act(() => document.dispatchEvent(new Event("visibilitychange")));
     await act(async () => vi.advanceTimersByTimeAsync(500));
-    expect(screen.getByText(/事件 1\/\d+/).textContent).toBe(before);
+    expect(screen.getByTestId("presentation-progress").textContent).toBe(before);
 
     isHidden = false;
     act(() => document.dispatchEvent(new Event("visibilitychange")));
-    await act(async () => vi.advanceTimersByTimeAsync(350));
-    expect(screen.getByText(/事件 2\/\d+/)).toBeVisible();
+    await advancePresentationUntil(() => screen.queryByRole("region", { name: "结算演出队列" }) === null);
+    expect(screen.queryByRole("region", { name: "结算演出队列" })).not.toBeInTheDocument();
   });
 
   it("pauses automatic reel stopping while hidden and restarts the full phase delay when visible", async () => {
@@ -1023,7 +1186,7 @@ describe("presentation recovery UI", () => {
     render(createElement(GameScreen, { seed: 206, initialState: resolving }));
     expect(screen.getByText(/事件 1\/\d+/)).toBeVisible();
     expect(screen.queryByTestId("coin-burst")).not.toBeInTheDocument();
-    await act(async () => vi.advanceTimersByTimeAsync(0));
-    expect(screen.queryByText(/事件 1\/\d+/)).not.toBeInTheDocument();
+    await advancePresentationUntil(() => screen.queryByRole("region", { name: "结算演出队列" }) === null);
+    expect(screen.queryByRole("region", { name: "结算演出队列" })).not.toBeInTheDocument();
   });
 });

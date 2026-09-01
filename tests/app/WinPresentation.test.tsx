@@ -73,6 +73,13 @@ function presentation(
     displayGrid: GRID,
     done: false,
     accelerated: false,
+    settlementStartBankroll: 100,
+    visiblePayoutTarget: currentSummary.total,
+    visibleBankrollTarget: 100 + currentSummary.total,
+    awardDelta: currentSummary.total,
+    moneyResetKey: "test-settlement",
+    moneyAnimationKey: `test-settlement:${currentEvent?.sequence ?? 0}`,
+    moneyDurationMs: 0,
     speedUp: vi.fn(),
     skip: vi.fn(),
     ...patch
@@ -230,6 +237,70 @@ describe("food buff tickets", () => {
 });
 
 describe("WinPresentation", () => {
+  it("renders only staged payout and bankroll targets before the final award is reached", () => {
+    const event = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" } as const;
+    const currentSummary = summary({ total: 35, tier: "chain" });
+    render(<WinPresentation
+      state={state([event], { bankroll: 125 })}
+      presentation={presentation(event, currentSummary, {
+        settlementStartBankroll: 90,
+        visiblePayoutTarget: 20,
+        visibleBankrollTarget: 110,
+        awardDelta: 20,
+        moneyDurationMs: 360
+      })}
+      reducedMotion={false}
+    />);
+
+    const region = screen.getByRole("region", { name: "结算演出队列" });
+    expect(within(region).getAllByTestId("animated-money")[0]).toHaveTextContent("20");
+    expect(within(region).getByText(/飞向余额/)).toHaveTextContent("110");
+    expect(region).not.toHaveTextContent("35");
+    expect(region).not.toHaveTextContent("125");
+    expect(within(region).getByText("本转累计 ¥20，余额 ¥110")).toHaveClass("sr-only");
+  });
+
+  it("does not leak an opaque completion award total during its ignition frame", () => {
+    const event = { sequence: 1, type: "PAYOUT_COMPLETE", total: 35 } as const;
+    render(<WinPresentation
+      state={state([event], { bankroll: 125 })}
+      presentation={presentation(event, summary({ total: 35, tier: "chain" }), {
+        settlementStartBankroll: 90,
+        visiblePayoutTarget: 0,
+        visibleBankrollTarget: 90,
+        awardDelta: 0,
+        moneyAnimationKey: "opaque:ignite",
+        moneyDurationMs: 0
+      })}
+      reducedMotion={false}
+    />);
+
+    const region = screen.getByRole("region", { name: "结算演出队列" });
+    expect(region).toHaveTextContent("赔付正在入账");
+    expect(region).not.toHaveTextContent("35");
+    expect(region).not.toHaveTextContent("125");
+  });
+
+  it.each([
+    [{ sequence: 1, type: "SPIN_COMMITTED", interventionUsed: false, preInterventionPaying: true, finalPayout: 35 } as const, "本转正在确认"],
+    [{ sequence: 1, type: "BLOCK_COMPLETED", bankroll: 125 } as const, "本段正在结算"]
+  ])("masks final-value status events until their staged target is current", (event, expected) => {
+    render(<WinPresentation
+      state={state([event], { bankroll: 125 })}
+      presentation={presentation(event, summary({ total: 35, tier: "chain" }), {
+        settlementStartBankroll: 90,
+        visiblePayoutTarget: 0,
+        visibleBankrollTarget: 90,
+        awardDelta: 0
+      })}
+      reducedMotion={false}
+    />);
+
+    const region = screen.getByRole("region", { name: "结算演出队列" });
+    expect(region).toHaveTextContent(expected);
+    expect(region).not.toHaveTextContent("35");
+    expect(region).not.toHaveTextContent("125");
+  });
   it("keeps exact payout, balance destination, line count, part count, and cause chain visible", () => {
     const event = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" } as const;
     const currentSummary = summary({
@@ -245,8 +316,8 @@ describe("WinPresentation", () => {
     />);
 
     const region = screen.getByRole("region", { name: "结算演出队列" });
-    expect(within(region).getByText("+¥35")).toBeVisible();
-    expect(within(region).getByText("飞向余额 ¥135")).toBeVisible();
+    expect(within(region).getByText("本转累计 ¥35，余额 ¥135")).toBeVisible();
+    expect(within(region).getByText(/飞向余额/)).toHaveTextContent("135");
     expect(within(region).getByText("1 条中奖线 · 1 次部件触发 · 因果链 2")).toBeVisible();
     expect(within(region).getByText("樱桃顶线 +¥20")).toBeVisible();
     expect(within(region).queryByTestId("coin-burst")).not.toBeInTheDocument();
@@ -269,8 +340,8 @@ describe("WinPresentation", () => {
     />);
 
     const region = screen.getByRole("region", { name: "结算演出队列" });
-    expect(within(region).getByText("+¥80")).toBeVisible();
-    expect(within(region).getByText("飞向余额 ¥180")).toBeVisible();
+    expect(within(region).getByText("本转累计 ¥80，余额 ¥180")).toBeVisible();
+    expect(within(region).getByText(/飞向余额/)).toHaveTextContent("180");
     expect(within(region).getByText("机器过载 +¥80")).toBeVisible();
     expect(within(region).queryByTestId("coin-burst")).not.toBeInTheDocument();
     expect(region).toHaveAttribute("data-reduced-motion", "true");

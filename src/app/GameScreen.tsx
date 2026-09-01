@@ -161,7 +161,9 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
             state={game.state}
             estimate={estimate}
             estimateStatus={estimateStatus}
-            payoutAmount={settlementPresentation?.summary.total ?? 0}
+            payoutAmount={settlementPresentation?.awardDelta ?? 0}
+            settlementPresentation={settlementPresentation}
+            reducedMotion={effectiveReducedMotion}
             presentedThroughSequence={presentedThroughSequence}
           />
           <div className="cabinet-stage">
