@@ -1,6 +1,6 @@
 # Settlement clarity acceptance — 2026-09-05
 
-Status: unit/type/build verification and scoped browser acceptance passed; independent final review and the human playtest remain pending.
+Status: automated technical acceptance and independent final review passed; human playtest remains pending.
 
 ## Scope and preserved boundaries
 
@@ -57,6 +57,12 @@ Task 7 browser evidence:
 The settlement flow proves the resolving snapshot is schema v2, uses exported v1/v2 storage keys, creates the receipt through real `SPIN` → `REELS_STOPPED` → `ACCEPT_OUTCOME` commands, stages ¥6 then ¥15 without exposing the final ¥91 early, persists and reloads exactly one ordinal-1 receipt, keeps the resolved nine-cell grid across shift transition, and clears both storage generations for a genuinely fresh run. Paid receipt UI labels use shift/spin text rather than the free-spin-only literal `小票 #1`; the test proves ordinal 1 from state and exactly one rendered ledger receipt.
 
 The controller compared the pre-existing dirty diffs for the protected paytable, package metadata, and seven relevant Task 13 content/core/simulation test paths before and after Tasks 5–6: byte-for-byte unchanged. `RunSummary.tsx`'s explicitly in-scope local RTP experiment was replaced by the approved report. Task 7 likewise did not edit or execute `e2e/complete-run.spec.ts`, did not edit `src/content/base-machine.ts`, and left `package.json`, artifacts, balance scripts, validation fixtures, and all unrelated dirty tests unstaged.
+
+## Final independent review
+
+The independent reviewer approved the integrated production range and Task 7 supplement at `d6189e7` for local technical delivery. Task 7 spec compliance and code quality both passed. Both final findings (missing Node/Vite environment guard and decimal-net formatting) were confirmed addressed, with no new Critical/Important breakage and no outstanding actionable findings.
+
+Evidence remains the 629-test/type/build run at `1f1d938`, followed by the focused 5-test ledger run, fresh typecheck, and 14 browser cases passing cumulatively. It is not a claim of one final all-green full-suite rerun. Reduced-motion browser evidence proves durable final receipt information, not every transient highlight frame. This is acceptance of the preserved local baseline, not clean-checkout reproducibility from feature commits alone.
 
 ## Human acceptance gate
 
