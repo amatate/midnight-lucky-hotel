@@ -392,6 +392,28 @@ describe("GameScreen", () => {
     expect(screen.getByRole("button", { name: "放弃升级" })).toBeVisible();
   });
 
+  it("remounts the cabinet with the third receipt's resolved grid after the upgrade scene", async () => {
+    vi.useFakeTimers();
+    render(<GameScreen seed={123} />);
+    await chooseFirstService();
+
+    await completeSpin();
+    await completeSpin();
+    await completeSpin();
+
+    expect(screen.getAllByTestId("upgrade-card")).toHaveLength(3);
+    expect(screen.queryByRole("region", { name: "老虎机转轮" })).not.toBeInTheDocument();
+    const saved = JSON.parse(localStorage.getItem(RUN_STORAGE_KEY) ?? "null") as RunState | null;
+    const resolvedGrid = saved?.spinHistory.at(-1)?.finalGrid;
+    if (resolvedGrid === undefined) throw new Error("third receipt fixture was not persisted");
+    const resolvedLabels = resolvedGrid.flatMap((reel) => reel.map((symbol) => SYMBOL_LABELS[symbol]));
+
+    fireEvent.click(screen.getByRole("button", { name: "放弃升级" }));
+
+    const machine = screen.getByRole("region", { name: "老虎机转轮" });
+    expect(within(machine).getAllByRole("img").map((cell) => cell.getAttribute("aria-label"))).toEqual(resolvedLabels);
+  });
+
   it("turns an upgrade boundary into the only full-width decision scene and hides the play cabinet", () => {
     render(<GameScreen seed={59} initialState={offeredState("lemon-crate")} />);
 

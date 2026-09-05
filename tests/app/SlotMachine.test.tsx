@@ -88,6 +88,26 @@ beforeEach(() => {
 });
 
 describe("SlotMachine", () => {
+  it("uses the idle receipt grid without suppressing the next real reel motion", () => {
+    const ready = { ...createRun(500), phase: "READY_TO_SPIN" as const, service: "repair" as const };
+    const spinning = stateWithGrid(FINAL_GRID, "SPINNING");
+    const { rerender } = render(
+      <SlotMachine state={ready} motionPlan={null} reducedMotion={false} idleGrid={STABLE_GRID} />
+    );
+    const machine = screen.getByRole("region", { name: "老虎机转轮" });
+
+    expect(labelsIn(machine)).toEqual(Array.from({ length: 9 }, () => "空白"));
+
+    rerender(
+      <SlotMachine state={spinning} motionPlan={BASE_PLAN} reducedMotion={false} idleGrid={STABLE_GRID} />
+    );
+    expect(screen.getAllByTestId("filler-tape")).toHaveLength(3);
+    expect(labelsIn(machine)).toEqual([]);
+
+    act(() => vi.advanceTimersByTime(BASE_PLAN.completeAtMs));
+    expect(labelsIn(machine)).toEqual(FINAL_GRID.flatMap((reel) => reel.map((symbol) => TEST_SYMBOL_LABELS[symbol])));
+  });
+
   it("keeps every authoritative label private until that reel reaches its planned stop", () => {
     const stable = stateWithGrid(STABLE_GRID, "AWAITING_INTERVENTION");
     const spinning = stateWithGrid(FINAL_GRID, "SPINNING");

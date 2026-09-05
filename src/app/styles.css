@@ -268,7 +268,7 @@ h3 {
   min-width: 0;
   margin-bottom: 0;
   display: grid;
-  grid-template-columns: 1.18fr 1fr 0.86fr;
+  grid-template-columns: minmax(0, 1.18fr) 44px minmax(0, 1fr) minmax(0, 0.86fr);
   gap: 5px;
 }
 
@@ -317,6 +317,186 @@ h3 {
   gap: 3px 8px;
   color: color-mix(in srgb, var(--enamel) 76%, var(--brass));
   font-size: 0.7rem;
+}
+
+.ledger-drawer {
+  min-width: 0;
+}
+
+.ledger-trigger,
+.ledger-close {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.ledger-trigger {
+  width: 100%;
+  padding-inline: 4px;
+  color: var(--ink);
+  border-color: var(--brass);
+  background: var(--enamel);
+  font-family: "Barlow Condensed", "PingFang SC", sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.page-ledger {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.page-ledger .ledger-trigger {
+  width: auto;
+  min-width: 88px;
+  padding-inline: 14px;
+}
+
+.ledger-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  padding: max(12px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+  display: grid;
+  place-items: end center;
+  background: color-mix(in srgb, var(--ink) 78%, transparent);
+}
+
+.ledger-sheet {
+  width: min(100%, 430px);
+  max-height: 72dvh;
+  padding: 14px 14px max(18px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--ink);
+  border: 2px solid var(--brass);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background:
+    linear-gradient(90deg, transparent 0 23px, color-mix(in srgb, var(--hotel-red) 22%, transparent) 23px 24px, transparent 24px),
+    var(--enamel);
+  box-shadow: 0 -14px 42px color-mix(in srgb, var(--ink) 78%, transparent), inset 0 0 0 2px color-mix(in srgb, var(--brass) 18%, transparent);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.ledger-heading {
+  padding-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid var(--brass);
+}
+
+.ledger-heading h2 {
+  margin: 0;
+  color: var(--hotel-red);
+  font-size: 1.35rem;
+}
+
+.ledger-heading .eyebrow {
+  color: color-mix(in srgb, var(--brass) 72%, var(--ink));
+}
+
+.ledger-close {
+  flex: 0 0 auto;
+  color: var(--enamel);
+  background: var(--hotel-red);
+}
+
+.ledger-empty {
+  margin: 18px 8px 4px;
+  color: color-mix(in srgb, var(--ink) 72%, var(--brass));
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.ledger-receipts {
+  display: grid;
+}
+
+.ledger-receipt {
+  padding: 9px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--brass) 72%, transparent);
+}
+
+.ledger-receipt-toggle {
+  width: 100%;
+  padding: 7px 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px 10px;
+  color: var(--ink);
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.ledger-receipt-toggle:hover:not(:disabled) {
+  color: var(--hotel-red);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--brass) 12%, transparent);
+}
+
+.ledger-receipt-toggle > span {
+  min-width: 0;
+  font-family: "Smiley Sans", "PingFang SC", sans-serif;
+  font-size: 0.92rem;
+}
+
+.ledger-receipt-toggle > strong {
+  color: var(--hotel-red);
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.ledger-receipt-details {
+  margin: 3px 8px 0;
+  padding-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--brass) 42%, transparent);
+  font-family: "Barlow Condensed", "PingFang SC", sans-serif;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.ledger-receipt-details dt,
+.ledger-receipt-details dd {
+  margin: 0;
+}
+
+.ledger-receipt-details dd {
+  text-align: right;
+}
+
+.ledger-award {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.ledger-award dd {
+  display: grid;
+  justify-items: end;
+}
+
+.ledger-formula {
+  color: color-mix(in srgb, var(--ink) 66%, var(--brass));
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+
+.ledger-total {
+  padding-top: 6px;
+  color: var(--hotel-red);
+  border-top: 1px double var(--brass);
+  font-weight: 800;
 }
 
 .food-buff-status {
@@ -1437,6 +1617,8 @@ select {
   .part-socket-button { padding-inline: 1px; }
   .context-tray { padding-inline: 10px; }
   .ticket-stub { display: grid; }
+  .ledger-receipt-toggle { grid-template-columns: 1fr; }
+  .ledger-receipt-toggle > strong { white-space: normal; }
 }
 
 @media (min-width: 390px) {

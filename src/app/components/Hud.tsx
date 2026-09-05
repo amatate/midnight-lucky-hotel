@@ -1,5 +1,6 @@
 import { SYMBOL_LABELS } from "@/app/labels";
 import { AnimatedMoney } from "@/app/components/AnimatedMoney";
+import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
 import { getCurrentBet } from "@/core/progression";
 import type { RunState, SymbolId } from "@/core/types";
@@ -77,6 +78,7 @@ export function Hud({
             </span>
           </dd>
         </div>
+        <LedgerDrawer receipts={state.spinHistory} />
         <div className="room-counter">
           <dt className="sr-only">目标</dt>
           <dd data-counter="target">目标 ¥{state.checkoutTarget}</dd>

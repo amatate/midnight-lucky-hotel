@@ -9,6 +9,7 @@ export interface SlotMachineProps {
   readonly motionPlan: ReelMotionPlan | null;
   readonly reducedMotion: boolean;
   readonly displayGrid?: Grid | null;
+  readonly idleGrid?: Grid | null;
   readonly highlightedLineIds?: readonly LineWin["lineId"][];
   readonly changedCells?: readonly { reel: ReelIndex; row: RowIndex }[];
   readonly highlightedReels?: readonly ReelIndex[];
@@ -97,6 +98,7 @@ export function SlotMachine({
   motionPlan,
   reducedMotion,
   displayGrid,
+  idleGrid,
   highlightedLineIds = [],
   changedCells = [],
   highlightedReels = [],
@@ -107,7 +109,7 @@ export function SlotMachine({
   const activePlan = state.phase === "SPINNING" && !explicitReplay ? motionPlan : null;
   const timerKey = motionTimerIdentity(activePlan, reducedMotion);
   const immediateGrid = explicitReplay ? displayGrid : state.pendingSpin?.draw.grid;
-  const [stableGrid, setStableGrid] = useState<Grid>(() => immediateGrid ?? stripPreview(state));
+  const [stableGrid, setStableGrid] = useState<Grid>(() => immediateGrid ?? idleGrid ?? stripPreview(state));
   const observation = useRef<StableObservation>({
     initialSeed: state.initialSeed,
     commandHistoryLength: state.commandHistory.length,
@@ -128,7 +130,7 @@ export function SlotMachine({
     if (explicitReplay) {
       nextStable = displayGrid;
     } else if (resetRun) {
-      nextStable = state.pendingSpin?.draw.grid ?? stripPreview(state);
+      nextStable = state.pendingSpin?.draw.grid ?? idleGrid ?? stripPreview(state);
     } else if (activePlan === null && state.pendingSpin !== null) {
       nextStable = state.pendingSpin.draw.grid;
     } else if (state.pendingSpin === null && !previous.hadPendingSpin && state.reels !== previous.reels) {
@@ -142,7 +144,7 @@ export function SlotMachine({
       hadPendingSpin: state.pendingSpin !== null,
       reels: state.reels
     };
-  }, [activePlan, displayGrid, explicitReplay, stableGrid, state]);
+  }, [activePlan, displayGrid, explicitReplay, idleGrid, stableGrid, state]);
 
   useEffect(() => {
     if (activePlan === null || timerKey === null) {

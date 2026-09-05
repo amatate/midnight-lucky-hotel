@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActionBar, selectedPaidBetIsUnaffordable } from "@/app/components/ActionBar";
 import { CoinBurst } from "@/app/components/CoinBurst";
 import { Hud } from "@/app/components/Hud";
+import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { PartsBar } from "@/app/components/PartsBar";
 import { PullLever } from "@/app/components/PullLever";
 import { RunSummary } from "@/app/components/RunSummary";
@@ -172,6 +173,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
               motionPlan={visibleMotionPlan}
               reducedMotion={effectiveReducedMotion}
               displayGrid={settlementPresentation?.displayGrid ?? null}
+              idleGrid={game.state.spinHistory.at(-1)?.finalGrid ?? null}
               highlightedLineIds={settlementPresentation?.activeLineIds ?? []}
               changedCells={settlementPresentation?.changedCells ?? []}
               highlightedReels={settlementPresentation?.currentEvent?.type === "FOOD_CONSUMED"
@@ -200,6 +202,12 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
             <CoinBurst count={settlementFeedback!.coinCount} />
           )}
         </section>
+      )}
+
+      {!showCabinet && (
+        <div className="page-ledger">
+          <LedgerDrawer receipts={game.state.spinHistory} />
+        </div>
       )}
 
       <section className="context-tray" aria-label="当前决策" data-phase={game.state.phase}>
