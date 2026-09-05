@@ -76,6 +76,30 @@ const OVERTIME_RECEIPT: SpinReceipt = {
 afterEach(cleanup);
 
 describe("LedgerDrawer", () => {
+  it("rounds a derived decimal net without changing stored receipt amounts", async () => {
+    const user = userEvent.setup();
+    const decimalReceipt: SpinReceipt = {
+      ...PAID_RECEIPT,
+      ordinal: 10,
+      awards: [{
+        sequence: 4,
+        kind: "pattern-line",
+        patternId: "fruit-salad",
+        partId: "fruit-salad",
+        lineId: "top",
+        formula: { kind: "known", preMultiplierAmount: 11.11, appliedMultiplier: 1 },
+        amount: 11.11
+      }],
+      totalPayout: 11.11,
+      bankrollAfter: 101.11
+    };
+    render(<LedgerDrawer receipts={[decimalReceipt]} />);
+
+    await user.click(screen.getByRole("button", { name: "账本" }));
+
+    expect(screen.getByRole("button", { name: /第 2 班 · 第 3 转/ })).toHaveTextContent("净 +¥1.11");
+  });
+
   it("portals the open overlay outside its stacking-context host", async () => {
     const user = userEvent.setup();
     const { container } = render(<LedgerDrawer receipts={[]} />);

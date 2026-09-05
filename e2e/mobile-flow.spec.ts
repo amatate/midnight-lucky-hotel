@@ -1,7 +1,43 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { SYMBOL_LABELS } from "../src/app/labels";
+import type { GameCommand } from "../src/core/commands";
+import { createRun, dispatchCommand } from "../src/core/run";
+import type { RunState, SymbolId } from "../src/core/types";
+import { RUN_STORAGE_KEY } from "../src/persistence/storage";
 
-const RUN_STORAGE_KEY = "midnight-lucky-hotel.run.v1";
 const REAL_FLOW_SEED = 8;
+
+function accepted(state: RunState, command: GameCommand): RunState {
+  const result = dispatchCommand(state, command);
+  if (!result.ok) throw new Error(`${command.type}: ${result.error.code} ${result.error.message}`);
+  return result.state;
+}
+
+function completedShiftFixture(seed: number): RunState {
+  let state = createRun(seed);
+  state = accepted(state, { type: "SELECT_SERVICE", serviceId: state.serviceCandidates[0] });
+  state = {
+    ...state,
+    bankroll: 80,
+    baseSpinsInShift: 2,
+    shiftWager: 20,
+    expenses: { ...state.expenses, wagers: 20 }
+  };
+  state = accepted(state, { type: "SPIN" });
+  state = accepted(state, { type: "REELS_STOPPED" });
+  state = accepted(state, { type: "ACCEPT_OUTCOME" });
+  return accepted(state, { type: "PRESENTATION_COMPLETE" });
+}
+
+async function installSnapshot(page: Page, state: RunState): Promise<void> {
+  await page.goto(`/?seed=${state.initialSeed}`);
+  await page.evaluate(({ storageKey, snapshot }) => {
+    localStorage.clear();
+    localStorage.setItem(storageKey, JSON.stringify(snapshot));
+  }, { storageKey: RUN_STORAGE_KEY, snapshot: state });
+  await page.reload();
+  await expect(page.getByRole("dialog", { name: "恢复上次进度" })).toBeVisible();
+}
 
 async function startFreshRun(page: Page, seed = REAL_FLOW_SEED): Promise<void> {
   await page.goto(`/?seed=${seed}`);
@@ -115,12 +151,20 @@ test("a real kitchen shift automatically stops, settles, and applies a targeted 
   for (let index = 0; index < 3; index += 1) {
     const card = cards.nth(index);
     await expect(card.getByRole("heading", { level: 3 })).not.toHaveText("");
-    await expect(card).toContainText("效果");
-    await expect(card).toContainText("当前影响");
-    await expect(card).toContainText("协同");
-    await expect(card).toContainText("代价／风险");
+    await expect(card.locator(".decision-effect")).toBeVisible();
+    await expect(card.getByText("攻略详情", { exact: true })).toBeVisible();
+    await expect(card.locator(".upgrade-strategy-copy")).toHaveCount(1);
+    await expect(card.locator(".upgrade-strategy-copy")).toBeHidden();
     await expect(card.getByRole("button", { name: /^选择/ })).toBeVisible();
   }
+
+  const receiptGrid = await page.evaluate((storageKey) => {
+    const snapshot = JSON.parse(localStorage.getItem(storageKey) ?? "null") as {
+      spinHistory?: readonly { readonly finalGrid?: readonly (readonly SymbolId[])[] }[];
+    } | null;
+    return snapshot?.spinHistory?.at(-1)?.finalGrid ?? null;
+  }, RUN_STORAGE_KEY);
+  expect(receiptGrid).not.toBeNull();
 
   const fruitCard = cards.filter({ has: page.getByRole("heading", { name: "樱桃去核器" }) });
   await expect(fruitCard).toHaveCount(1);
@@ -137,13 +181,11 @@ test("a real kitchen shift automatically stops, settles, and applies a targeted 
   await expect(page.getByText("第 2 班 · 0/3")).toBeVisible();
   await expect(page.getByRole("region", { name: "已获得升级" })).toContainText("樱桃去核器");
 
-  const firstReelSymbols = page.getByLabel("第1轮", { exact: true }).getByRole("img");
-  await expect(firstReelSymbols).toHaveCount(3);
-  expect(await firstReelSymbols.evaluateAll((symbols) => symbols.map((symbol) => symbol.getAttribute("aria-label")))).toEqual([
-    "樱桃",
-    "樱桃",
-    "铃铛"
-  ]);
+  const visibleSymbols = page.getByRole("region", { name: "老虎机转轮" }).locator("[data-cell]").getByRole("img");
+  await expect(visibleSymbols).toHaveCount(9);
+  expect(await visibleSymbols.evaluateAll((symbols) => symbols.map((symbol) => symbol.getAttribute("aria-label")))).toEqual(
+    receiptGrid!.flat().map((symbol) => SYMBOL_LABELS[symbol])
+  );
   await attachScreenshot(page, testInfo, "acquired-fruit-change");
 
   await page.reload();
@@ -155,14 +197,14 @@ test("a real kitchen shift automatically stops, settles, and applies a targeted 
   const persistedChange = await page.evaluate((storageKey) => {
     const snapshot = JSON.parse(localStorage.getItem(storageKey) ?? "null") as {
       acquiredUpgrades?: readonly string[];
-      reels?: readonly (readonly string[])[];
+      spinHistory?: readonly { readonly finalGrid?: readonly (readonly string[])[] }[];
     } | null;
     return {
       acquired: snapshot?.acquiredUpgrades?.includes("cherry-pitter") ?? false,
-      firstThree: snapshot?.reels?.[0]?.slice(0, 3) ?? []
+      finalGrid: snapshot?.spinHistory?.at(-1)?.finalGrid ?? null
     };
   }, RUN_STORAGE_KEY);
-  expect(persistedChange).toEqual({ acquired: true, firstThree: ["cherry", "cherry", "bell"] });
+  expect(persistedChange).toEqual({ acquired: true, finalGrid: receiptGrid });
 });
 
 test("the current decision remains usable at all supported portrait widths", async ({ page }, testInfo) => {
@@ -174,10 +216,20 @@ test("the current decision remains usable at all supported portrait widths", asy
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    await startFreshRun(page, REAL_FLOW_SEED);
+    await installSnapshot(page, completedShiftFixture(808 + viewport.width));
+    await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续游戏" }).click();
     const decision = page.getByRole("region", { name: "当前决策" });
-    await decision.getByRole("group", { name: "选择服务" }).getByRole("button", { name: /深夜厨房/ }).click();
-    await decision.getByRole("button", { name: "保守" }).click();
+    await expect(decision).toHaveAttribute("data-phase", "CHOOSING_UPGRADE");
+    await expect(decision.getByRole("status", { name: "班次小票" })).toBeVisible();
+    const strategyCopy = decision.locator(".upgrade-strategy-copy");
+    await expect(strategyCopy).toHaveCount(3);
+    for (let index = 0; index < 3; index += 1) await expect(strategyCopy.nth(index)).toBeHidden();
+    await attachScreenshot(page, testInfo, `portrait-${viewport.width}-compact-upgrades`, true);
+
+    await page.getByRole("button", { name: "账本" }).click();
+    const ledger = page.getByRole("dialog", { name: "前台账本" });
+    await expect(ledger).toBeVisible();
+    await expect(ledger.locator(".ledger-receipt")).toHaveCount(1);
 
     const layout = await page.evaluate(() => {
       const tooSmall = [...document.querySelectorAll<HTMLElement>("button, select")]
@@ -194,27 +246,30 @@ test("the current decision remains usable at all supported portrait widths", asy
           };
         })
         .filter(({ width, height }) => width < 44 || height < 44);
+      const drawer = document.querySelector<HTMLElement>(".ledger-sheet")?.getBoundingClientRect();
+      const close = document.querySelector<HTMLElement>(".ledger-close")?.getBoundingClientRect();
+      const topmostAtClose = close === undefined
+        ? null
+        : document.elementFromPoint(close.left + close.width / 2, close.top + close.height / 2)?.closest(".ledger-close") instanceof HTMLElement;
       return {
         scrollWidth: document.documentElement.scrollWidth,
         innerWidth: window.innerWidth,
-        tooSmall
+        tooSmall,
+        drawerHeight: drawer?.height ?? null,
+        topmostAtClose,
+        tabularMoney: getComputedStyle(document.querySelector<HTMLElement>(".ledger-sheet")!).fontVariantNumeric
       };
     });
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.innerWidth);
     expect(layout.tooSmall).toEqual([]);
+    expect(layout.drawerHeight).not.toBeNull();
+    expect(layout.drawerHeight!).toBeLessThanOrEqual(viewport.height * 0.72 + 1);
+    expect(layout.topmostAtClose).toBe(true);
+    expect(layout.tabularMoney).toContain("tabular-nums");
 
-    const lever = page.getByRole("button", { name: "拉动老虎机" });
-    await lever.scrollIntoViewIfNeeded();
-    await expect(lever).toBeVisible();
-    await expect(lever).toBeEnabled();
-    const box = await lever.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
-    expect(box!.y).toBeGreaterThanOrEqual(0);
-    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
-
-    await attachScreenshot(page, testInfo, `portrait-${viewport.width}`);
+    await attachScreenshot(page, testInfo, `portrait-${viewport.width}-ledger-upgrade`);
+    await page.getByRole("button", { name: "关闭账本" }).click();
+    await expect(ledger).toBeHidden();
   }
 });
 

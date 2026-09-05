@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { UPGRADES } from "@/content/upgrades";
+import { safeMoney } from "@/core/money";
 import { isSpinReceipt } from "@/core/receipts";
 import type { LineWin, ReceiptAward, SpinReceipt } from "@/core/types";
 
@@ -168,7 +169,7 @@ export function LedgerDrawer({ receipts }: LedgerDrawerProps): React.JSX.Element
                     onClick={() => setExpandedOrdinal(expanded ? null : receipt.ordinal)}
                   >
                     <span>{receiptLabel(receipt)}</span>
-                    <strong>{wagerMoney(receipt.wager)} → {positiveMoney(receipt.totalPayout)} · 净 {signedMoney(receipt.totalPayout - receipt.wager)}</strong>
+                    <strong>{wagerMoney(receipt.wager)} → {positiveMoney(receipt.totalPayout)} · 净 {signedMoney(safeMoney(receipt.totalPayout - receipt.wager))}</strong>
                   </button>
                   {expanded && <div id={detailsId}><ReceiptDetails receipt={receipt} /></div>}
                 </article>

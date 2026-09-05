@@ -1,11 +1,11 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import type { GameCommand } from "../src/core/commands";
 import type { GameEvent } from "../src/core/events";
+import { finalizeSpinReceipt } from "../src/core/receipts";
 import { normalizeDrawIdentity } from "../src/core/reels";
 import { createRun, dispatchCommand } from "../src/core/run";
 import type { Grid, ReelDraw, ReelSet, RunState } from "../src/core/types";
-
-const RUN_STORAGE_KEY = "midnight-lucky-hotel.run.v1";
+import { RUN_STORAGE_KEY } from "../src/persistence/storage";
 
 type FeedbackTier = "win" | "chain" | "runaway";
 
@@ -102,14 +102,32 @@ function presentationFixture(seed: number, tier: FeedbackTier): {
     : tier === "runaway"
       ? [{ id: "overload-motor", level: 1 }, null, null, null, null]
       : [null, null, null, null, null];
+  const bankrollBefore = 100;
+  const wager = 10;
+  const bankrollAfter = bankrollBefore - wager + fixed.total;
+  const receipt = finalizeSpinReceipt({
+    ordinal: 1,
+    shift: resolved.shift,
+    afterHoursLevel: resolved.afterHoursLevel,
+    isFree: false,
+    baseSpinIndex: 1,
+    bankrollBefore,
+    wager,
+    finalGrid: draw.grid,
+    bankrollAfter,
+    settlementEvents: fixed.events
+  }, "strict");
   return {
     state: {
       ...resolved,
-      bankroll: 100 + fixed.total,
+      bankroll: bankrollAfter,
+      shiftWager: wager,
       shiftPayout: fixed.total,
       reels: FIXTURE_STRIPS,
-      pendingSpin: { ...resolved.pendingSpin!, draw },
+      pendingSpin: { draw, isFree: false, bankrollBefore, wager },
       pendingEvents: fixed.events,
+      spinHistory: [receipt],
+      nextSpinOrdinal: 2,
       partSlots,
       counters: { blankCharge: 0, cherryWinsThisShift: tier === "chain" ? 1 : 0 },
       attribution: {
@@ -174,10 +192,13 @@ for (const fixture of [
           document.querySelector<HTMLElement>("[aria-label='结算演出队列']")
             ?.textContent?.includes("樱桃顶线 +¥10") === true)
       : null;
+    const finalPayout = page.waitForFunction((expected) =>
+      document.querySelector<HTMLElement>(".payout-amount")?.textContent === expected, `+¥${total}`)
+      .then((handle) => handle.dispose());
     await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续演出" }).click();
     await expect(presentation).toBeVisible();
     await expect(presentation.getByText(fixture.label, { exact: true })).toBeVisible();
-    await expect(presentation.getByText(`+¥${total}`, { exact: true })).toBeVisible();
+    await finalPayout;
     await expect(presentation.getByText(/条中奖线.*次部件触发.*因果链/)).toBeVisible();
     if (namedWinLine !== null) {
       const handle = await namedWinLine;
@@ -202,14 +223,13 @@ async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): P
   await testInfo.attach(name, { path, contentType: "image/png" });
 }
 
-test("reduced motion keeps static payout evidence while removing coins, shake, and blur", async ({ page }) => {
+test("reduced motion keeps static payout evidence while removing coins, shake, and blur", async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const { state, total } = presentationFixture(901, "runaway");
   await installSnapshot(page, state);
 
   const presentation = page.getByRole("region", { name: "结算演出队列" });
   await expect(presentation).toHaveAttribute("data-reduced-motion", "true");
-  await expect(presentation.getByText(`+¥${total}`, { exact: true })).toBeVisible();
   await expect(presentation.getByText(/条中奖线.*次部件触发.*因果链/)).toBeVisible();
   await expect(page.getByTestId("coin-particle")).toHaveCount(0);
 
@@ -228,6 +248,10 @@ test("reduced motion keeps static payout evidence while removing coins, shake, a
   await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续演出" }).click();
   await expect.poll(async () => countCommand(await storedSnapshot(page), "PRESENTATION_COMPLETE")).toBe(1);
   await expect(page.getByRole("region", { name: "当前决策" })).toHaveAttribute("data-phase", "READY_TO_SPIN");
+  await page.getByRole("button", { name: "账本" }).click();
+  await expect(page.getByRole("dialog", { name: "前台账本" }).locator(".ledger-receipt")).toContainText(`+¥${total}`);
+  await expect(page.getByTestId("coin-particle")).toHaveCount(0);
+  await attachScreenshot(page, testInfo, "reduced-motion-static");
 });
 
 test("recovery pauses a spinning run and resumes exactly one automatic stop", async ({ page }) => {

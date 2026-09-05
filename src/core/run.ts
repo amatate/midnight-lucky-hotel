@@ -323,7 +323,7 @@ function acceptOutcome(state: RunState, command: Extract<GameCommand, { type: "A
   const receiptState = appendSettlementReceipt(
     state,
     settlement,
-    import.meta.env.PROD ? "production-fallback" : "strict"
+    import.meta.env?.PROD === true ? "production-fallback" : "strict"
   );
   return accepted(receiptState, command, settlement.events, {
     phase: "RESOLVING_EFFECTS",
