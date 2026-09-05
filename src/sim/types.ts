@@ -1,6 +1,5 @@
 import type {
   AttributionSource,
-  ExpenseSource,
   PartInstance,
   ReelSet,
   SymbolId,
@@ -30,11 +29,12 @@ export interface MachineEstimate {
 }
 
 export interface RunSummaryData {
-  readonly rtpTrajectory: readonly MachineEstimate[];
-  readonly largestIncomeSource: AttributionSource;
-  readonly largestExpenseSource: ExpenseSource;
-  readonly incompleteSynergy: UpgradeId | null;
-  readonly explanation: string;
+  readonly totalWager: number;
+  readonly totalPayout: number;
+  readonly bankrollDelta: number;
+  readonly largestIncome: { readonly source: AttributionSource; readonly amount: number } | null;
+  readonly buildSuggestion: UpgradeId | null;
+  readonly currentRtp: number | null;
 }
 
 export interface EstimateWorkerRequest {

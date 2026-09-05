@@ -1,6 +1,7 @@
 import { UPGRADES, UPGRADE_IDS } from "@/content/upgrades";
 import { getDominantRoute } from "@/core/candidates";
-import type { AttributionSource, ExpenseSource, RunState, UpgradeId } from "@/core/types";
+import { safeMoney } from "@/core/money";
+import type { AttributionSource, RunState, UpgradeId } from "@/core/types";
 import type { MachineEstimate, RunSummaryData } from "@/sim/types";
 
 const ATTRIBUTION_SOURCES = [
@@ -11,28 +12,7 @@ const ATTRIBUTION_SOURCES = [
   "agitation",
   "overload"
 ] as const satisfies readonly AttributionSource[];
-const EXPENSE_SOURCES = ["wagers", "kitchen", "chapel", "repair"] as const satisfies readonly ExpenseSource[];
-
-const INCOME_LABELS = {
-  base: "基础赔付",
-  part: "机器部件",
-  intervention: "干预",
-  service: "服务",
-  agitation: "躁动加成",
-  overload: "过载"
-} as const satisfies Readonly<Record<AttributionSource, string>>;
-const EXPENSE_LABELS = {
-  wagers: "下注",
-  kitchen: "厨房",
-  chapel: "教堂",
-  repair: "维修"
-} as const satisfies Readonly<Record<ExpenseSource, string>>;
-
-function largestSource<T extends string>(sources: readonly T[], values: Readonly<Record<T, number>>): T {
-  return sources.reduce((largest, source) => values[source] > values[largest] ? source : largest, sources[0]!);
-}
-
-function incompleteSynergy(state: RunState): UpgradeId | null {
+function buildSuggestion(state: RunState): UpgradeId | null {
   const dominantRoute = getDominantRoute(state);
   const equippedIds = new Set(state.partSlots.flatMap((part) => part === null ? [] : [part.id]));
   const ownedIds = new Set<UpgradeId>([...state.acquiredUpgrades, ...equippedIds]);
@@ -54,26 +34,30 @@ function incompleteSynergy(state: RunState): UpgradeId | null {
   return selected;
 }
 
-function hasHighPositiveRisk(trajectory: readonly MachineEstimate[]): boolean {
-  const latest = [...trajectory].reverse().find(
-    (estimate) => estimate.rtpMean !== null && estimate.ruinProbability !== null
-  );
-  return latest !== undefined && latest.rtpMean! > 1 && latest.ruinProbability! > 0.25;
-}
-
 export function buildRunSummary(
   state: RunState,
   trajectory: readonly MachineEstimate[]
 ): RunSummaryData {
-  const largestIncomeSource = largestSource(ATTRIBUTION_SOURCES, state.attribution);
-  const largestExpenseSource = largestSource(EXPENSE_SOURCES, state.expenses);
+  const totalPayout = ATTRIBUTION_SOURCES.reduce(
+    (total, source) => safeMoney(total + state.attribution[source]),
+    0
+  );
+  const largestIncomeSource = ATTRIBUTION_SOURCES.reduce(
+    (largest, source) => state.attribution[source] > state.attribution[largest] ? source : largest,
+    ATTRIBUTION_SOURCES[0]
+  );
+  const largestIncome = state.attribution[largestIncomeSource] > 0
+    ? { source: largestIncomeSource, amount: state.attribution[largestIncomeSource] }
+    : null;
+  const currentRtp = state.toolLevel >= 2
+    ? [...trajectory].toReversed().map((estimate) => estimate.rtpMean).find((value): value is number => value !== null) ?? null
+    : null;
   return {
-    rtpTrajectory: [...trajectory],
-    largestIncomeSource,
-    largestExpenseSource,
-    incompleteSynergy: incompleteSynergy(state),
-    explanation: hasHighPositiveRisk(trajectory)
-      ? "机器具有正期望，但当前本金下仍有较高破产风险。"
-      : `主要收入来自${INCOME_LABELS[largestIncomeSource]}，主要支出是${EXPENSE_LABELS[largestExpenseSource]}。`
+    totalWager: state.expenses.wagers,
+    totalPayout,
+    bankrollDelta: safeMoney(state.bankroll - 100),
+    largestIncome,
+    buildSuggestion: buildSuggestion(state),
+    currentRtp
   };
 }

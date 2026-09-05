@@ -33,12 +33,40 @@ describe("RunSummary", () => {
 
     expect(screen.getByRole("heading", { name: "本局失败" })).toBeVisible();
     expect(screen.getByText("最终余额 ¥4")).toBeVisible();
-    expect(screen.getByText("主要收入：机器部件")).toBeVisible();
-    expect(screen.getByText("主要支出：下注")).toBeVisible();
+    expect(screen.getByText("余额变化 -¥96")).toBeVisible();
+    expect(screen.getByText("下注 ¥50 · 赔付 ¥38")).toBeVisible();
+    expect(screen.getByText("最大收入：机器部件 +¥30")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "同种子重开" }));
     await user.click(screen.getByRole("button", { name: "下一种子重开" }));
     expect(restartSameSeed).toHaveBeenCalledOnce();
     expect(restartNextSeed).toHaveBeenCalledOnce();
+  });
+
+  it("labels build advice and only shows an eligible current estimate", () => {
+    const state: RunState = {
+      ...createRun(14),
+      phase: "RUN_LOST" as const,
+      service: "kitchen" as const,
+      acquiredUpgrades: ["lemon-crate" as const],
+      partSlots: [{ id: "jam-jar" as const, level: 1 as const }, null, null, null, null],
+      toolLevel: 2 as const
+    };
+    render(
+      <RunSummary
+        state={state}
+        trajectory={[{
+          band: "near-break-even", symbolProbabilities: null, rtpMean: 1.02, rtp95: null,
+          payoutStandardDeviation: null, ruinProbability: null, expectedAffordableSpins: null
+        }]}
+        onCommand={vi.fn()}
+        onRestartSameSeed={vi.fn()}
+        onRestartNextSeed={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("构筑提示：水果沙拉")).toBeVisible();
+    expect(screen.getByText("当前模拟 RTP 102% · 仅为估算")).toBeVisible();
+    expect(screen.queryByText(/RTP 轨迹点|主要支出/)).not.toBeInTheDocument();
   });
 
   it("offers cash out and continue only at an unlocked shift boundary", async () => {

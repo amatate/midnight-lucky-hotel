@@ -23,30 +23,44 @@ function upgradeState(patch: Partial<RunState> = {}): RunState {
 }
 
 describe("UpgradePicker", () => {
-  it("explains all three candidates before selection with exact player-facing role labels and no tags", () => {
+  it("shows compact decision copy and keeps strategy paragraphs behind disclosure", async () => {
+    const user = userEvent.setup();
     const { container } = render(<UpgradePicker state={upgradeState()} onCommand={vi.fn()} />);
 
-    expect(screen.getByText("强化现有组合")).toBeVisible();
-    expect(screen.getByText("修补风险／换路线")).toBeVisible();
-    expect(screen.getByText("高风险改规则")).toBeVisible();
-    expect(screen.getAllByText("效果")).toHaveLength(3);
-    expect(screen.getAllByText("当前影响")).toHaveLength(3);
-    expect(screen.getAllByText("协同")).toHaveLength(3);
-    expect(screen.getAllByText("代价／风险")).toHaveLength(3);
-    expect(screen.getByText(/两个不同转轮，各永久加入 2 个柠檬/)).toBeVisible();
-    expect(screen.getByText(/1 个非樱桃、非百搭符号替换为樱桃/)).toBeVisible();
-    expect(screen.getByText(/此前樱桃中奖线数 × 0.5 × 当前下注/)).toBeVisible();
+    expect(screen.getByText("强化")).toBeVisible();
+    expect(screen.getByText("转向")).toBeVisible();
+    expect(screen.getByText("豪赌")).toBeVisible();
+    const jamJar = screen.getByRole("heading", { name: "果酱罐" }).closest("article")!;
+    expect(jamJar).toHaveTextContent("本班樱桃线越多，后续奖励越高");
+    expect(jamJar).toHaveTextContent("第一条只充能");
+    expect(within(jamJar).getByText(/协同/).closest("p")).not.toBeVisible();
+    expect(within(jamJar).getByText(/代价／风险/).closest("p")).not.toBeVisible();
+    await user.click(within(jamJar).getByText("攻略详情"));
+    expect(within(jamJar).getByText(/此前樱桃中奖线数 × 0.5 × 当前下注/)).toBeVisible();
+    expect(within(jamJar).getByText(/协同/).closest("p")).toBeVisible();
+    expect(within(jamJar).getByText(/代价／风险/).closest("p")).toBeVisible();
     expect(container).not.toHaveTextContent(/reel-growth|reel-control|shift-scaling/);
   });
 
-  it("explains an owned part as an L1 to L2 numerical upgrade before selection", () => {
+  it("explains an owned part as an L1 to L2 numerical upgrade before selection", async () => {
     render(<UpgradePicker state={upgradeState({
       currentCandidates: { synergy: "jam-jar", pivot: "cherry-pitter", wildcard: "lemon-crate" },
       partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null]
     })} onCommand={vi.fn()} />);
 
     const card = screen.getByRole("heading", { name: "果酱罐" }).closest("article")!;
-    expect(within(card).getByText(/L1 → L2/).closest("p")).toHaveTextContent("0.5 × 当前下注提高为 1 × 当前下注");
+    expect(within(card).getByText("已持有 L1 → 本次升为 L2")).toBeVisible();
+    await userEvent.click(within(card).getByText("攻略详情"));
+    expect(within(card).getByText(/0.5 × 当前下注提高为 1 × 当前下注/)).toBeVisible();
+  });
+
+  it("keeps the martyr coin immediate paid-action warning visible", () => {
+    render(<UpgradePicker state={upgradeState({
+      currentCandidates: { synergy: "martyr-coin", pivot: "cherry-pitter", wildcard: "jam-jar" }
+    })} onCommand={vi.fn()} />);
+
+    const card = screen.getByRole("heading", { name: "殉道者硬币" }).closest("article")!;
+    expect(card).toHaveTextContent("启用时立即失去向上取整的 10% 余额");
   });
 
   it("shows exactly three role cards and confirms a visible valid target", async () => {

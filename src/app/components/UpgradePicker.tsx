@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { SYMBOL_LABELS } from "@/app/labels";
+import { UpgradeStrategyDetails } from "@/app/components/UpgradeStrategyDetails";
 import {
   buildUpgradeChoice,
   needsUpgradeReelTarget,
@@ -14,9 +15,9 @@ import type { ReelIndex, RunState, UpgradeId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
 
 const ROLE_LABELS = {
-  synergy: "强化现有组合",
-  pivot: "修补风险／换路线",
-  wildcard: "高风险改规则"
+  synergy: "强化",
+  pivot: "转向",
+  wildcard: "豪赌"
 } as const;
 
 interface UpgradePickerProps {
@@ -98,21 +99,23 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null }: Upgr
           const ownedLevelOne = definition.kind === "part" && state.partSlots.some((part) => part?.id === id && part.level === 1);
           const selected = selectedId === id;
           return (
-            <article className={`upgrade-card${selected ? " is-selected" : ""}`} data-testid="upgrade-card" key={role}>
+            <article className={`upgrade-card${selected ? " is-selected" : ""}${selectedId !== null && !selected ? " is-folded" : ""}`} data-testid="upgrade-card" key={role}>
               <div className="ticket-stub">
                 <span>{ROLE_LABELS[role]}</span>
                 <span>{presentation.kindLabel} · {presentation.routeLabel}</span>
               </div>
               <h3>{presentation.name}</h3>
-              <div className="upgrade-copy">
-                <p><strong>效果</strong> {presentation.effect}</p>
-                {presentation.levelTwoEffect !== null && (
-                  <p><strong>{ownedLevelOne ? "L1 → L2" : "L2 效果"}</strong> {presentation.levelTwoEffect.replace(/^L2：/, "")}</p>
-                )}
-                <p><strong>当前影响</strong> {presentation.currentImpact}</p>
-                <p><strong>协同</strong> {presentation.synergy}</p>
-                <p><strong>代价／风险</strong> {presentation.risk}</p>
-              </div>
+              {selectedId === null || selected ? (
+                <>
+                  <div className="upgrade-copy">
+                    <p className="decision-effect">{presentation.decisionEffect}</p>
+                    {presentation.triggerCondition !== null && <p><strong>条件</strong> {presentation.triggerCondition}</p>}
+                    {presentation.immediateCost !== null && <p className="upgrade-warning"><strong>立即影响</strong> {presentation.immediateCost}</p>}
+                    {ownedLevelOne && <p className="owned-level">已持有 L1 → 本次升为 L2</p>}
+                  </div>
+                  <UpgradeStrategyDetails presentation={presentation} levelLabel={ownedLevelOne ? "L1 → L2" : "L2 效果"} />
+                </>
+              ) : null}
               <button className="select-ticket" type="button" aria-pressed={selected} onClick={() => choose(id)}>选择{definition.name}</button>
 
               {selected && selectedDefinition !== null && selectedPresentation !== null && (
@@ -158,8 +161,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null }: Upgr
                     </aside>
                   ) : (
                     <div className="upgrade-preview">
-                      <p><strong>完整效果：</strong>{selectedPresentation.effect}</p>
-                      <p><strong>选择后的影响：</strong>{selectedImpact}</p>
+                      <p><strong>立即结果：</strong>{selectedImpact}</p>
                     </div>
                   )}
                   <button

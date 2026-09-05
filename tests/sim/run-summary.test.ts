@@ -18,7 +18,7 @@ function estimate(patch: Partial<MachineEstimate> = {}): MachineEstimate {
 }
 
 describe("buildRunSummary", () => {
-  it("uses declared source order to break equal income and expense totals", () => {
+  it("uses ledger totals and declared source order for equal nonzero income", () => {
     const state: RunState = {
       ...createRun(1),
       attribution: { base: 20, part: 20, intervention: 1, service: 0, agitation: 0, overload: 0 },
@@ -27,10 +27,11 @@ describe("buildRunSummary", () => {
 
     const summary = buildRunSummary(state, []);
 
-    expect(summary.largestIncomeSource).toBe("base");
-    expect(summary.largestExpenseSource).toBe("wagers");
-    expect(summary.rtpTrajectory).toEqual([]);
-    expect(summary.explanation).toBe("主要收入来自基础赔付，主要支出是下注。");
+    expect(summary.totalWager).toBe(10);
+    expect(summary.totalPayout).toBe(41);
+    expect(summary.bankrollDelta).toBe(0);
+    expect(summary.largestIncome).toEqual({ source: "base", amount: 20 });
+    expect(summary.currentRtp).toBeNull();
   });
 
   it("finds the stable highest-overlap eligible unowned upgrade on the dominant route", () => {
@@ -43,7 +44,7 @@ describe("buildRunSummary", () => {
 
     const summary = buildRunSummary(state, []);
 
-    expect(summary.incompleteSynergy).toBe("fruit-salad");
+    expect(summary.buildSuggestion).toBe("fruit-salad");
   });
 
   it("excludes owned, level-two, and requirement-failing upgrades from incomplete synergy", () => {
@@ -62,15 +63,15 @@ describe("buildRunSummary", () => {
 
     const summary = buildRunSummary(state, []);
 
-    expect(summary.incompleteSynergy).toBeNull();
+    expect(summary.buildSuggestion).toBeNull();
   });
 
-  it("states that positive expectation can coexist with high bankruptcy risk", () => {
-    const trajectory = [estimate({ rtpMean: 1.01, ruinProbability: 0.26 })];
-
-    const summary = buildRunSummary(createRun(4), trajectory);
-
-    expect(summary.rtpTrajectory).toEqual(trajectory);
-    expect(summary.explanation).toBe("机器具有正期望，但当前本金下仍有较高破产风险。");
+  it("returns no largest income at zero and gates current RTP at ledger level", () => {
+    const trajectory = [estimate({ rtpMean: 0.9 }), estimate(), estimate({ rtpMean: 1.01 })];
+    expect(buildRunSummary(createRun(4), trajectory)).toMatchObject({ largestIncome: null, currentRtp: null });
+    expect(buildRunSummary({ ...createRun(4), toolLevel: 2 }, trajectory)).toMatchObject({
+      largestIncome: null,
+      currentRtp: 1.01
+    });
   });
 });

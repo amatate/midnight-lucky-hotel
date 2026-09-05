@@ -29,6 +29,9 @@ export interface UpgradePresentation {
   readonly name: string;
   readonly kindLabel: string;
   readonly routeLabel: string;
+  readonly decisionEffect: string;
+  readonly triggerCondition: string | null;
+  readonly immediateCost: string | null;
   readonly effect: string;
   readonly levelTwoEffect: string | null;
   readonly currentImpact: string;
@@ -44,6 +47,12 @@ interface UpgradeCopy {
   readonly synergy: string;
   readonly risk: string;
   readonly targetHint: string | null;
+}
+
+interface UpgradeDecisionCopy {
+  readonly decisionEffect: string;
+  readonly triggerCondition: string | null;
+  readonly immediateCost: string | null;
 }
 
 const KIND_LABELS: Readonly<Record<UpgradeKind, string>> = {
@@ -273,6 +282,33 @@ const UPGRADE_COPY = {
   }
 } as const satisfies Readonly<Record<UpgradeId, UpgradeCopy>>;
 
+const UPGRADE_DECISION_COPY = {
+  "lemon-crate": { decisionEffect: "选两轮，各加入 2 个柠檬", triggerCondition: null, immediateCost: "两轮永久变长" },
+  "cherry-pitter": { decisionEffect: "把一轮的 1 个其他图案换成樱桃", triggerCondition: "百搭不能替换", immediateCost: "被替换图案永久减少" },
+  "lemon-infection": { decisionEffect: "柠檬中奖后，把线外图案变成柠檬并重算", triggerCondition: "每转首次柠檬线", immediateCost: null },
+  "jam-jar": { decisionEffect: "本班樱桃线越多，后续奖励越高", triggerCondition: "第一条只充能", immediateCost: null },
+  "fruit-salad": { decisionEffect: "樱桃 + 柠檬 + 铃铛同线，额外 1.5×下注", triggerCondition: "百搭不算", immediateCost: null },
+  leftovers: { decisionEffect: "本班第 1 份食物回到最短轮", triggerCondition: "需要深夜厨房", immediateCost: "最短轮会变长" },
+  "seven-purification": { decisionEffect: "把一轮的 1 个樱桃或柠檬换成幸运7", triggerCondition: "目标轮必须有水果", immediateCost: "被替换水果永久减少" },
+  "tithe-box": { decisionEffect: "付 ¥10，向一轮加入幸运7并获得 1 恶兆", triggerCondition: null, immediateCost: "立即支付 ¥10，转轮变长" },
+  "omen-collector": { decisionEffect: "幸运7中奖时，把全部恶兆换成奖励", triggerCondition: "每转首次幸运7线", immediateCost: null },
+  "triple-blessing": { decisionEffect: "首次幸运7线复制 1 次", triggerCondition: "每转一次", immediateCost: "每轮永久加入 1 个空白" },
+  "midnight-bell": { decisionEffect: "首次铃铛线把铃铛变百搭并重算", triggerCondition: "必须有字面铃铛", immediateCost: null },
+  "martyr-coin": { decisionEffect: "献祭余额，本班幸运7线额外复制", triggerCondition: "首转前启用", immediateCost: "启用时立即失去向上取整的 10% 余额" },
+  "artificial-crack": { decisionEffect: "向一轮加入裂纹，下班专注上限 +1", triggerCondition: null, immediateCost: "永久加入 1 个裂纹" },
+  "scrap-magnet": { decisionEffect: "裂纹同线，奖励 2×下注并移除它们", triggerCondition: "必须是实体裂纹", immediateCost: null },
+  "loose-spring": { decisionEffect: "踹击前进 2 格并制造 2 个裂纹", triggerCondition: "需要保安室", immediateCost: "每次踹击永久加入 2 裂纹" },
+  "blank-capacitor": { decisionEffect: "累计 3 个可见空白，获得 1 次免费转", triggerCondition: "余数保留", immediateCost: null },
+  "warranty-fraud": { decisionEffect: "其他部件首次被裂纹禁用，奖励 3×下注", triggerCondition: "自己失效不算", immediateCost: null },
+  "overload-motor": { decisionEffect: "从第 2 个连锁效果起，每个奖励 0.25×下注", triggerCondition: "第 6 个效果还会损伤机器", immediateCost: "第 6 个效果使每轮永久 +1 裂纹" },
+  "pruning-shears": { decisionEffect: "从长轮删除 1 个非百搭图案", triggerCondition: "轮长必须大于 6", immediateCost: "所选图案永久减少" },
+  "carbon-copy": { decisionEffect: "向一轮加入 2 个指定基础图案", triggerCondition: "只能复制基础图案", immediateCost: "转轮永久变长" },
+  "safety-fuse": { decisionEffect: "余额不足最低下注时自动补 ¥20", triggerCondition: "触发后消耗", immediateCost: "一次性部件" },
+  calculator: { decisionEffect: "显示每轮精确符号概率", triggerCondition: null, immediateCost: null },
+  ledger: { decisionEffect: "显示模拟 RTP 和风险带", triggerCondition: "信息是模拟估算", immediateCost: null },
+  "statistics-terminal": { decisionEffect: "显示破产概率、波动和可承受转数", triggerCondition: "信息是模拟估算", immediateCost: null }
+} as const satisfies Readonly<Record<UpgradeId, UpgradeDecisionCopy>>;
+
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
@@ -454,6 +490,7 @@ export function describeUpgrade(
     name: definition.name,
     kindLabel: KIND_LABELS[definition.kind],
     routeLabel: ROUTE_LABELS[definition.route],
+    ...UPGRADE_DECISION_COPY[id],
     effect: copy.effect,
     levelTwoEffect: copy.levelTwoEffect,
     currentImpact: targetImpact ?? genericCurrentImpact(state, id),

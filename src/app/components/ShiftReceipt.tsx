@@ -1,0 +1,31 @@
+import type { RunState } from "@/core/types";
+import { safeMoney } from "@/core/money";
+
+function money(value: number): string {
+  return `¥${Object.is(value, -0) ? 0 : value}`;
+}
+
+function signedMoney(value: number): string {
+  const safe = safeMoney(value);
+  if (safe > 0) return `+${money(safe)}`;
+  if (safe < 0) return `-${money(Math.abs(safe))}`;
+  return money(0);
+}
+
+export function ShiftReceipt({ state }: { readonly state: RunState }): React.JSX.Element | null {
+  const snapshot = state.shiftHistory.at(-1);
+  if (snapshot === undefined) return null;
+  const heading = (snapshot.afterHoursLevel ?? 0) > 0
+    ? `加班第 ${snapshot.afterHoursLevel} 段收工`
+    : `第 ${snapshot.shift} 班收工`;
+
+  return (
+    <section className="shift-receipt" role="status" aria-label="班次小票">
+      <p className="eyebrow">NIGHT AUDIT · SHIFT RECEIPT</p>
+      <h2>{heading}</h2>
+      <strong>本班转轮盈亏 {signedMoney(snapshot.totalPayout - snapshot.totalWager)}</strong>
+      <p>余额 {money(snapshot.bankroll)} / 目标 {money(state.checkoutTarget)}</p>
+      <p>下注 {money(snapshot.totalWager)} · 赔付 {money(snapshot.totalPayout)}</p>
+    </section>
+  );
+}

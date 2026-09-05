@@ -76,6 +76,18 @@ const OVERTIME_RECEIPT: SpinReceipt = {
 afterEach(cleanup);
 
 describe("LedgerDrawer", () => {
+  it("portals the open overlay outside its stacking-context host", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<LedgerDrawer receipts={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "账本" }));
+
+    expect(container.querySelector(".ledger-backdrop")).toBeNull();
+    expect(document.body.querySelector(".ledger-backdrop")).toContainElement(
+      screen.getByRole("dialog", { name: "前台账本" })
+    );
+  });
+
   it("shows newest-first receipt summaries and expands only trusted award details", async () => {
     const user = userEvent.setup();
     render(<LedgerDrawer receipts={[PAID_RECEIPT, FREE_RECEIPT, OVERTIME_RECEIPT]} />);

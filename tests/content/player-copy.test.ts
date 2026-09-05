@@ -12,6 +12,33 @@ import type { PartId, PartInstance, RunState, ServiceId, UpgradeId } from "@/cor
 
 const PART_IDS = UPGRADE_IDS.filter((id): id is PartId => UPGRADES[id].kind === "part");
 
+const DECISION_COPY: Readonly<Record<UpgradeId, readonly [string, string | null, string | null]>> = {
+  "lemon-crate": ["选两轮，各加入 2 个柠檬", null, "两轮永久变长"],
+  "cherry-pitter": ["把一轮的 1 个其他图案换成樱桃", "百搭不能替换", "被替换图案永久减少"],
+  "lemon-infection": ["柠檬中奖后，把线外图案变成柠檬并重算", "每转首次柠檬线", null],
+  "jam-jar": ["本班樱桃线越多，后续奖励越高", "第一条只充能", null],
+  "fruit-salad": ["樱桃 + 柠檬 + 铃铛同线，额外 1.5×下注", "百搭不算", null],
+  leftovers: ["本班第 1 份食物回到最短轮", "需要深夜厨房", "最短轮会变长"],
+  "seven-purification": ["把一轮的 1 个樱桃或柠檬换成幸运7", "目标轮必须有水果", "被替换水果永久减少"],
+  "tithe-box": ["付 ¥10，向一轮加入幸运7并获得 1 恶兆", null, "立即支付 ¥10，转轮变长"],
+  "omen-collector": ["幸运7中奖时，把全部恶兆换成奖励", "每转首次幸运7线", null],
+  "triple-blessing": ["首次幸运7线复制 1 次", "每转一次", "每轮永久加入 1 个空白"],
+  "midnight-bell": ["首次铃铛线把铃铛变百搭并重算", "必须有字面铃铛", null],
+  "martyr-coin": ["献祭余额，本班幸运7线额外复制", "首转前启用", "启用时立即失去向上取整的 10% 余额"],
+  "artificial-crack": ["向一轮加入裂纹，下班专注上限 +1", null, "永久加入 1 个裂纹"],
+  "scrap-magnet": ["裂纹同线，奖励 2×下注并移除它们", "必须是实体裂纹", null],
+  "loose-spring": ["踹击前进 2 格并制造 2 个裂纹", "需要保安室", "每次踹击永久加入 2 裂纹"],
+  "blank-capacitor": ["累计 3 个可见空白，获得 1 次免费转", "余数保留", null],
+  "warranty-fraud": ["其他部件首次被裂纹禁用，奖励 3×下注", "自己失效不算", null],
+  "overload-motor": ["从第 2 个连锁效果起，每个奖励 0.25×下注", "第 6 个效果还会损伤机器", "第 6 个效果使每轮永久 +1 裂纹"],
+  "pruning-shears": ["从长轮删除 1 个非百搭图案", "轮长必须大于 6", "所选图案永久减少"],
+  "carbon-copy": ["向一轮加入 2 个指定基础图案", "只能复制基础图案", "转轮永久变长"],
+  "safety-fuse": ["余额不足最低下注时自动补 ¥20", "触发后消耗", "一次性部件"],
+  calculator: ["显示每轮精确符号概率", null, null],
+  ledger: ["显示模拟 RTP 和风险带", "信息是模拟估算", null],
+  "statistics-terminal": ["显示破产概率、波动和可承受转数", "信息是模拟估算", null]
+};
+
 const STATIC_FACTS: Readonly<Record<UpgradeId, readonly string[]>> = {
   "lemon-crate": ["两个不同转轮", "各永久加入 2 个柠檬"],
   "cherry-pitter": ["选定转轮", "1 个非樱桃、非百搭", "替换为樱桃"],
@@ -113,6 +140,7 @@ describe("player-facing content", () => {
       expect(presentation.name).toBe(UPGRADES[id].name);
       expect(presentation.kindLabel).not.toBe("");
       expect(presentation.routeLabel).not.toBe("");
+      expect([presentation.decisionEffect, presentation.triggerCondition, presentation.immediateCost]).toEqual(DECISION_COPY[id]);
       expect(presentation.currentImpact).not.toBe("");
       expect(presentation.synergy).not.toBe("");
       expect(presentation.risk).not.toBe("");

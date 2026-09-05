@@ -6,6 +6,7 @@ import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { PartsBar } from "@/app/components/PartsBar";
 import { PullLever } from "@/app/components/PullLever";
 import { RunSummary } from "@/app/components/RunSummary";
+import { ShiftReceipt } from "@/app/components/ShiftReceipt";
 import { SlotMachine } from "@/app/components/SlotMachine";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
 import { WinPresentation } from "@/app/components/WinPresentation";
@@ -242,6 +243,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         {isUpgradeScene && (
           <>
             <ActionBar state={game.state} onCommand={game.send} />
+            <ShiftReceipt state={game.state} />
             <UpgradePicker state={game.state} onCommand={game.send} currentEstimate={estimate} />
             {game.state.exitUnlocked && <button className="cash-out-button" type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账离开</button>}
           </>

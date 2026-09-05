@@ -415,10 +415,16 @@ describe("GameScreen", () => {
   });
 
   it("turns an upgrade boundary into the only full-width decision scene and hides the play cabinet", () => {
-    render(<GameScreen seed={59} initialState={offeredState("lemon-crate")} />);
+    const initial = offeredState("lemon-crate");
+    render(<GameScreen seed={59} initialState={{
+      ...initial,
+      shiftHistory: [{ shift: 1, bankroll: 110, reels: initial.reels, parts: [], totalWager: 30, totalPayout: 40 }]
+    }} />);
 
     const decision = screen.getByRole("region", { name: "当前决策" });
-    expect(within(decision).getByRole("group", { name: "选择升级" })).toBeVisible();
+    const picker = within(decision).getByRole("group", { name: "选择升级" });
+    const receipt = within(decision).getByRole("status", { name: "班次小票" });
+    expect(receipt.nextElementSibling).toBe(picker);
     expect(within(decision).getAllByTestId("upgrade-card")).toHaveLength(3);
     expect(screen.queryByRole("region", { name: "午夜好运老虎机" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "老虎机转轮" })).not.toBeInTheDocument();
@@ -621,7 +627,7 @@ describe("GameScreen", () => {
     await user.click(within(decision).getByRole("button", { name: "修复第1轮裂纹（1 小费）" }));
 
     expect(screen.queryByRole("button", { name: /修复第1轮裂纹/ })).not.toBeInTheDocument();
-    expect(screen.getByText("主要支出：下注")).toBeVisible();
+    expect(screen.getByText("下注 ¥0 · 赔付 ¥0")).toBeVisible();
     expect(screen.getByRole("button", { name: "结账离开" })).toBeVisible();
     expect(screen.getByRole("button", { name: "继续加班" })).toBeVisible();
   });

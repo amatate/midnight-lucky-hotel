@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { UPGRADES } from "@/content/upgrades";
 import { isSpinReceipt } from "@/core/receipts";
@@ -131,56 +132,59 @@ export function LedgerDrawer({ receipts }: LedgerDrawerProps): React.JSX.Element
     }
   };
 
+  const overlay = open ? createPortal(
+    <div className="ledger-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) closeDrawer();
+    }}>
+      <section
+        className="ledger-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        ref={dialogRef}
+        onKeyDown={handleDialogKeyDown}
+      >
+        <header className="ledger-heading">
+          <div>
+            <p className="eyebrow">FRONT DESK · NIGHT AUDIT</p>
+            <h2 id={titleId}>前台账本</h2>
+          </div>
+          <button className="ledger-close" type="button" aria-label="关闭账本" ref={closeRef} onClick={closeDrawer}>关闭</button>
+        </header>
+        {trustedReceipts.length === 0 ? (
+          <p className="ledger-empty">拉动一次后，前台会在这里留下结算小票</p>
+        ) : (
+          <div className="ledger-receipts">
+            {trustedReceipts.map((receipt) => {
+              const expanded = expandedOrdinal === receipt.ordinal;
+              const detailsId = `${titleId}-receipt-${receipt.ordinal}`;
+              return (
+                <article className="ledger-receipt" key={receipt.ordinal}>
+                  <button
+                    className="ledger-receipt-toggle"
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-controls={detailsId}
+                    onClick={() => setExpandedOrdinal(expanded ? null : receipt.ordinal)}
+                  >
+                    <span>{receiptLabel(receipt)}</span>
+                    <strong>{wagerMoney(receipt.wager)} → {positiveMoney(receipt.totalPayout)} · 净 {signedMoney(receipt.totalPayout - receipt.wager)}</strong>
+                  </button>
+                  {expanded && <div id={detailsId}><ReceiptDetails receipt={receipt} /></div>}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>,
+    document.body
+  ) : null;
+
   return (
     <div className="ledger-drawer">
       <button className="ledger-trigger" type="button" ref={triggerRef} onClick={() => setOpen(true)}>账本</button>
-      {open && (
-        <div className="ledger-backdrop" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) closeDrawer();
-        }}>
-          <section
-            className="ledger-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            ref={dialogRef}
-            onKeyDown={handleDialogKeyDown}
-          >
-            <header className="ledger-heading">
-              <div>
-                <p className="eyebrow">FRONT DESK · NIGHT AUDIT</p>
-                <h2 id={titleId}>前台账本</h2>
-              </div>
-              <button className="ledger-close" type="button" aria-label="关闭账本" ref={closeRef} onClick={closeDrawer}>关闭</button>
-            </header>
-            {trustedReceipts.length === 0 ? (
-              <p className="ledger-empty">拉动一次后，前台会在这里留下结算小票</p>
-            ) : (
-              <div className="ledger-receipts">
-                {trustedReceipts.map((receipt) => {
-                  const expanded = expandedOrdinal === receipt.ordinal;
-                  const detailsId = `${titleId}-receipt-${receipt.ordinal}`;
-                  return (
-                    <article className="ledger-receipt" key={receipt.ordinal}>
-                      <button
-                        className="ledger-receipt-toggle"
-                        type="button"
-                        aria-expanded={expanded}
-                        aria-controls={detailsId}
-                        onClick={() => setExpandedOrdinal(expanded ? null : receipt.ordinal)}
-                      >
-                        <span>{receiptLabel(receipt)}</span>
-                        <strong>{wagerMoney(receipt.wager)} → {positiveMoney(receipt.totalPayout)} · 净 {signedMoney(receipt.totalPayout - receipt.wager)}</strong>
-                      </button>
-                      {expanded && <div id={detailsId}><ReceiptDetails receipt={receipt} /></div>}
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </div>
-      )}
+      {overlay}
     </div>
   );
 }
