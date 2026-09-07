@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { ActionBar, selectedPaidBetIsUnaffordable } from "@/app/components/ActionBar";
 import { CoinBurst } from "@/app/components/CoinBurst";
 import { Hud } from "@/app/components/Hud";
+import { HelpButton, HelpPauseContext } from "@/app/components/HelpWindow";
+import { GameGuide } from "@/app/components/GameGuide";
+import { HOTEL_ROOMS } from "@/content/hotel";
 import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { PartsBar } from "@/app/components/PartsBar";
 import { PullLever } from "@/app/components/PullLever";
@@ -18,6 +21,9 @@ import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
 import type { CommandError, CommandErrorCode, RunState } from "@/core/types";
 import { unlockAudio } from "@/presentation/audio";
+import { ArchiveViewer } from "@/app/components/ArchiveViewer";
+import { downloadText } from "@/app/archive-copy";
+import { exportArchive } from "@/persistence/archives";
 import { feedbackPlan } from "@/presentation/feedback";
 import type { MachineEstimate } from "@/sim/types";
 
@@ -62,31 +68,37 @@ function systemReducedMotion(): boolean {
 interface GameScreenProps {
   readonly seed: number;
   readonly initialState?: RunState;
+  readonly onHome?: () => void;
 }
 
-export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.Element {
+export function GameScreen({ seed, initialState, onHome }: GameScreenProps): React.JSX.Element {
   const game = useGame(seed, initialState);
   const { estimate, status: estimateStatus } = useEstimate(game.state);
   const [trajectory, setTrajectory] = useState<readonly MachineEstimate[]>([]);
   const lastEstimate = useRef<MachineEstimate | null>(null);
   const [documentHidden, setDocumentHidden] = useState(() => typeof document !== "undefined" && document.hidden);
   const [recoveryOpen, setRecoveryOpen] = useState(game.wasRecovered);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [backupName, setBackupName] = useState("手动备份");
+  const [archiveNotice, setArchiveNotice] = useState("");
   const [reduceFlash, setReduceFlash] = useState(storedReduceFlash);
   const [osReducedMotion, setOsReducedMotion] = useState(systemReducedMotion);
   const effectiveReducedMotion = reduceFlash || osReducedMotion;
+  const paused = documentHidden || recoveryOpen || archiveOpen || helpOpen || game.storageWarning !== null;
 
   const motionPlan = useAutomaticSpinFlow({
     state: game.state,
-    paused: documentHidden || recoveryOpen,
+    paused,
     reducedMotion: effectiveReducedMotion,
-    onCommand: game.send
+    onCommand: game.sendAutomatic
   });
-  const visibleMotionPlan = documentHidden || recoveryOpen ? null : motionPlan;
+  const visibleMotionPlan = paused ? null : motionPlan;
   const settlementPresentation = useSettlementPresentation({
     state: game.state,
-    paused: documentHidden || recoveryOpen,
+    paused,
     reducedMotion: effectiveReducedMotion,
-    onCommand: game.send
+    onCommand: game.sendAutomatic
   });
   const settlementFeedback = settlementPresentation === null
     ? null
@@ -136,7 +148,12 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
     (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates !== null);
   const showCabinet = !isUpgradeScene && !isRunSummary;
 
+  if (archiveOpen && game.archive !== null) {
+    return <ArchiveViewer record={game.archive} onClose={() => setArchiveOpen(false)} />;
+  }
+
   return (
+    <HelpPauseContext.Provider value={setHelpOpen}>
     <div
       className={`game-page${effectiveReducedMotion ? " reduce-motion" : ""}`}
       data-reduced-motion={effectiveReducedMotion}
@@ -147,10 +164,24 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
           <h1>午夜好运酒店</h1>
         </div>
         <div className="shift-plaque">
-          <strong>第 {game.state.shift} 班 · {game.state.baseSpinsInShift}/3</strong>
-          <span>{PHASE_LABELS[game.state.phase]}</span>
+          <strong>{game.state.hotel?.challenge != null ? HOTEL_ROOMS[game.state.hotel.challenge.tier].name : game.state.afterHoursLevel > 0 ? `加班 ${game.state.afterHoursLevel}` : `第 ${game.state.shift} 班`} · {game.state.baseSpinsInShift}/3</strong>
+          <span>{game.state.phase === "AFTER_HOURS" && game.state.hotel?.challenge != null ? "客房结算" : PHASE_LABELS[game.state.phase]}</span>
         </div>
       </header>
+      <div className="game-guide-entry"><HelpButton title="游戏介绍" trigger="玩法与术语" className="guide-open-button"><GameGuide /></HelpButton></div>
+
+      {game.archive !== null && <section className="game-archive-bar" aria-label="档案工具">
+        <div className="frontdesk-actions">
+          {onHome !== undefined && <button type="button" disabled={game.storageWarning !== null} onClick={() => { if (game.retrySave()) onHome(); }}>返回前台</button>}
+          <button type="button" onClick={() => setArchiveOpen(true)}>完整日志</button>
+          <button type="button" onClick={() => downloadText("night-" + game.state.initialSeed + ".json", exportArchive(game.archive!))}>导出本局</button>
+        </div>
+        <details><summary>存档与种子 · {game.state.initialSeed}</summary><form className="backup-form" onSubmit={(event) => { event.preventDefault(); setArchiveNotice(game.backup(backupName) ? "备份已保存，可在前台的历史与存档中恢复。" : "备份未写入，请查看保存提示并导出本局。"); }}>
+          <label>备份名称<input maxLength={80} value={backupName} onChange={(event) => setBackupName(event.target.value)} /></label><button type="submit" disabled={game.storageWarning !== null}>保存手动备份</button></form>
+          <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(String(game.state.initialSeed)); setArchiveNotice("种子已复制。"); } catch { setArchiveNotice("请手动复制种子：" + game.state.initialSeed); } }}>复制种子</button><p role="status">{archiveNotice}</p>
+        </details>
+      </section>}
+      {game.storageWarning !== null && <section className="archive-warning" role="alert"><p>{game.storageWarning}</p><p>自动推进已暂停。请先导出本局，避免关闭页面后丢失未保存进度。</p><button type="button" onClick={game.retrySave}>重试保存</button></section>}
 
       {showCabinet && (
         <section
@@ -183,7 +214,7 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
               shakePx={settlementFeedback?.shakePx ?? 0}
             />
             <PullLever
-              disabled={game.state.phase !== "READY_TO_SPIN" || selectedPaidBetIsUnaffordable(game.state)}
+              disabled={game.storageWarning !== null || game.state.phase !== "READY_TO_SPIN" || selectedPaidBetIsUnaffordable(game.state)}
               reducedMotion={effectiveReducedMotion}
               onPull={() => game.send({ type: "SPIN" })}
             />
@@ -309,5 +340,6 @@ export function GameScreen({ seed, initialState }: GameScreenProps): React.JSX.E
         </div>
       )}
     </div>
+    </HelpPauseContext.Provider>
   );
 }

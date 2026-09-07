@@ -1,0 +1,84 @@
+{
+  "generatedAt": "2026-08-30T18:56:04.995Z",
+  "base": {
+    "sampleCount": 100000,
+    "seed": 820126,
+    "rtp": 0.822804,
+    "payoutMean": 8.22804,
+    "payoutStandardDeviation": 11.706196141724396,
+    "rawPaylineDiagnosticRtp": 0.574289,
+    "agitationRtp": 0.248515
+  },
+  "fruit": {
+    "route": "fruit",
+    "sampleCount": 10000,
+    "seed": 820127,
+    "winRate": 0.0557,
+    "medianBreakEvenShift": 4,
+    "ruinRate": 0.0041,
+    "attributionTotals": {
+      "base": 1203117.1799999916,
+      "part": 327634.7100000093,
+      "intervention": 0,
+      "service": 0,
+      "agitation": 151324.69000000693,
+      "overload": 0
+    },
+    "firstBreakEvenShiftDistribution": {
+      "1": 1431,
+      "2": 763,
+      "3": 625,
+      "4": 1933,
+      "5": 1492,
+      "unreachable": 3756
+    }
+  },
+  "chapel": {
+    "route": "chapel",
+    "sampleCount": 10000,
+    "seed": 820128,
+    "winRate": 0.1057,
+    "medianBreakEvenShift": 1,
+    "ruinRate": 0.0075,
+    "attributionTotals": {
+      "base": 1344256.25,
+      "part": 178756.25,
+      "intervention": 0,
+      "service": 0,
+      "agitation": 275001.25,
+      "overload": 0
+    },
+    "firstBreakEvenShiftDistribution": {
+      "1": 4520,
+      "2": 1409,
+      "3": 867,
+      "4": 676,
+      "5": 583,
+      "unreachable": 1945
+    }
+  },
+  "violent": {
+    "route": "violent",
+    "sampleCount": 10000,
+    "seed": 820129,
+    "winRate": 0.0572,
+    "medianBreakEvenShift": 1,
+    "ruinRate": 0.0001,
+    "attributionTotals": {
+      "base": 1298868.75,
+      "part": 215933.02000000028,
+      "intervention": 0,
+      "service": 0,
+      "agitation": 192801.25,
+      "overload": 0
+    },
+    "firstBreakEvenShiftDistribution": {
+      "1": 5773,
+      "2": 1181,
+      "3": 727,
+      "4": 483,
+      "5": 367,
+      "unreachable": 1469
+    }
+  }
+}

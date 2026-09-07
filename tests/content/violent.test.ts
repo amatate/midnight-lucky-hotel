@@ -65,8 +65,8 @@ describe("violent reel modification", () => {
 
 describe("scrap magnet", () => {
   it.each([
-    [1, 20],
-    [2, 40]
+    [1, 40],
+    [2, 60]
   ] as const)("pays and removes the exact physical crack line at level %i", (level, payout) => {
     const draw = makeDraw([
       ["crack", "blank", "cherry"],
@@ -108,7 +108,7 @@ describe("scrap magnet", () => {
       [{ kind: "system", handler: makeCracks }]
     );
 
-    expect(result.attribution.part).toBe(100);
+    expect(result.attribution.part).toBe(200);
     expect(result.events.filter((event) => event.type === "PAYOUT_ADDED" && event.source === "part")).toHaveLength(5);
     expect(result.state.reels.map((strip) => strip.filter((symbol) => symbol === "crack").length)).toEqual([0, 0, 0]);
   });
@@ -164,7 +164,7 @@ describe("scrap magnet", () => {
       { kind: "system", handler: createTopCrackLineThenShift }
     ]);
 
-    expect(result.attribution.part).toBe(20);
+    expect(result.attribution.part).toBe(40);
     expect(result.state.reels[0].filter((symbol) => symbol === "crack")).toHaveLength(1);
     expect(result.state.reels[0][1]).toBe("crack");
     expect(result.state.reels[1].filter((symbol) => symbol === "crack")).toHaveLength(0);
@@ -178,7 +178,7 @@ describe("scrap magnet", () => {
 });
 
 describe("blank capacitor", () => {
-  it("retains the remainder and grants the floor of cumulative level-one thresholds as queued free spins", () => {
+  it("retains only the remainder and caps a paid spin at one capacitor grant", () => {
     const firstDraw = makeDraw([
       ["blank", "cherry", "lemon"],
       ["lemon", "blank", "cherry"],
@@ -201,9 +201,9 @@ describe("blank capacitor", () => {
     const second = resolveSpin(secondState, secondDraw);
 
     expect(second.state.counters.blankCharge).toBe(0);
-    expect(second.state.freeSpinQueue).toBe(2);
+    expect(second.state.freeSpinQueue).toBe(1);
     expect(second.events).toContainEqual(
-      expect.objectContaining({ type: "RESOURCE_CHANGED", resource: "freeSpins", delta: 2 })
+      expect.objectContaining({ type: "RESOURCE_CHANGED", resource: "freeSpins", delta: 1 })
     );
   });
 
@@ -340,7 +340,7 @@ describe("overload motor", () => {
   it.each([
     [1, 12.5],
     [2, 25]
-  ] as const)("pays for core effect ordinals two through six and cracks every reel once at level %i", (level, payout) => {
+  ] as const)("pays for core effect ordinals two through six and adds only one crack at level %i", (level, payout) => {
     const draw = makeDraw(deadGrid);
     const state = settlementState(draw, withPart({ id: "overload-motor", level }));
 
@@ -348,7 +348,7 @@ describe("overload motor", () => {
 
     expect(result.attribution.part).toBe(payout);
     expect(result.events.filter((event) => event.type === "PAYOUT_ADDED" && event.source === "part")).toHaveLength(5);
-    expect(result.state.reels.map((strip) => strip.filter((symbol) => symbol === "crack").length)).toEqual([1, 1, 1]);
+    expect(result.state.reels.map((strip) => strip.filter((symbol) => symbol === "crack").length)).toEqual([1, 0, 0]);
     expect(result.effectCount).toBeLessThan(30);
     expect(result.events.some((event) => event.type === "OVERLOAD")).toBe(false);
   });

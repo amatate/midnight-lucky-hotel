@@ -265,12 +265,12 @@ describe("fruit reel modifications", () => {
 
 describe("lemon-infection", () => {
   it.each([
-    { level: 1 as const, changed: [[1, 0]] as const, lines: ["middle", "top"], payout: 24 },
+    { level: 1 as const, changed: [[1, 0]] as const, lines: ["middle", "top"], payout: 18 },
     {
       level: 2 as const,
       changed: [[1, 0], [0, 2]] as const,
       lines: ["middle", "top", "diagonal-up"],
-      payout: 36
+      payout: 27
     }
   ])("transforms the first $level-level scan targets once per spin and reevaluates new lines", ({ level, changed, lines, payout }) => {
     const draw = makeDraw([
@@ -331,7 +331,7 @@ describe("jam-jar", () => {
 
     const result = resolveSpin(settlementState(draw, { id: "jam-jar", level }), draw);
 
-    expect(result.attribution.base).toBe(40);
+    expect(result.attribution.base).toBe(30);
     expect(result.attribution.part).toBe(expectedPartPayout);
     expect(result.state.counters.cherryWinsThisShift).toBe(5);
     expect(
@@ -355,7 +355,7 @@ describe("jam-jar", () => {
 
     const result = resolveSpin(state, draw);
 
-    expect(result.attribution).toMatchObject({ base: 10, part: 12.5 });
+    expect(result.attribution).toMatchObject({ base: 7.5, part: 12.5 });
     expect(result.state.counters.cherryWinsThisShift).toBe(3);
   });
 });
@@ -449,7 +449,7 @@ describe("fruit-salad", () => {
     expect(result.events.filter((event) => event.type === "PATTERN_LINE_WIN")).toEqual([
       expect.objectContaining({ patternId: "fruit-salad", lineId: "top", amount: 15 })
     ]);
-    expect(result.attribution).toMatchObject({ base: 12, part: 15 });
+    expect(result.attribution).toMatchObject({ base: 9, part: 15 });
   });
 
   it("treats a salad award as the alternate result for those cells during later reevaluation", () => {

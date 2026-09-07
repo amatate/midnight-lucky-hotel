@@ -26,10 +26,16 @@ function emptyRouteCounts(): Record<ConstructRoute, number> {
 /** Counts only acquisitions that permanently changed a reel; repeated modifications count repeatedly. */
 export function countPermanentReelModifications(state: RunState): Readonly<Record<ConstructRoute, number>> {
   const counts = emptyRouteCounts();
+  const copies = state.commandHistory.flatMap((command) => command.type === "CHOOSE_UPGRADE"
+    && command.choice.id === "carbon-copy" && command.choice.action === "apply"
+    && command.choice.target?.kind === "symbol-on-reel" ? [command.choice.target.symbol] : []);
+  let copyIndex = 0;
   for (const id of state.acquiredUpgrades) {
     const definition = UPGRADES[id];
     if (definition.kind === "reel-mod") {
-      counts[definition.route] += 1;
+      const copied = id === "carbon-copy" ? copies[copyIndex++] : undefined;
+      const route = copied === "seven" ? "chapel" : copied === "cherry" || copied === "lemon" ? "fruit" : definition.route;
+      counts[route] += 1;
     }
   }
   return counts;

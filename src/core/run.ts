@@ -1,4 +1,5 @@
 import { BASE_REELS } from "@/content/base-machine";
+import { activeRoom, canOpenWorkshop, getWorkshopCost, HOTEL_ROOMS, nextRoomTier } from "@/content/hotel";
 import { BASE_PAYTABLE } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
 import { enableMartyr, pray } from "@/content/services/chapel";
@@ -9,13 +10,13 @@ import { generateCandidates } from "@/core/candidates";
 import { generateContract, updateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
-import { getCurrentBet, getMinimumBet, roundMoney } from "@/core/progression";
+import { getCurrentBet, getFreeAfterHoursLevel, getMinimumBet, roundMoney } from "@/core/progression";
 import { evaluateBaseWins } from "@/core/paylines";
 import { nextInt } from "@/core/random";
 import { appendSpinReceipt, finalizeSpinReceipt, type SpinReceiptBuildInput } from "@/core/receipts";
 import { advanceReel, drawReels, normalizeDrawIdentity } from "@/core/reels";
 import { resolveSpin } from "@/core/settlement";
-import type { ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId, SettlementResult } from "@/core/types";
+import type { ReelIndex, ReelSet, RngState, RoomTier, RunPhase, RunState, ServiceId, SettlementResult } from "@/core/types";
 import { applyUpgrade, declineUpgrade } from "@/core/upgrades";
 
 const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security"];
@@ -26,9 +27,9 @@ function cloneReels(reels: ReelSet): ReelSet {
 
 function reelsForNextDraw(state: RunState): ReelSet {
   return [
-    [...state.reels[0], ...state.temporaryReelAdditions[0]],
-    [...state.reels[1], ...state.temporaryReelAdditions[1]],
-    [...state.reels[2], ...state.temporaryReelAdditions[2]]
+    [...state.reels[0], ...(state.blockReelAdditions?.[0] ?? []), ...state.temporaryReelAdditions[0]],
+    [...state.reels[1], ...(state.blockReelAdditions?.[1] ?? []), ...state.temporaryReelAdditions[1]],
+    [...state.reels[2], ...(state.blockReelAdditions?.[2] ?? []), ...state.temporaryReelAdditions[2]]
   ];
 }
 
@@ -113,10 +114,12 @@ export function createRun(seed: number): RunState {
 
   return {
     schemaVersion: 2,
+    hotel: { cleared: 0, challenge: null },
     initialSeed: seed,
     rng: serviceChoice.rng,
     phase: "CHOOSING_SERVICE",
     bankroll: 100,
+    blockStartBankroll: 100,
     checkoutTarget: 200,
     shift: 1,
     baseSpinsInShift: 0,
@@ -192,6 +195,7 @@ function selectService(state: RunState, command: Extract<GameCommand, { type: "S
 
 function setBetMode(state: RunState, command: Extract<GameCommand, { type: "SET_BET_MODE" }>): DispatchResult {
   if (!supportsPhase(state, "READY_TO_SPIN")) return invalidPhase(state, command);
+  if (activeRoom(state) !== null) return rejected(state, "INVALID_TARGET", "客房挑战使用固定下注，不能切换档位");
   return accepted(state, command, [], { betMode: command.mode });
 }
 
@@ -382,7 +386,16 @@ function presentationComplete(
       : unactionableLoss
         ? "RUN_LOST"
         : "READY_TO_SPIN";
-  const boundaryOffersUpgrade = nextPhase === "CHOOSING_UPGRADE" || nextPhase === "AFTER_HOURS";
+  const room = activeRoom(transitionState);
+  const roomFinished = completedPaidBlock && room !== null;
+  const roomCleared = roomFinished && transitionState.shiftPayout >= room.target;
+  const challenge = transitionState.hotel?.challenge;
+  const hotel = roomFinished && challenge != null
+    ? { cleared: roomCleared ? challenge.tier : (transitionState.hotel?.cleared ?? 0),
+        challenge: { tier: challenge.tier, status: roomCleared ? "cleared" as const : "failed" as const } }
+    : transitionState.hotel;
+  const boundaryOffersUpgrade = (nextPhase === "CHOOSING_UPGRADE" || nextPhase === "AFTER_HOURS")
+    && (!roomFinished || roomCleared);
   const candidateResult = boundaryOffersUpgrade
     ? generateCandidates({ ...transitionState, baseSpinsInShift })
     : null;
@@ -400,6 +413,10 @@ function presentationComplete(
   const hasSnapshot = snapshot !== null && transitionState.shiftHistory.at(-1)?.shift === snapshot.shift &&
     (transitionState.shiftHistory.at(-1)?.afterHoursLevel ?? 0) === (snapshot.afterHoursLevel ?? 0);
   const drafts: GameEventDraft[] = [];
+  if (roomFinished && challenge != null) drafts.push({
+    type: "ROOM_COMPLETED", tier: challenge.tier, payout: transitionState.shiftPayout,
+    target: room.target, cleared: roomCleared
+  });
   if (contractChanged && contract !== null) {
     drafts.push({ type: "CONTRACT_PROGRESS", contractId: contract.id, progress: contract.progress, completed: contract.completed });
   }
@@ -414,6 +431,7 @@ function presentationComplete(
     state: {
       ...transitionState,
       phase: nextPhase,
+      ...(hotel === undefined ? {} : { hotel }),
       baseSpinsInShift,
       rng: candidateResult?.rng ?? transitionState.rng,
       currentCandidates: candidateResult?.candidates ?? null,
@@ -445,16 +463,22 @@ function cashOut(state: RunState, command: Extract<GameCommand, { type: "CASH_OU
   if (!boundary) return invalidPhase(state, command);
   if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
   const events = sequenceEvents(state, [{ type: "RUN_ENDED", outcome: "won" }]);
-  return accepted(state, command, events, { phase: "RUN_WON", currentCandidates: null });
+  return accepted(state, command, events, { phase: "RUN_WON", currentCandidates: null,
+    ...(state.workshop?.status === "shopping" ? { workshop: { ...state.workshop, status: "finished" as const } } : {}) });
 }
 
-function resetForAfterHoursBlock(state: RunState, level: number): RunState {
+function resetForAfterHoursBlock(state: RunState, level: number, roomTier?: RoomTier): RunState {
   const baseMaximum = state.service === "repair" ? 3 : 2;
-  const nextMaximum = baseMaximum + state.nextShiftFocusBonus;
+  const nextMaximum = Math.min(baseMaximum + state.nextShiftFocusBonus, roomTier === undefined ? Infinity : HOTEL_ROOMS[roomTier].focusCap);
   const reset: RunState = {
     ...state,
     phase: "READY_TO_SPIN",
     afterHoursLevel: level,
+    blockReelAdditions: [[], [], []],
+    freeAfterHoursLevel: getFreeAfterHoursLevel(state) + (roomTier === undefined ? 1 : 0),
+    blockStartBankroll: state.bankroll,
+    workshop: null,
+    hotel: { cleared: state.hotel?.cleared ?? 0, challenge: roomTier === undefined ? null : { tier: roomTier, status: "playing" } },
     baseSpinsInShift: 0,
     shiftWager: 0,
     shiftPayout: 0,
@@ -481,6 +505,51 @@ function resetForAfterHoursBlock(state: RunState, level: number): RunState {
   return { ...reset, contract: generated.contract, rng: generated.rng };
 }
 
+function enterRoom(state: RunState, command: Extract<GameCommand, { type: "ENTER_ROOM" }>): DispatchResult {
+  if (state.phase !== "SHIFT_COMPLETE" && state.phase !== "AFTER_HOURS") return invalidPhase(state, command);
+  if (!state.exitUnlocked || state.shift !== 5 || state.currentCandidates !== null) {
+    return rejected(state, "INVALID_TARGET", "先完成五班并处理当前升级，才能升房");
+  }
+  const tier = nextRoomTier(state);
+  if (tier === null) return rejected(state, "RESOURCE_EXHAUSTED", "三间客房已经全部通关");
+  const room = HOTEL_ROOMS[tier];
+  if (state.bankroll < room.bet * 3) return rejected(state, "INSUFFICIENT_FUNDS", `入住需至少备好三次下注 ¥${room.bet * 3}，不额外扣门票`);
+  const next = resetForAfterHoursBlock(state, state.afterHoursLevel + 1, tier);
+  const focus = next.maxInterventionPoints;
+  return accepted(state, command, sequenceEvents(state, [{
+    type: "ROOM_ENTERED", tier, bet: room.bet, target: room.target, focus
+  }]), {
+    ...next, interventionPoints: focus, maxInterventionPoints: focus,
+    hotel: { cleared: state.hotel?.cleared ?? 0, challenge: { tier, status: "playing" } }
+  });
+}
+
+function upgradePart(state: RunState, command: Extract<GameCommand, { type: "UPGRADE_PART" }>): DispatchResult {
+  if (state.phase !== "READY_TO_SPIN" || state.pendingSpin !== null || state.baseSpinsInShift !== 0) {
+    return rejected(state, "INVALID_PHASE", "部件精修仅在每段第一转前开放");
+  }
+  if (!Number.isInteger(command.slot) || command.slot < 0 || command.slot >= state.partSlots.length) {
+    return rejected(state, "INVALID_TARGET", "请选择有效的部件槽");
+  }
+  const part = state.partSlots[command.slot];
+  if (part == null || part.level !== 1) return rejected(state, "INVALID_TARGET", "只能精修已装备的 L1 部件");
+  if (state.tips < 3) return rejected(state, "RESOURCE_EXHAUSTED", "部件精修需要 3 枚小费");
+  const partSlots = state.partSlots.map((item, slot) => slot === command.slot ? { ...part, level: 2 as const } : item) as unknown as RunState["partSlots"];
+  return accepted(state, command, sequenceEvents(state, [
+    { type: "RESOURCE_CHANGED", resource: "tips", delta: -3 },
+    { type: "PART_UPGRADED", partId: part.id, cost: 3 }
+  ]), { tips: state.tips - 3, partSlots });
+}
+
+function openWorkshop(state: RunState, command: Extract<GameCommand, { type: "OPEN_WORKSHOP" }>): DispatchResult {
+  if (!canOpenWorkshop(state)) return rejected(state, "INVALID_PHASE", "每次客房结算限整备一次，先处理免费奖励；重试后才会补货。");
+  const cost = getWorkshopCost(state);
+  const result = generateCandidates({ ...state, bankroll: Math.max(0, state.bankroll - cost) });
+  return accepted(state, command, [], {
+    workshop: { cost, status: "shopping" }, currentCandidates: result.candidates, rng: result.rng
+  });
+}
+
 function continueRun(state: RunState, command: Extract<GameCommand, { type: "CONTINUE" }>): DispatchResult {
   if (state.phase === "SHIFT_COMPLETE") {
     if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
@@ -505,6 +574,12 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return setBetMode(state, command);
     case "BUY_FOOD":
       return buyFood(state, command.reelIndex);
+    case "UPGRADE_PART":
+      return upgradePart(state, command);
+    case "ENTER_ROOM":
+      return enterRoom(state, command);
+    case "OPEN_WORKSHOP":
+      return openWorkshop(state, command);
     case "PRAY":
       return pray(state, command.symbol);
     case "ENABLE_MARTYR":

@@ -53,6 +53,7 @@ export class SpinReceiptInvariantError extends Error {
 const SYMBOL_IDS = new Set<SymbolId>(["cherry", "lemon", "bell", "seven", "wild", "blank", "food", "crack"]);
 const LINE_IDS = new Set<LineWin["lineId"]>(["top", "middle", "bottom", "diagonal-down", "diagonal-up"]);
 const PART_IDS = new Set<PartId>([
+  "cherry-press", "salad-dressing",
   "lemon-infection", "jam-jar", "fruit-salad", "leftovers", "omen-collector", "triple-blessing", "midnight-bell",
   "martyr-coin", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud", "overload-motor", "safety-fuse"
 ]);

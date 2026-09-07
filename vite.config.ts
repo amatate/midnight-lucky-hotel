@@ -2,9 +2,33 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import { configDefaults, defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+
+function ruleSources(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => entry.isDirectory() ? ruleSources(join(directory, entry.name))
+      : entry.name.endsWith(".ts") ? [readFileSync(join(directory, entry.name), "utf8")] : []);
+}
+const rulesRoot = fileURLToPath(new URL("./src", import.meta.url));
+const rulesFingerprint = createHash("sha256")
+  .update([...ruleSources(join(rulesRoot, "core")), ...ruleSources(join(rulesRoot, "content"))].join("\n"))
+  .digest("hex").slice(0, 16);
 
 export default defineConfig({
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint) },
   plugins: [
+    {
+      name: "restart-on-rule-change",
+      async handleHotUpdate({ file, server }) {
+        // Reload the rules fingerprint together with gameplay, never HMR new rules into an old run.
+        if (["core", "content"].some((folder) => file.startsWith(join(rulesRoot, folder) + "/"))) {
+          await server.restart();
+          return [];
+        }
+      }
+    },
     react(),
     VitePWA({
       registerType: "autoUpdate",

@@ -73,8 +73,8 @@ describe("security kick", () => {
   });
 
   it.each([
-    { level: 1 as const, step: 2, cracks: 2 },
-    { level: 2 as const, step: 3, cracks: 2 }
+    { level: 1 as const, step: 2, cracks: 1 },
+    { level: 2 as const, step: 3, cracks: 1 }
   ])("uses equipped loose-spring level $level for a $step-step kick", ({ level, step, cracks }) => {
     const state = readyKickState({
       partSlots: [{ id: "loose-spring", level }, null, null, null, null]

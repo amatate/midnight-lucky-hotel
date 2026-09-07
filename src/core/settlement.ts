@@ -116,6 +116,7 @@ interface WorkingState {
   visibleSourceIds: [[number, number, number], [number, number, number], [number, number, number]];
   nextEntryIds: [number, number, number];
   temporaryEntries: [boolean[], boolean[], boolean[]];
+  blockReelAdditions: [SymbolId[], SymbolId[], SymbolId[]];
   stops: [number, number, number];
   queue: QueuedEffect[];
   drafts: GameEventDraft[];
@@ -557,17 +558,23 @@ function applyEffect(
       }
       break;
     }
+    case "ADD_BLOCK_BLANK":
     case "ADD_TO_REEL": {
       const count = boundedStructuralCount(effect.count);
       if (count === undefined) {
         triggerOverload(currentBet, working);
         break;
       }
-      for (let index = 0; index < count; index += 1) working.strips[effect.reel].push(effect.symbol);
+      const isBlock = effect.type === "ADD_BLOCK_BLANK";
+      const symbol = isBlock ? "blank" : effect.symbol;
+      for (let index = 0; index < count; index += 1) {
+        working.strips[effect.reel].push(symbol);
+        if (isBlock) working.blockReelAdditions[effect.reel].push("blank");
+      }
       for (let index = 0; index < count; index += 1) {
         working.entryIds[effect.reel].push(working.nextEntryIds[effect.reel]++);
       }
-      for (let index = 0; index < count; index += 1) working.temporaryEntries[effect.reel].push(false);
+      for (let index = 0; index < count; index += 1) working.temporaryEntries[effect.reel].push(isBlock);
       break;
     }
     case "REMOVE_FROM_REEL": {
@@ -753,7 +760,7 @@ function temporaryEntryMarkers(state: RunState, draw: ReelDraw): [boolean[], boo
   return draw.strips.map((strip, reel) => {
     const stateReel: unknown = (state.reels as unknown as readonly unknown[])?.[reel];
     const additions: unknown = (state.temporaryReelAdditions as unknown as readonly unknown[])?.[reel];
-    const temporaryLength = Array.isArray(additions) ? additions.length : 0;
+    const temporaryLength = (Array.isArray(additions) ? additions.length : 0) + (state.blockReelAdditions?.[reel]?.length ?? 0);
     const permanentLength = Array.isArray(stateReel)
       ? Math.min(stateReel.length, strip.length)
       : Math.max(0, strip.length - temporaryLength);
@@ -792,6 +799,7 @@ export function resolveSpin(
     visibleSourceIds: initialVisibleSourceIds.map((ids) => [...ids]) as WorkingState["visibleSourceIds"],
     nextEntryIds: initialEntryIds.map((ids) => Math.max(-1, ...ids) + 1) as [number, number, number],
     temporaryEntries: temporaryEntryMarkers(state, normalizedDraw),
+    blockReelAdditions: (state.blockReelAdditions ?? [[], [], []]).map((strip) => [...strip]) as WorkingState["blockReelAdditions"],
     stops: [...normalizedDraw.stops],
     queue: [],
     drafts: [],
@@ -878,6 +886,8 @@ export function resolveSpin(
   const occupiedSlots = state.partSlots
     .map((part, slot) => ({ part, slot }))
     .filter((entry): entry is { part: PartInstance; slot: number } => entry.part !== null)
+    // Damage converters must be able to start without sacrificial filler parts.
+    .filter(({ part }) => part.id !== "scrap-magnet" && part.id !== "warranty-fraud")
     .sort((left, right) => right.slot - left.slot);
   for (const { slot } of occupiedSlots.slice(0, crackCount)) {
     disablePart(state, currentBet, working, registrations, slot);
@@ -935,6 +945,7 @@ export function resolveSpin(
     shiftPayout: safeMoney(state.shiftPayout + working.payout),
     reels,
     temporaryReelAdditions: [[], [], []],
+    blockReelAdditions: working.blockReelAdditions,
     pendingPrayer: null,
     pendingSpin: state.pendingSpin === null ? null : { ...state.pendingSpin, draw: resolvedDraw },
     freeSpinQueue: working.freeSpinQueue,

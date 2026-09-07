@@ -38,11 +38,11 @@ function tripleBlessing(part: PartInstance, context: ResolveContext, signal: Res
     return [];
   }
   const linePayout = signal.win.multiplier * context.currentBet;
+  const hasBlockCost = context.state.blockReelAdditions?.some((strip) => strip.length > 0) ?? false;
+  const longest = ([0, 1, 2] as const).toSorted((a, b) => context.state.reels[b].length - context.state.reels[a].length)[0]!;
   return [
     ...repeatedPayout(linePayout, part.level),
-    { type: "ADD_TO_REEL", reel: 0, symbol: "blank", count: part.level },
-    { type: "ADD_TO_REEL", reel: 1, symbol: "blank", count: part.level },
-    { type: "ADD_TO_REEL", reel: 2, symbol: "blank", count: part.level }
+    ...(hasBlockCost ? [] : [{ type: "ADD_BLOCK_BLANK" as const, reel: longest, count: 1 }])
   ];
 }
 

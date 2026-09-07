@@ -22,6 +22,7 @@ function legalState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
     bankroll: 100,
     baseSpinsInShift: 3,
     toolLevel,
+    ...(id === "salad-dressing" ? { partSlots: [{ id: "fruit-salad", level: 1 }, null, null, null, null] as RunState["partSlots"] } : {}),
     currentCandidates: { synergy: id, pivot: alternatives[0]!, wildcard: alternatives[1]! },
     ...patch
   };

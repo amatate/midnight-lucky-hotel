@@ -29,14 +29,18 @@ describe("buyFood", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error.message);
-    expect(result.events).toEqual([{ sequence: 2, type: "SERVICE_USED", serviceId: "kitchen", cost: 10 }]);
-    expect(result.state.bankroll).toBe(20);
-    expect(result.state.expenses).toMatchObject({ kitchen: 10 });
+    expect(result.events).toEqual([
+      { sequence: 2, type: "SERVICE_USED", serviceId: "kitchen", cost: 7.5 },
+      { sequence: 3, type: "MEAL_SERVED", spins: 3, additivePayout: 0.5 }
+    ]);
+    expect(result.state.buffs).toEqual([{ id: "food", spinsRemaining: 3, additivePayout: 0.5 }]);
+    expect(result.state.bankroll).toBe(22.5);
+    expect(result.state.expenses).toMatchObject({ kitchen: 7.5 });
     expect(result.state.shiftFlags.foodBought).toBe(true);
     expect(result.state.reels[1]).toEqual([...state.reels[1], "food"]);
     expect(result.state.reels[0]).toEqual(state.reels[0]);
     expect(result.state.reels[2]).toEqual(state.reels[2]);
-    expect(result.state.pendingEvents.at(-1)).toEqual(result.events[0]);
+    expect(result.state.pendingEvents.at(-1)).toEqual(result.events.at(-1));
     expect(result.state.commandHistory.at(-1)).toEqual({ type: "BUY_FOOD", reelIndex: 1 });
     expect(state).toEqual(snapshot);
   });
@@ -100,8 +104,8 @@ describe("buyFood", () => {
       message: "food was already bought this shift"
     },
     {
-      name: "below ten bankroll",
-      state: () => kitchenReady({ bankroll: 9.99 }),
+      name: "below the standard meal price",
+      state: () => kitchenReady({ bankroll: 7.49 }),
       reel: 0,
       code: "INSUFFICIENT_FUNDS",
       message: "bankroll is below the kitchen cost"

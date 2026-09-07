@@ -1,6 +1,6 @@
 import { getSafetyFuseRescuePayout } from "@/content/effects/neutral";
 import { UPGRADES } from "@/content/upgrades";
-import { getCurrentBet, getMinimumBet } from "@/core/progression";
+import { getCurrentBet, getMinimumBet, getMartyrCost } from "@/core/progression";
 import { dispatchCommand } from "@/core/run";
 import type {
   PartId,
@@ -91,9 +91,9 @@ export const SERVICE_PRESENTATIONS = {
   kitchen: {
     name: "深夜厨房",
     identity: "主动消费的水果路线：先买食物，再把短期加成滚成连续小奖。",
-    action: "每班第一次基础转动前可支付 ¥10，把 1 份食物加入选定转轮，直到抽中后被消耗；随后让之后 3 次转动的全部赔付 +25%。",
+    action: "每班第一次基础转动前可支付本关标准下注的 75%（初始 ¥7.5），立即获得接下来 3 次转动的适用赔付 +50%；同时向选定轮加入食物，抽中后再获得之后 3 次转动的适用赔付 +25%。",
     synergies: "剩菜打包（把食物送回最短轮）＋果酱罐（樱桃连线逐步加价）",
-    risk: "¥10 立即从余额扣除；食物会加长转轮，而且本班不保证抽到。"
+    risk: "餐费立即扣除，不随保守／激进档切换；免费转也消耗加成次数，空转不会返还餐费。食物会加长转轮；过载保护与保险丝救援不享受加成。"
   },
   chapel: {
     name: "小教堂",
@@ -106,12 +106,22 @@ export const SERVICE_PRESENTATIONS = {
     name: "保安室",
     identity: "确定性救场路线：看清下一格再踹动机器，把损伤转成构筑资源。",
     action: "每班一次免费踹击：确定性地让选定转轮默认前进 1 格；不扣专注，但占用本转唯一一次干预，并留下 1 个永久裂纹。",
-    synergies: "松动弹簧（踹得更远并制造更多裂纹）＋废料磁铁（裂纹连线变成赔付）",
+    synergies: "松动弹簧（相同损伤、踹得更远）＋废料磁铁（裂纹连线变成赔付）",
     risk: "永久裂纹可能在可见时让部件本转失效；损伤会留到之后的转动。"
   }
 } as const satisfies Readonly<Record<ServiceId, ServicePresentation>>;
 
 const UPGRADE_COPY = {
+  "cherry-press": {
+    effect: "每转第一条樱桃中奖线触发：盘面字面樱桃从第 3 颗起，每颗额外支付 0.5 × 下注，最多计 6 颗。",
+    levelTwoEffect: "L2：每颗额外支付 1 × 下注，仍最多计 6 颗。", synergy: "樱桃去核器提高密度，果酱罐继续累积连线奖金。",
+    risk: "百搭不算樱桃；盘面不足 3 颗字面樱桃时不加钱。全部变成柠檬后不再触发。", targetHint: null
+  },
+  "salad-dressing": {
+    effect: "每条水果沙拉额外支付其原始奖金的 50%；与原沙拉奖金分别享受食物加成。",
+    levelTwoEffect: "L2：额外支付其原始奖金的 100%。", synergy: "水果沙拉保留樱桃、柠檬和铃铛的混合连线，厨房放大两份奖金。",
+    risk: "必须装备且成功触发水果沙拉；百搭替代、三连柠檬均无效。", targetHint: null
+  },
   "lemon-crate": {
     effect: "选择两个不同转轮，各永久加入 2 个柠檬。",
     levelTwoEffect: null,
@@ -127,24 +137,24 @@ const UPGRADE_COPY = {
     targetHint: "选择一个转轮上的非樱桃、非百搭符号。"
   },
   "lemon-infection": {
-    effect: "每转第一条柠檬中奖线触发：把 1 个符合条件的线外基础符号变成柠檬，再重新检查中奖线。",
-    levelTwoEffect: "L2：改为变换 2 个符合条件的线外基础符号，再重新检查。",
-    synergy: "柠檬木箱提高第一次触发的机会，水果沙拉可利用变换后的字面水果。",
-    risk: "每转只由第一条柠檬中奖线触发；线外没有樱桃、铃铛或幸运7时不会变换。",
+    effect: "每转首次柠檬线把 1 个线外基础图案变成柠檬并重算；无可感染图案且盘面至少 6 颗字面柠檬时，改为收成 2 × 下注。",
+    levelTwoEffect: "L2：感染 2 个；成熟收成提高为 5 × 下注。每转只触发一次。",
+    synergy: "柠檬木箱提高启动机会，提纯后靠成熟收成继续赚钱；厨房放大两阶段的收入。",
+    risk: "只感染线外樱桃、铃铛或幸运7；感染与收成不同时触发。会破坏樱桃果酱和混合沙拉构筑。",
     targetHint: null
   },
   "jam-jar": {
-    effect: "每条樱桃中奖线都会充能；额外奖金 = 本班此前樱桃中奖线数 × 0.5 × 当前下注。",
+    effect: "每条樱桃中奖线都会充能；额外奖金 = 本班此前樱桃中奖线数（最多计 6 层）× 0.5 × 当前下注。",
     levelTwoEffect: "L2：系数从 0.5 × 当前下注提高为 1 × 当前下注。",
     synergy: "樱桃去核器增加樱桃密度，厨房加成会同时放大这份部件赔付。",
-    risk: "本班第一条樱桃中奖线此前计数为 0，因此只充能、不加钱。",
+    risk: "本班第一条樱桃中奖线此前计数为 0，因此只充能、不加钱；有效充能上限 6 层，换班归零。",
     targetHint: null
   },
   "fruit-salad": {
     effect: "同一支付线上出现字面樱桃＋柠檬＋铃铛时，额外支付 1.5 × 当前下注；百搭不能代替任何一种。",
     levelTwoEffect: "L2：额外支付从 1.5 × 当前下注提高到 2.5 × 当前下注。",
-    synergy: "樱桃去核器和柠檬感染能调整三种字面水果的分布。",
-    risk: "必须三种字面图案恰好同线；普通三连线与百搭替代不满足条件。",
+    synergy: "按不同转轮分配三种图案，搭配沙拉酱和厨房放大混合线。",
+    risk: "必须三种字面图案恰好同线；百搭不能代替。柠檬感染会消掉樱桃、铃铛，不适合继续保留沙拉。",
     targetHint: null
   },
   leftovers: {
@@ -176,10 +186,10 @@ const UPGRADE_COPY = {
     targetHint: null
   },
   "triple-blessing": {
-    effect: "每转第一条幸运7中奖线复制其赔付 1 次，并向每个转轮加入 1 个空白。",
-    levelTwoEffect: "L2：复制 2 次，并向每个转轮加入 2 个空白。",
-    synergy: "七之净化提高触发机会，空白电容可把新增空白转成免费转动。",
-    risk: "空白会永久稀释所有付费符号；每转只由第一条幸运7中奖线触发。",
+    effect: "每转第一条幸运7中奖线复制其赔付 1 次；本班首次触发时，仅向最长轮加入 1 个临时空白。",
+    levelTwoEffect: "L2：复制 2 次；代价不增加，仍整班只加入 1 个临时空白。",
+    synergy: "七之净化提高触发机会，空白电容可把付费转中的空白变成额外机会。",
+    risk: "空白只稀释本班后续转动，换班或进入下一段自动清除；不会永久改轮。只复制第一条幸运7线，不复制其他部件奖金。",
     targetHint: null
   },
   "midnight-bell": {
@@ -190,7 +200,7 @@ const UPGRADE_COPY = {
     targetHint: null
   },
   "martyr-coin": {
-    effect: "每班第一次基础转动前，可献祭向上取整的 10% 余额；启用后本班每条幸运7中奖线复制 1 次。",
+    effect: "每班第一次基础转动前，可献祭向上取整的 10% 余额（最多本关标准下注的 2 倍）；启用后本班每条幸运7中奖线复制 1 次。",
     levelTwoEffect: "L2：本班每条幸运7中奖线改为复制 2 次。",
     synergy: "七之净化增加幸运7，安全保险丝能缓和献祭后的低余额风险。",
     risk: "献祭立即扣款且不保证本班出现幸运7中奖线。",
@@ -200,42 +210,42 @@ const UPGRADE_COPY = {
     effect: "在选定转轮加入 1 个永久裂纹；下一班专注上限 +1。",
     levelTwoEffect: null,
     synergy: "废料磁铁能让裂纹连线付钱，维修间可在边界移除裂纹。",
-    risk: "永久裂纹可能让已装备部件在本转失效。",
+    risk: "永久裂纹可能让部件失效；额外专注只持续下一班，仍受客房上限限制，入房可能用不到。",
     targetHint: "选择要加入永久裂纹的转轮。"
   },
   "scrap-magnet": {
-    effect: "字面裂纹连线支付 2 × 当前下注，并移除组成连线的实体裂纹。",
-    levelTwoEffect: "L2：每条字面裂纹连线改为支付 4 × 当前下注。",
+    effect: "字面裂纹连线支付 4 × 当前下注，并移除组成连线的实体裂纹；本部件免疫裂纹失效。",
+    levelTwoEffect: "L2：每条字面裂纹连线改为支付 6 × 当前下注。",
     synergy: "保安室和松动弹簧制造裂纹，维修间能控制未连线的残余裂纹。",
-    risk: "只有三个字面裂纹同线才付钱；裂纹在连成线前仍可能禁用部件。",
+    risk: "只有三个字面裂纹同线才付钱；裂纹仍可能禁用其他非免疫部件，消除后不追溯恢复本转效果。",
     targetHint: null
   },
   "loose-spring": {
-    effect: "保安室踹击改为前进 2 格，并在该轮增加 2 个永久裂纹。",
-    levelTwoEffect: "L2：踹击改为前进 3 格，仍增加 2 个永久裂纹。",
+    effect: "保安室踹击改为前进 2 格，仍只在该轮增加 1 个永久裂纹。",
+    levelTwoEffect: "L2：踹击改为前进 3 格，仍只增加 1 个永久裂纹。",
     synergy: "踹击预览让位移保持确定，废料磁铁可利用新增裂纹。",
-    risk: "位移更远且每次制造 2 个永久裂纹；踹击仍占用本转唯一干预。",
+    risk: "更远不一定更好，先看踹击预览；每次制造 1 个永久裂纹，仍占用本转唯一干预。",
     targetHint: null
   },
   "blank-capacitor": {
-    effect: "每累计 3 个可见实体空白，获得 1 次免费转动；不足阈值的余数保留。",
-    levelTwoEffect: "L2：阈值从每 3 个实体空白降低为每 2 个。",
-    synergy: "三重祝福持续加入空白，过载马达能从免费转动的长连锁中获利。",
-    risk: "只有可见的实体空白充能；免费转动不会退回此前下注。",
+    effect: "付费转中累计 3 个可见实体空白，获得 1 次免费转；每个付费转最多赠 1 次，不足阈值的余数保留。",
+    levelTwoEffect: "L2：充能阈值从 3 个实体空白降低为 2 个；每转赠送上限不变。",
+    synergy: "三重祝福的本班空白可提供充能，额外转动继续触发其他部件。",
+    risk: "免费转不充能；超出一次赠送的整份充能不储存，只保留余数。三次付费转最多由本部件赠三次。",
     targetHint: null
   },
   "warranty-fraud": {
-    effect: "本班第一次有其他部件因裂纹失效时，支付 3 × 当前下注。",
+    effect: "本班第一次有其他部件因裂纹失效时，支付 3 × 当前下注；本部件免疫裂纹失效。",
     levelTwoEffect: "L2：首次失效赔付从 3 × 当前下注提高为 6 × 当前下注。",
     synergy: "保安室制造裂纹，安全保险丝能承接高风险路线的余额下限。",
-    risk: "每班只赔第一次，而且必须是其他部件失效；自身失效不触发。",
+    risk: "每班只赔第一次，而且必须有其他非免疫部件失效；单独装备不触发。",
     targetHint: null
   },
   "overload-motor": {
-    effect: "从本次结算第 2 个核心连锁效果起，每个支付 0.25 × 当前下注；第 6 个还会向每轮加入 1 个裂纹。",
+    effect: "从本次结算第 2 个核心连锁效果起，每个支付 0.25 × 当前下注；第 6 个向裂纹最少的一轮加入 1 个裂纹。",
     levelTwoEffect: "L2：每个连锁效果的赔付从 0.25 × 当前下注提高为 0.5 × 当前下注。",
     synergy: "柠檬感染和午夜钟声制造重新检查，废料磁铁利用第 6 个效果产生的裂纹。",
-    risk: "短连锁不会触发；达到第 6 个效果会永久损伤全部转轮。",
+    risk: "短连锁不会触发；达到第 6 个效果会永久新增 1 个裂纹，自己产生的效果不继续计数。",
     targetHint: null
   },
   "pruning-shears": {
@@ -253,10 +263,10 @@ const UPGRADE_COPY = {
     targetHint: "选择一个转轮及其中的基础符号。"
   },
   "safety-fuse": {
-    effect: "余额低于最低下注时自动消耗，为余额补入 ¥20。",
-    levelTwoEffect: "L2：自动救援金额从 ¥20 提高到 ¥40。",
+    effect: "余额低于最低下注时自动消耗，补入 1 次最低下注，至少 ¥20。",
+    levelTwoEffect: "L2：补入 2 次最低下注，至少 ¥40。",
     synergy: "殉道者硬币会主动压低余额，维修间帮助稳定到触发线之前。",
-    risk: "一次性消耗品；只有严格低于最低下注才触发。",
+    risk: "一次性消耗品；只有严格低于最低下注才触发。保住下注机会，不保证中奖或凑足客房三转备付金。",
     targetHint: null
   },
   calculator: {
@@ -283,27 +293,29 @@ const UPGRADE_COPY = {
 } as const satisfies Readonly<Record<UpgradeId, UpgradeCopy>>;
 
 const UPGRADE_DECISION_COPY = {
+  "cherry-press": { decisionEffect: "樱桃中奖时，从第 3 颗樱桃起每颗 +0.5×下注", triggerCondition: "每转首次樱桃线，最多计 6 颗；百搭不计数", immediateCost: null },
+  "salad-dressing": { decisionEffect: "每条水果沙拉再加 50% 奖金", triggerCondition: "需要水果沙拉触发", immediateCost: null },
   "lemon-crate": { decisionEffect: "选两轮，各加入 2 个柠檬", triggerCondition: null, immediateCost: "两轮永久变长" },
   "cherry-pitter": { decisionEffect: "把一轮的 1 个其他图案换成樱桃", triggerCondition: "百搭不能替换", immediateCost: "被替换图案永久减少" },
-  "lemon-infection": { decisionEffect: "柠檬中奖后，把线外图案变成柠檬并重算", triggerCondition: "每转首次柠檬线", immediateCost: null },
+  "lemon-infection": { decisionEffect: "柠檬中奖后感染；成熟盘面改为 +2×下注", triggerCondition: "每转首次柠檬线；收成需至少 6 柠檬且无可感染图案", immediateCost: "会替换线外樱桃、铃铛、幸运7" },
   "jam-jar": { decisionEffect: "本班樱桃线越多，后续奖励越高", triggerCondition: "第一条只充能", immediateCost: null },
   "fruit-salad": { decisionEffect: "樱桃 + 柠檬 + 铃铛同线，额外 1.5×下注", triggerCondition: "百搭不算", immediateCost: null },
   leftovers: { decisionEffect: "本班第 1 份食物回到最短轮", triggerCondition: "需要深夜厨房", immediateCost: "最短轮会变长" },
   "seven-purification": { decisionEffect: "把一轮的 1 个樱桃或柠檬换成幸运7", triggerCondition: "目标轮必须有水果", immediateCost: "被替换水果永久减少" },
   "tithe-box": { decisionEffect: "付 ¥10，向一轮加入幸运7并获得 1 恶兆", triggerCondition: null, immediateCost: "立即支付 ¥10，转轮变长" },
   "omen-collector": { decisionEffect: "幸运7中奖时，把全部恶兆换成奖励", triggerCondition: "每转首次幸运7线", immediateCost: null },
-  "triple-blessing": { decisionEffect: "首次幸运7线复制 1 次", triggerCondition: "每转一次", immediateCost: "每轮永久加入 1 个空白" },
+  "triple-blessing": { decisionEffect: "首次幸运7线复制 1 次", triggerCondition: "每转一次", immediateCost: "本班首次触发：最长轮 +1 临时空白，换班清除" },
   "midnight-bell": { decisionEffect: "首次铃铛线把铃铛变百搭并重算", triggerCondition: "必须有字面铃铛", immediateCost: null },
-  "martyr-coin": { decisionEffect: "献祭余额，本班幸运7线额外复制", triggerCondition: "首转前启用", immediateCost: "启用时立即失去向上取整的 10% 余额" },
+  "martyr-coin": { decisionEffect: "献祭余额，本班幸运7线额外复制", triggerCondition: "首转前启用", immediateCost: "支付向上取整的 10% 余额，最多标准下注 ×2" },
   "artificial-crack": { decisionEffect: "向一轮加入裂纹，下班专注上限 +1", triggerCondition: null, immediateCost: "永久加入 1 个裂纹" },
-  "scrap-magnet": { decisionEffect: "裂纹同线，奖励 2×下注并移除它们", triggerCondition: "必须是实体裂纹", immediateCost: null },
-  "loose-spring": { decisionEffect: "踹击前进 2 格并制造 2 个裂纹", triggerCondition: "需要保安室", immediateCost: "每次踹击永久加入 2 裂纹" },
-  "blank-capacitor": { decisionEffect: "累计 3 个可见空白，获得 1 次免费转", triggerCondition: "余数保留", immediateCost: null },
+  "scrap-magnet": { decisionEffect: "裂纹同线，奖励 4×下注并移除它们", triggerCondition: "必须是实体裂纹", immediateCost: null },
+  "loose-spring": { decisionEffect: "踹击前进 2 格，损伤仍为 1 裂纹", triggerCondition: "需要保安室，先看预览", immediateCost: "每次踹击永久加入 1 裂纹" },
+  "blank-capacitor": { decisionEffect: "付费转累计 3 个可见空白，赠 1 次免费转", triggerCondition: "每转最多赠 1 次，余数保留；免费转不充能", immediateCost: null },
   "warranty-fraud": { decisionEffect: "其他部件首次被裂纹禁用，奖励 3×下注", triggerCondition: "自己失效不算", immediateCost: null },
-  "overload-motor": { decisionEffect: "从第 2 个连锁效果起，每个奖励 0.25×下注", triggerCondition: "第 6 个效果还会损伤机器", immediateCost: "第 6 个效果使每轮永久 +1 裂纹" },
+  "overload-motor": { decisionEffect: "从第 2 个连锁效果起，每个奖励 0.25×下注", triggerCondition: "第 6 个效果还会损伤机器", immediateCost: "裂纹最少的一轮永久 +1 裂纹" },
   "pruning-shears": { decisionEffect: "从长轮删除 1 个非百搭图案", triggerCondition: "轮长必须大于 6", immediateCost: "所选图案永久减少" },
   "carbon-copy": { decisionEffect: "向一轮加入 2 个指定基础图案", triggerCondition: "只能复制基础图案", immediateCost: "转轮永久变长" },
-  "safety-fuse": { decisionEffect: "余额不足最低下注时自动补 ¥20", triggerCondition: "触发后消耗", immediateCost: "一次性部件" },
+  "safety-fuse": { decisionEffect: "余额不足时补 1 次最低下注，至少 ¥20", triggerCondition: "低于最低下注自动触发", immediateCost: "一次性部件" },
   calculator: { decisionEffect: "显示每轮精确符号概率", triggerCondition: null, immediateCost: null },
   ledger: { decisionEffect: "显示模拟 RTP 和风险带", triggerCondition: "信息是模拟估算", immediateCost: null },
   "statistics-terminal": { decisionEffect: "显示破产概率、波动和可承受转数", triggerCondition: "信息是模拟估算", immediateCost: null }
@@ -411,7 +423,7 @@ function equippedImpact(state: RunState, part: PartInstance): string {
   switch (part.id) {
     case "jam-jar": {
       const lines = state.counters.cherryWinsThisShift;
-      const payout = lines * (part.level === 1 ? 0.5 : 1) * bet;
+      const payout = Math.min(6, lines) * (part.level === 1 ? 0.5 : 1) * bet;
       return `本班已有 ${lines} 条樱桃中奖线；下一条额外赔付 ¥${money(payout)}。${status}`;
     }
     case "leftovers": {
@@ -422,23 +434,23 @@ function equippedImpact(state: RunState, part: PartInstance): string {
       const payout = state.omen * (part.level === 1 ? 0.5 : 1) * bet;
       return `当前 ${state.omen} 层恶兆；触发时可额外赔付 ¥${money(payout)} 并清空恶兆。${status}`;
     }
+    case "triple-blessing": {
+      const blanks = (state.blockReelAdditions ?? []).reduce((n, strip) => n + strip.length, 0);
+      return `每转首次幸运7线额外复制 ${part.level} 次；本班已有 ${blanks} 个临时空白，下一班清除。${status}`;
+    }
     case "martyr-coin": {
       if (state.shiftFlags.martyrEnabled) {
         return `本班已经献祭；不会再次扣款，幸运7中奖线按当前等级复制。${status}`;
       }
       const canEnable = state.phase === "READY_TO_SPIN" && state.pendingSpin === null && state.baseSpinsInShift === 0;
       if (!canEnable) return `尚未献祭，但已经错过本班献祭窗口；本班不能再启用。${status}`;
-      const cost = state.bankroll > 0 && Number.isFinite(state.bankroll) ? Math.ceil(state.bankroll * 0.1) : 0;
+      const cost = getMartyrCost(state);
       return `本班尚未献祭；现在可以献祭，献祭成本 ¥${cost}。${status}`;
     }
     case "blank-capacitor": {
       const threshold = part.level === 1 ? 3 : 2;
       const charge = Math.max(0, state.counters.blankCharge);
-      const pendingGrants = Math.floor(charge / threshold);
-      if (pendingGrants > 0) {
-        return `当前蓄能 ${charge}/${threshold}；待结算 ${pendingGrants} 次免费转动，将在下一次未失效的已接受盘面结算。${status}`;
-      }
-      return `当前蓄能 ${charge}/${threshold}；还差 ${threshold - charge} 个实体空白获得免费转动。${status}`;
+      return `当前蓄能 ${charge}/${threshold}；付费转还需 ${Math.max(0, threshold - charge)} 个实体空白。每转最多赠 1 次，免费转不充能。${status}`;
     }
     case "warranty-fraud": {
       const payout = (part.level === 1 ? 3 : 6) * bet;
@@ -448,7 +460,7 @@ function equippedImpact(state: RunState, part: PartInstance): string {
     }
     case "loose-spring": {
       const steps = part.level === 1 ? 2 : 3;
-      return `本班踹击${state.shiftFlags.kickUsed ? "已使用" : "可使用"}；踹击会前进 ${steps} 格并增加 2 个永久裂纹。${status}`;
+      return `本班踹击${state.shiftFlags.kickUsed ? "已使用" : "可使用"}；踹击会前进 ${steps} 格并增加 1 个永久裂纹。${status}`;
     }
     case "safety-fuse": {
       const minimum = getMinimumBet(state);
@@ -461,7 +473,7 @@ function equippedImpact(state: RunState, part: PartInstance): string {
             : `进入下一次付费转动前将消耗并救援 ¥${money(rescue)}`;
         return `余额已低于最低下注 ¥${money(minimum)}；${trigger}。${status}`;
       }
-      return `最低下注 ¥${money(minimum)}；余额尚未触发，触发后救援 ¥${part.level === 1 ? 20 : 40}。${status}`;
+      return `最低下注 ¥${money(minimum)}；余额尚未触发，触发后救援 ¥${money(Math.max(part.level === 1 ? 20 : 40, minimum * part.level))}。${status}`;
     }
     default:
       return `当前装备 L${part.level}。${status}`;

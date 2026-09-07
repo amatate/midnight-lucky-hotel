@@ -134,7 +134,7 @@ describe("contract generation", () => {
     })).toBe(false);
     expect(discipline.canGenerate({
       ...base,
-      reels: [["lemon", "blank", "blank"], ["lemon", "blank", "blank"], ["lemon", "blank", "blank"]]
+      reels: [["bell", "blank", "blank"], ["bell", "blank", "blank"], ["bell", "blank", "blank"]]
     })).toBe(true);
     expect(discipline.canGenerate({ ...base, baseSpinsInShift: 1 })).toBe(false);
   });
@@ -192,7 +192,7 @@ describe("contract generation", () => {
     expect(generateContract(state).contract).toMatchObject({ target: 1, completed: false, rewardClaimed: false });
   });
 
-  it("allows a non-consuming level-one fuse witness only when its rescue reaches the scaled minimum", () => {
+  it("keeps a non-consuming level-one fuse witness viable when minimum stakes scale", () => {
     const state: RunState = {
       ...createRun(82),
       phase: "READY_TO_SPIN",
@@ -210,7 +210,7 @@ describe("contract generation", () => {
 
     const expensive = { ...state, afterHoursLevel: 7 };
     expect(getMinimumBet(expensive)).toBeGreaterThan(20);
-    expect(generateContract(expensive).contract).toMatchObject({ target: 0, completed: true, rewardClaimed: true });
+    expect(generateContract(expensive).contract).toMatchObject({ target: 1, completed: false, rewardClaimed: false });
     expect(expensive.partSlots[0]).toEqual({ id: "safety-fuse", level: 1 });
     expect(expensive.bankroll).toBe(0);
   });

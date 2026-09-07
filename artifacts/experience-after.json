@@ -1,0 +1,303 @@
+{
+  "model": "synthetic-three-paid-spin-blocks-v1",
+  "seed": 820127,
+  "samplesPerScenario": 64,
+  "maxSpinsPerSample": 12,
+  "units": "B = fixed wager, net includes meal/offering fees; no respin policy; room rates are threshold comparisons, not player win rates",
+  "caveat": "Payout/net quantiles and room rates exclude censored samples; never compare truncated-scenario means as unbiased outcomes.",
+  "roomThresholdsB": [
+    18,
+    40,
+    110
+  ],
+  "baseExact": {
+    "stops": 1728,
+    "rawRtp": 0.579,
+    "hitRate": 0.485,
+    "profitableRate": 0.1655
+  },
+  "scenarios": [
+    {
+      "id": "base",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 1.8109,
+      "meanNetB": -1.1891,
+      "meanPartB": 0,
+      "p50PayoutB": 1.7,
+      "p90PayoutB": 3.2,
+      "emptySpinRate": 0.526,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "base_meal",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 2.641,
+      "meanNetB": -1.109,
+      "meanPartB": 0,
+      "p50PayoutB": 2.55,
+      "p90PayoutB": 4.95,
+      "emptySpinRate": 0.5573,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "base_meal_high_stake",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 2.641,
+      "meanNetB": -1.109,
+      "meanPartB": 0,
+      "p50PayoutB": 2.55,
+      "p90PayoutB": 4.95,
+      "emptySpinRate": 0.5573,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "lemon_growing",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 6.7613,
+      "meanNetB": 3.0113,
+      "meanPartB": 0,
+      "p50PayoutB": 7.05,
+      "p90PayoutB": 10.8,
+      "emptySpinRate": 0.3542,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "lemon_full",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 13.5,
+      "meanNetB": 10.5,
+      "meanPartB": 0,
+      "p50PayoutB": 13.5,
+      "p90PayoutB": 13.5,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "lemon_full_meal",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 19.8176,
+      "meanNetB": 16.0676,
+      "meanPartB": 0,
+      "p50PayoutB": 20.25,
+      "p90PayoutB": 20.25,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        0.9063,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "cherry_growing_l1",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 8.4414,
+      "meanNetB": 4.6914,
+      "meanPartB": 4.7539,
+      "p50PayoutB": 7.95,
+      "p90PayoutB": 14.85,
+      "emptySpinRate": 0.375,
+      "noInterventionRoomPassRate": [
+        0.0625,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "cherry_growing_l2",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 13.1953,
+      "meanNetB": 9.4453,
+      "meanPartB": 9.5078,
+      "p50PayoutB": 11.55,
+      "p90PayoutB": 23.05,
+      "emptySpinRate": 0.375,
+      "noInterventionRoomPassRate": [
+        0.2344,
+        0.0313,
+        0
+      ]
+    },
+    {
+      "id": "cherry_full_l2",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 140.7234,
+      "meanNetB": 136.9734,
+      "meanPartB": 127.5117,
+      "p50PayoutB": 144,
+      "p90PayoutB": 144,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "salad_full_l2",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 110.0977,
+      "meanNetB": 106.3477,
+      "meanPartB": 110.0977,
+      "p50PayoutB": 112.5,
+      "p90PayoutB": 112.5,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        1,
+        1,
+        0.8438
+      ]
+    },
+    {
+      "id": "chapel_growing",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 28.1828,
+      "meanNetB": 23.1828,
+      "meanPartB": 17.7266,
+      "p50PayoutB": 29,
+      "p90PayoutB": 40.1,
+      "emptySpinRate": 0.3698,
+      "noInterventionRoomPassRate": [
+        0.8906,
+        0.125,
+        0
+      ]
+    },
+    {
+      "id": "chapel_full_l2",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 127.8984,
+      "meanNetB": 122.8984,
+      "meanPartB": 92.0156,
+      "p50PayoutB": 128,
+      "p90PayoutB": 170,
+      "emptySpinRate": 0.1302,
+      "noInterventionRoomPassRate": [
+        1,
+        1,
+        0.7031
+      ]
+    },
+    {
+      "id": "fault_startup",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "censoredSamples": [],
+      "meanObservedSpins": 3,
+      "meanPayoutB": 1.7063,
+      "meanNetB": -1.2937,
+      "meanPartB": 0.625,
+      "p50PayoutB": 0,
+      "p90PayoutB": 5,
+      "emptySpinRate": 0.7917,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "fault_ready",
+      "samples": 64,
+      "completed": 61,
+      "truncated": 3,
+      "censoredSamples": [
+        {
+          "index": 20,
+          "payoutSoFarB": 16.35,
+          "spins": 12
+        },
+        {
+          "index": 36,
+          "payoutSoFarB": 16.1,
+          "spins": 12
+        },
+        {
+          "index": 62,
+          "payoutSoFarB": 15.9,
+          "spins": 12
+        }
+      ],
+      "meanObservedSpins": 5.9688,
+      "meanPayoutB": 6.2803,
+      "meanNetB": 3.2803,
+      "meanPartB": 3.9426,
+      "p50PayoutB": 6,
+      "p90PayoutB": 9,
+      "emptySpinRate": 0.6545,
+      "noInterventionRoomPassRate": [
+        0.0164,
+        0,
+        0
+      ]
+    }
+  ]
+}

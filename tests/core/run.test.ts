@@ -510,13 +510,13 @@ describe("dispatchCommand", () => {
     if (!accepted.ok) throw new Error(accepted.error.message);
     expect(accepted.state).toMatchObject({
       phase: "RESOLVING_EFFECTS",
-      bankroll: 102,
-      shiftPayout: 12,
-      attribution: { base: 12 }
+      bankroll: 99,
+      shiftPayout: 9,
+      attribution: { base: 9 }
     });
     expect(accepted.events).toEqual([
-      { sequence: 3, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 12, appliedMultiplier: 1, amount: 12, source: "base" },
-      { sequence: 4, type: "PAYOUT_COMPLETE", total: 12 }
+      { sequence: 3, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 9, appliedMultiplier: 1, amount: 9, source: "base" },
+      { sequence: 4, type: "PAYOUT_COMPLETE", total: 9 }
     ]);
   });
 

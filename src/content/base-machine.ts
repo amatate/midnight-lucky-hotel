@@ -7,9 +7,9 @@ export const BASE_REELS: ReelSet = [
 ];
 
 export const BASE_PAYTABLE = {
-  cherry: 0.8,
-  lemon: 1.2,
-  bell: 2,
-  seven: 5,
-  wild: 8
+  cherry: 0.6,
+  lemon: 0.9,
+  bell: 1.5,
+  seven: 3.5,
+  wild: 5.5
 } as const satisfies Paytable;

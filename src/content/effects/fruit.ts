@@ -11,7 +11,7 @@ import type {
 } from "@/core/types";
 import { PAYLINES } from "@/core/paylines";
 
-const FRUIT_PART_IDS = new Set<PartId>(["lemon-infection", "jam-jar", "fruit-salad", "leftovers"]);
+const FRUIT_PART_IDS = new Set<PartId>(["lemon-infection", "jam-jar", "fruit-salad", "leftovers", "cherry-press", "salad-dressing"]);
 
 function isFruitPart(part: PartInstance): boolean {
   return FRUIT_PART_IDS.has(part.id);
@@ -38,7 +38,9 @@ function infectionEffects(part: PartInstance, context: ResolveContext, signal: R
       if (effects.length === limit) return [...effects, { type: "REEVALUATE_LINES" }];
     }
   }
-  return effects.length === 0 ? [] : [...effects, { type: "REEVALUATE_LINES" }];
+  if (effects.length > 0) return [...effects, { type: "REEVALUATE_LINES" }];
+  const ripe = context.grid.flat().filter((symbol) => symbol === "lemon").length >= 6;
+  return ripe ? [{ type: "ADD_PAYOUT", source: "part", amount: (part.level === 1 ? 2 : 5) * context.currentBet }] : [];
 }
 
 function jamJarEffects(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
@@ -46,7 +48,7 @@ function jamJarEffects(part: PartInstance, context: ResolveContext, signal: Reso
 
   const priorCherryWins = context.fruitPart?.observeCherryLine();
   if (priorCherryWins === undefined) return [];
-  const amount = priorCherryWins * (part.level === 1 ? 0.5 : 1) * context.currentBet;
+  const amount = Math.min(6, priorCherryWins) * (part.level === 1 ? 0.5 : 1) * context.currentBet;
   const effects: Effect[] = [];
   if (amount > 0) effects.push({ type: "ADD_PAYOUT", amount, source: "part" });
   effects.push({ type: "INCREMENT_COUNTER", counter: "cherryWinsThisShift", amount: 1 });
@@ -110,11 +112,28 @@ function reactOneFruitPart(
   signal: ResolveSignal
 ): readonly Effect[] {
   return [
+    ...cherryPressEffects(part, context, signal),
+    ...saladDressingEffects(part, context, signal),
     ...infectionEffects(part, context, signal),
     ...jamJarEffects(part, context, signal),
     ...fruitSaladEffects(part, context, signal),
     ...leftoversEffects(part, context, signal)
   ];
+}
+
+function cherryPressEffects(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
+  if (part.id !== "cherry-press" || signal.type !== "LINE_AWARDED" || signal.win.symbol !== "cherry") return [];
+  if (!context.fruitPart?.claimTrigger("cherry-press")) return [];
+  const surplus = Math.min(6, Math.max(0, context.grid.flat().filter((symbol) => symbol === "cherry").length - 2));
+  return surplus === 0 ? [] : [{
+    type: "ADD_PAYOUT", source: "part", amount: surplus * (part.level === 1 ? 0.5 : 1) * context.currentBet
+  }];
+}
+
+function saladDressingEffects(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
+  if (part.id !== "salad-dressing" || signal.type !== "EFFECT_APPLIED" || signal.effect.type !== "ADD_PATTERN_PAYOUT") return [];
+  if (!context.fruitPart?.claimTrigger(`salad-dressing:${signal.effect.lineId}`)) return [];
+  return [{ type: "ADD_PAYOUT", source: "part", amount: signal.effect.amount * (part.level === 1 ? 0.5 : 1) }];
 }
 
 /** Returns fruit-route effects for the exact settlement-owned fruit-part registration in context. */

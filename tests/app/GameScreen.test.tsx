@@ -131,7 +131,7 @@ describe("GameScreen", () => {
     expect(within(chooser).getAllByText("行动")).toHaveLength(3);
     expect(within(chooser).getAllByText("协同")).toHaveLength(3);
     expect(within(chooser).getAllByText("代价／风险")).toHaveLength(3);
-    expect(within(chooser).getByText(/支付 ¥10/)).toHaveTextContent("之后 3 次转动的全部赔付 +25%");
+    expect(within(chooser).getByText(/标准下注的 75%/)).toHaveTextContent("之后 3 次转动的适用赔付 +25%");
     expect(within(chooser).getByText(/确定性地让选定转轮/)).toHaveTextContent("占用本转唯一一次干预");
     expect(container).not.toHaveTextContent(/reel-growth|bankroll-cost|intervention/);
   });
@@ -452,7 +452,7 @@ describe("GameScreen", () => {
     expect(screen.queryByText(/破产风险/)).not.toBeInTheDocument();
 
     rerender(<Hud state={{ ...createRun(1), toolLevel: 1 }} estimate={estimate} estimateStatus="ready" />);
-    expect(screen.getByText(/计算器 · 每轮符号概率/)).toBeInTheDocument();
+    expect(screen.getByText(/计算器 · 长期转轮符号概率/)).toBeInTheDocument();
     expect(screen.queryByText("有利")).not.toBeInTheDocument();
     expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
 
@@ -504,12 +504,12 @@ describe("GameScreen", () => {
       ...createRun(15),
       phase: "READY_TO_SPIN",
       service: "kitchen",
-      bankroll: 9
+      bankroll: 7
     }} onCommand={onCommand} />);
 
-    const food = screen.getByRole("button", { name: "购买食物（¥10）" });
+    const food = screen.getByRole("button", { name: "购买食物（¥7.5）" });
     expect(food).toBeDisabled();
-    expect(screen.getByText("余额不足：厨房服务需要 ¥10。")).toBeVisible();
+    expect(screen.getByText("余额不足：厨房服务需要 ¥7.5。")).toBeVisible();
     fireEvent.click(food);
     expect(onCommand).not.toHaveBeenCalled();
 
@@ -627,7 +627,7 @@ describe("GameScreen", () => {
     await user.click(within(decision).getByRole("button", { name: "修复第1轮裂纹（1 小费）" }));
 
     expect(screen.queryByRole("button", { name: /修复第1轮裂纹/ })).not.toBeInTheDocument();
-    expect(screen.getByText("下注 ¥0 · 赔付 ¥0")).toBeVisible();
+    expect(screen.getByRole("region", { name: "本次挑战收支" })).toHaveTextContent("本段下注−¥0");
     expect(screen.getByRole("button", { name: "结账离开" })).toBeVisible();
     expect(screen.getByRole("button", { name: "继续加班" })).toBeVisible();
   });

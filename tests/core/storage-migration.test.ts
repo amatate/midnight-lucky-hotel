@@ -43,6 +43,11 @@ function awaitingWinningState(seed = 202): RunState {
 function asV1(state: RunState): Record<string, unknown> {
   const snapshot = structuredClone(state) as unknown as Record<string, unknown>;
   snapshot.schemaVersion = 1;
+  delete snapshot.hotel;
+  delete snapshot.blockStartBankroll;
+  delete snapshot.freeAfterHoursLevel;
+  delete snapshot.workshop;
+  delete snapshot.blockReelAdditions;
   delete snapshot.spinHistory;
   delete snapshot.nextSpinOrdinal;
   if (snapshot.pendingSpin !== null && typeof snapshot.pendingSpin === "object") {

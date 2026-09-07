@@ -1,4 +1,5 @@
 import type { RunState } from "@/core/types";
+import { RoomResult } from "@/app/components/HotelChallenge";
 import { safeMoney } from "@/core/money";
 
 function money(value: number): string {
@@ -24,8 +25,11 @@ export function ShiftReceipt({ state }: { readonly state: RunState }): React.JSX
       <p className="eyebrow">NIGHT AUDIT · SHIFT RECEIPT</p>
       <h2>{heading}</h2>
       <strong>本班转轮盈亏 {signedMoney(snapshot.totalPayout - snapshot.totalWager)}</strong>
-      <p>余额 {money(snapshot.bankroll)} / 目标 {money(state.checkoutTarget)}</p>
+      <p>以上只扣下注，未扣餐费、献祭或整备；钱包净收益请看结算账本。</p>
+      {state.exitUnlocked ? <p>结算时钱包 {money(snapshot.bankroll)} · 已获得结账资格</p>
+        : <p>余额 {money(snapshot.bankroll)} / 目标 {money(state.checkoutTarget)}</p>}
       <p>下注 {money(snapshot.totalWager)} · 赔付 {money(snapshot.totalPayout)}</p>
+      <RoomResult state={state} />
     </section>
   );
 }

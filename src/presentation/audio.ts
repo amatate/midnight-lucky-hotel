@@ -3,6 +3,11 @@ import type { FeedbackPlan } from "@/presentation/feedback";
 
 let context: AudioContext | null = null;
 
+function muted(): boolean {
+  try { return localStorage.getItem("midnight-lucky-hotel.muted") === "1"; }
+  catch { return false; }
+}
+
 export function unlockAudio(): boolean {
   if (typeof window === "undefined") return false;
   const AudioConstructor = window.AudioContext;
@@ -17,7 +22,7 @@ export function unlockAudio(): boolean {
 }
 
 export function playLeverDetentTone(): boolean {
-  if (context === null || context.state === "closed") return false;
+  if (muted() || context === null || context.state === "closed") return false;
   try {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
@@ -51,7 +56,7 @@ function chordFrequencies(tone: FeedbackPlan["tone"], fallback: number): readonl
 }
 
 export function playEventTone(event: GameEvent, tone: FeedbackPlan["tone"] = "none"): boolean {
-  if (context === null || context.state === "closed") return false;
+  if (muted() || context === null || context.state === "closed") return false;
   try {
     const gain = context.createGain();
     const frequencies = chordFrequencies(tone, eventFrequency(event));

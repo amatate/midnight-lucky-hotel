@@ -45,7 +45,7 @@ function scrapMagnet(part: PartInstance, context: ResolveContext, signal: Resolv
   }
   if (qualifyingLines === 0) return [];
 
-  const amount = (part.level === 1 ? 2 : 4) * context.currentBet;
+  const amount = (part.level === 1 ? 4 : 6) * context.currentBet;
   const payouts = Array.from(
     { length: qualifyingLines },
     (): Effect => ({ type: "ADD_PAYOUT", amount, source: "part" })
@@ -54,14 +54,14 @@ function scrapMagnet(part: PartInstance, context: ResolveContext, signal: Resolv
 }
 
 function blankCapacitor(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
-  if (part.id !== "blank-capacitor" || signal.type !== "GRID_ACCEPTED") return [];
+  if (part.id !== "blank-capacitor" || signal.type !== "GRID_ACCEPTED" || context.state.pendingSpin?.isFree) return [];
   const authorized = readAuthorizedViolentPart(context);
   if (authorized === undefined || !authorized.claimTrigger("blank-capacitor")) return [];
 
   const visible = authorized.visiblePhysicalCount("blank");
   const threshold = part.level === 1 ? 3 : 2;
   const total = Math.max(0, context.state.counters.blankCharge) + visible;
-  const granted = Math.floor(total / threshold);
+  const granted = Math.min(1, Math.floor(total / threshold));
   const remainder = total % threshold;
   const counterDelta = remainder - context.state.counters.blankCharge;
   const effects: Effect[] = [];
@@ -102,9 +102,9 @@ function overloadMotor(part: PartInstance, context: ResolveContext, signal: Reso
     source: "part"
   }];
   if (ordinal === 6 && authorized!.claimTrigger("overload-motor-cracks")) {
-    for (const reel of [0, 1, 2] as const) {
-      effects.push({ type: "ADD_TO_REEL", reel, symbol: "crack", count: 1 });
-    }
+    const reel = ([0, 1, 2] as const).toSorted((a, b) =>
+      context.state.reels[a].filter((s) => s === "crack").length - context.state.reels[b].filter((s) => s === "crack").length)[0]!;
+    effects.push({ type: "ADD_TO_REEL", reel, symbol: "crack", count: 1 });
   }
   return effects;
 }

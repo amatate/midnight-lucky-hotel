@@ -1,6 +1,6 @@
 import type { DispatchResult } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
-import { roundMoney } from "@/core/progression";
+import { getMealCost, roundMoney } from "@/core/progression";
 import type { ReelIndex, RunState } from "@/core/types";
 
 function rejected(
@@ -32,7 +32,8 @@ export function buyFood(state: RunState, reel: ReelIndex): DispatchResult {
   if (state.shiftFlags.foodBought) {
     return rejected(state, "RESOURCE_EXHAUSTED", "food was already bought this shift");
   }
-  if (state.bankroll < 10) {
+  const cost = getMealCost(state);
+  if (state.bankroll < cost) {
     return rejected(state, "INSUFFICIENT_FUNDS", "bankroll is below the kitchen cost");
   }
   if (!isReelIndex(reel)) {
@@ -44,7 +45,10 @@ export function buyFood(state: RunState, reel: ReelIndex): DispatchResult {
     sequence: state.pendingEvents.length + 1,
     type: "SERVICE_USED",
     serviceId: "kitchen",
-    cost: 10
+    cost
+  } as const satisfies GameEvent;
+  const meal = {
+    sequence: event.sequence + 1, type: "MEAL_SERVED", spins: 3, additivePayout: 0.5
   } as const satisfies GameEvent;
   const reels = state.reels.map((strip, reelIndex) =>
     reelIndex === reel ? [...strip, "food"] : [...strip]
@@ -52,14 +56,15 @@ export function buyFood(state: RunState, reel: ReelIndex): DispatchResult {
 
   return {
     ok: true,
-    events: [event],
+    events: [event, meal],
     state: {
       ...state,
-      bankroll: roundMoney(state.bankroll - 10),
+      bankroll: roundMoney(state.bankroll - cost),
       reels,
+      buffs: [...state.buffs, { id: "food", spinsRemaining: 3, additivePayout: 0.5 }],
       shiftFlags: { ...state.shiftFlags, foodBought: true },
-      expenses: { ...state.expenses, kitchen: roundMoney(state.expenses.kitchen + 10) },
-      pendingEvents: [...state.pendingEvents, event],
+      expenses: { ...state.expenses, kitchen: roundMoney(state.expenses.kitchen + cost) },
+      pendingEvents: [...state.pendingEvents, event, meal],
       commandHistory: [...state.commandHistory, command]
     }
   };

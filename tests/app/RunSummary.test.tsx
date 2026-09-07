@@ -17,7 +17,7 @@ describe("RunSummary", () => {
     const state: RunState = {
       ...createRun(11),
       phase: "RUN_LOST",
-      bankroll: 4,
+      bankroll: 78,
       attribution: { base: 8, part: 30, intervention: 0, service: 0, agitation: 0, overload: 0 },
       expenses: { wagers: 50, kitchen: 10, chapel: 0, repair: 0 }
     };
@@ -32,9 +32,10 @@ describe("RunSummary", () => {
     );
 
     expect(screen.getByRole("heading", { name: "本局失败" })).toBeVisible();
-    expect(screen.getByText("最终余额 ¥4")).toBeVisible();
-    expect(screen.getByText("余额变化 -¥96")).toBeVisible();
-    expect(screen.getByText("下注 ¥50 · 赔付 ¥38")).toBeVisible();
+    expect(screen.getByText("最终余额 ¥78")).toBeVisible();
+    await user.click(screen.getByText("整局累计账本（从开局至今）"));
+    expect(screen.getByText("相对开局 ¥100，余额变化 -¥22")).toBeVisible();
+    expect(screen.getByText("累计奖金 ¥38 · 累计下注 −¥50")).toBeVisible();
     expect(screen.getByText("最大收入：机器部件 +¥30")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "同种子重开" }));
     await user.click(screen.getByRole("button", { name: "下一种子重开" }));
@@ -42,7 +43,7 @@ describe("RunSummary", () => {
     expect(restartNextSeed).toHaveBeenCalledOnce();
   });
 
-  it("labels build advice and only shows an eligible current estimate", () => {
+  it("hides acquisition advice after the run ends while showing an eligible estimate", () => {
     const state: RunState = {
       ...createRun(14),
       phase: "RUN_LOST" as const,
@@ -64,7 +65,7 @@ describe("RunSummary", () => {
       />
     );
 
-    expect(screen.getByText("构筑提示：水果沙拉")).toBeVisible();
+    expect(screen.queryByText(/构筑提示|补强方向/)).not.toBeInTheDocument();
     expect(screen.getByText("当前模拟 RTP 102% · 仅为估算")).toBeVisible();
     expect(screen.queryByText(/RTP 轨迹点|主要支出/)).not.toBeInTheDocument();
   });

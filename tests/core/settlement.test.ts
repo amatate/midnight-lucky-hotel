@@ -76,8 +76,8 @@ describe("resolveSpin special symbols", () => {
 
     const result = resolveSpin(settlementState(draw), draw);
 
-    expect(result.payout).toBe(12);
-    expect(result.attribution.base).toBe(12);
+    expect(result.payout).toBe(9);
+    expect(result.attribution.base).toBe(9);
     expect(result.state.buffs).toEqual([{ id: "food", spinsRemaining: 3, additivePayout: 0.25 }]);
   });
 
@@ -92,8 +92,8 @@ describe("resolveSpin special symbols", () => {
 
     const result = resolveSpin(state, draw);
 
-    expect(result.payout).toBe(18);
-    expect(result.attribution.base).toBe(18);
+    expect(result.payout).toBe(13.5);
+    expect(result.attribution.base).toBe(13.5);
     expect(result.state.buffs).toEqual([
       { id: "food", spinsRemaining: 2, additivePayout: 0.25 },
       { id: "food", spinsRemaining: 1, additivePayout: 0.25 }
@@ -336,14 +336,14 @@ describe("resolveSpin payout and queue behavior", () => {
 
     const result = resolveSpin(settlementState(draw, { agitation: 3 }), draw);
 
-    expect(result.payout).toBe(27);
-    expect(result.attribution).toMatchObject({ base: 12, agitation: 15 });
+    expect(result.payout).toBe(24);
+    expect(result.attribution).toMatchObject({ base: 9, agitation: 15 });
     expect(result.state.agitation).toBe(0);
     expect(result.events).toEqual([
-      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 12, appliedMultiplier: 1, amount: 12, source: "base" },
+      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 9, appliedMultiplier: 1, amount: 9, source: "base" },
       { sequence: 2, type: "PAYOUT_ADDED", preMultiplierAmount: 15, appliedMultiplier: 1, amount: 15, source: "agitation" },
       { sequence: 3, type: "RESOURCE_CHANGED", resource: "agitation", delta: -3 },
-      { sequence: 4, type: "PAYOUT_COMPLETE", total: 27 }
+      { sequence: 4, type: "PAYOUT_COMPLETE", total: 24 }
     ]);
   });
 
@@ -386,14 +386,14 @@ describe("resolveSpin payout and queue behavior", () => {
     const result = resolveSpin(state, draw, [{ kind: "part", slot: 0, partId: "jam-jar", handler }]);
 
     expect(result.attribution).toEqual({
-      base: 15,
+      base: 11.25,
       part: 2.5,
       intervention: 3.75,
       service: 5,
       agitation: 12.5,
       overload: 0
     });
-    expect(result.payout).toBe(38.75);
+    expect(result.payout).toBe(35);
     expect(result.state.attribution).toEqual(result.attribution);
   });
 
@@ -465,9 +465,9 @@ describe("resolveSpin payout and queue behavior", () => {
     const result = resolveSpin(settlementState(draw), draw, [system(handler)]);
 
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toEqual([
-      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 12, appliedMultiplier: 1, amount: 12, source: "base" }
+      { sequence: 1, type: "LINE_WIN", lineId: "middle", symbol: "lemon", preMultiplierAmount: 9, appliedMultiplier: 1, amount: 9, source: "base" }
     ]);
-    expect(result.payout).toBe(12);
+    expect(result.payout).toBe(9);
   });
 
   it("does not overload at effect 99", () => {
@@ -559,7 +559,7 @@ describe("resolveSpin payout and queue behavior", () => {
 
     const result = resolveSpin(state, draw, [system(handler)]);
 
-    expect(result.payout).toBe(12);
+    expect(result.payout).toBe(9);
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(1);
     expect(result.effectCount).toBe(2);
     expect(result.state.counters.blankCharge).toBe(0);

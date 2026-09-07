@@ -155,7 +155,7 @@ describe("chapel prayer", () => {
     );
   });
 
-  it("removes only prayer-tagged copies while preserving permanent settlement additions", () => {
+  it("removes prayer copies from permanent reels while retaining blessing blanks for the block", () => {
     const original = chapelReady({
       partSlots: withPart({ id: "triple-blessing", level: 1 })
     });
@@ -175,11 +175,12 @@ describe("chapel prayer", () => {
       originalSevens
     );
     expect(result.state.reels.map((strip) => strip.filter((symbol) => symbol === "blank").length)).toEqual(
-      original.reels.map((strip) => strip.filter((symbol) => symbol === "blank").length + 1)
+      original.reels.map((strip) => strip.filter((symbol) => symbol === "blank").length)
     );
     expect(result.state.pendingSpin?.draw.strips.map((strip) => strip.length)).toEqual(
-      result.state.reels.map((strip) => strip.length + 2)
+      result.state.reels.map((strip, index) => strip.length + (index === 0 ? 3 : 2))
     );
+    expect(result.state.blockReelAdditions).toEqual([["blank"], [], []]);
   });
 
   it("occupies the sole intervention so post-stop respin is rejected", () => {
@@ -286,8 +287,8 @@ describe("chapel prayer", () => {
   });
 
   it.each([
-    [1, 260, 160],
-    [2, 360, 260]
+    [1, 185, 115],
+    [2, 255, 185]
   ] as const)("applies martyr level %i to every seven line while other seven parts use only the first", (martyrLevel, total, part) => {
     const grid: Grid = [
       ["seven", "seven", "blank"],
@@ -313,11 +314,12 @@ describe("chapel prayer", () => {
     const result = resolveSpin(base, draw);
 
     expect(result.payout).toBe(total);
-    expect(result.attribution).toMatchObject({ base: 100, part });
+    expect(result.attribution).toMatchObject({ base: 70, part });
     expect(result.state.omen).toBe(0);
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(2);
     expect(result.events.filter((event) => event.type === "PAYOUT_ADDED")).toHaveLength(2 + martyrLevel * 2);
-    for (const reel of [0, 1, 2] as const) expect(result.state.reels[reel].at(-1)).toBe("blank");
+    expect(result.state.reels).toEqual(base.reels);
+    expect(result.state.blockReelAdditions).toEqual([["blank"], [], []]);
   });
 
   it("rejects non-base prayer targets", () => {
@@ -444,9 +446,9 @@ describe("martyr coin service", () => {
 
 describe("chapel part settlement", () => {
   it.each([
-    [1, 3, 65, 15],
-    [2, 3, 80, 30],
-    [1, 0, 50, 0]
+    [1, 3, 50, 15],
+    [2, 3, 65, 30],
+    [1, 0, 35, 0]
   ] as const)("omen collector level %i with %i omen pays %i total and attributes %i to the part", (level, omen, total, part) => {
     const draw = makeDraw(sevenLineGrid);
     const state = settlementState(draw, withPart({ id: "omen-collector", level }), { omen });
@@ -454,7 +456,7 @@ describe("chapel part settlement", () => {
     const result = resolveSpin(state, draw);
 
     expect(result.payout).toBe(total);
-    expect(result.attribution).toMatchObject({ base: 50, part });
+    expect(result.attribution).toMatchObject({ base: 35, part });
     expect(result.state.omen).toBe(0);
     expect(result.events.filter((event) => event.type === "RESOURCE_CHANGED" && event.resource === "omen")).toEqual(
       omen === 0 ? [] : [expect.objectContaining({ type: "RESOURCE_CHANGED", resource: "omen", delta: -omen })]
@@ -462,25 +464,26 @@ describe("chapel part settlement", () => {
   });
 
   it.each([
-    [1, 100, 50, 1],
-    [2, 150, 100, 2]
-  ] as const)("triple blessing level %i repeats the exact first seven award and adds permanent blanks", (level, total, part, blanks) => {
+    [1, 70, 35, 1],
+    [2, 105, 70, 1]
+  ] as const)("triple blessing level %i repeats the exact first seven award and adds block-temporary blanks", (level, total, part, blanks) => {
     const draw = makeDraw(sevenLineGrid);
     const state = settlementState(draw, withPart({ id: "triple-blessing", level }));
 
     const result = resolveSpin(state, draw);
 
     expect(result.payout).toBe(total);
-    expect(result.attribution).toMatchObject({ base: 50, part });
+    expect(result.attribution).toMatchObject({ base: 35, part });
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(1);
     for (const reel of [0, 1, 2] as const) {
-      expect(result.state.reels[reel].slice(-blanks)).toEqual(Array(blanks).fill("blank"));
+      expect(result.state.reels[reel]).toEqual(state.reels[reel]);
+      expect(result.state.blockReelAdditions?.[reel]).toEqual(reel === 0 ? Array(blanks).fill("blank") : []);
     }
   });
 
   it.each([
-    [1, 0, 1, 40],
-    [2, 0, 2, 120]
+    [1, 0, 1, 30],
+    [2, 0, 2, 85]
   ] as const)("midnight bell level %i transforms the leftmost literal bells once and reevaluates", (level, firstReel, changed, payout) => {
     const grid: Grid = [
       ["bell", "bell", "blank"],
@@ -500,8 +503,8 @@ describe("chapel part settlement", () => {
   });
 
   it.each([
-    [1, 100, 50],
-    [2, 150, 100]
+    [1, 70, 35],
+    [2, 105, 70]
   ] as const)("martyr coin level %i adds exactly the promised seven repeats", (level, total, part) => {
     const draw = makeDraw(sevenLineGrid);
     const state = settlementState(draw, withPart({ id: "martyr-coin", level }), {
@@ -511,7 +514,7 @@ describe("chapel part settlement", () => {
     const result = resolveSpin(state, draw);
 
     expect(result.payout).toBe(total);
-    expect(result.attribution).toMatchObject({ base: 50, part });
+    expect(result.attribution).toMatchObject({ base: 35, part });
   });
 
   it("coordinates martyr and triple blessing independently and applies food buffs to every copy", () => {
@@ -533,8 +536,8 @@ describe("chapel part settlement", () => {
 
     const result = resolveSpin(state, draw);
 
-    expect(result.payout).toBe(187.5);
-    expect(result.attribution).toMatchObject({ base: 62.5, part: 125 });
+    expect(result.payout).toBe(131.25);
+    expect(result.attribution).toMatchObject({ base: 43.75, part: 87.5 });
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(1);
     expect(result.events.filter((event) => event.type === "PAYOUT_ADDED")).toHaveLength(2);
   });
@@ -550,7 +553,7 @@ describe("chapel part settlement", () => {
 
     const result = resolveSpin(state, draw);
 
-    expect(result.payout).toBe(50);
+    expect(result.payout).toBe(35);
     expect(result.attribution.part).toBe(0);
     expect(result.state.omen).toBe(4);
     expect(result.events).toContainEqual(
@@ -580,7 +583,7 @@ describe("chapel part settlement", () => {
     };
 
     expect(exposed).toBe(false);
-    expect(result.payout).toBe(150);
+    expect(result.payout).toBe(105);
     expect(reactChapelParts(publicContext, { type: "LINE_AWARDED", win: {
       lineId: "top",
       symbol: "seven",
@@ -607,7 +610,7 @@ describe("chapel part settlement", () => {
     const result = resolveSpin(state, draw, [malicious]);
 
     expect(exposed).toBe(false);
-    expect(result.payout).toBe(100);
+    expect(result.payout).toBe(70);
     expect(result.events.filter((event) => event.type === "LINE_WIN")).toHaveLength(1);
   });
 
@@ -635,6 +638,6 @@ describe("chapel part settlement", () => {
     } as const;
 
     expect(reactChapelParts(forged, signal)).toEqual([]);
-    expect(resolveSpin(state, draw).payout).toBe(100);
+    expect(resolveSpin(state, draw).payout).toBe(70);
   });
 });

@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { HelpButton, HelpFacts } from "@/app/components/HelpWindow";
 import { availableInterventions } from "@/app/intervention-options";
 import { SYMBOL_LABELS } from "@/app/labels";
+import { activeRoom } from "@/content/hotel";
+import { UPGRADES } from "@/content/upgrades";
+import { describeUpgrade } from "@/content/player-copy";
 import { previewKick } from "@/content/services/security";
 import type { GameCommand } from "@/core/commands";
-import { getCurrentBet, getMinimumBet } from "@/core/progression";
+import { getCurrentBet, getMinimumBet, getMealCost, getMartyrCost } from "@/core/progression";
 import { dispatchCommand } from "@/core/run";
 import type { BaseSymbolId, BetMode, ReelIndex, RunState } from "@/core/types";
 
@@ -73,9 +77,8 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
     const foodIsLegal = showBuyFood && dispatchCommand(state, foodCommand).ok;
     const prayerIsLegal = showPrayer && dispatchCommand(state, prayerCommand).ok;
     const martyrIsLegal = showMartyr && dispatchCommand(state, martyrCommand).ok;
-    const martyrCost = Number.isFinite(state.bankroll) && state.bankroll > 0
-      ? Math.ceil(state.bankroll * 0.1)
-      : 1;
+    const martyrCost = getMartyrCost(state);
+    const mealCost = getMealCost(state);
     const selectedBetUnaffordable = selectedPaidBetIsUnaffordable(state);
     return (
       <section className="action-bar ready-actions" aria-label="本转准备">
@@ -84,13 +87,17 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
           <h2>准备这一转</h2>
         </div>
         <fieldset className="bet-selector">
-          <legend>下注模式</legend>
+          <legend>下注模式 <HelpButton title="下注"><HelpFacts cost={state.freeSpinQueue > 0 ? "下一转是免费转，不扣下注。" : "下一次付费拉动扣 ¥" + getCurrentBet(state) + "。"}
+            effect="保守 / 正常 / 激进对应标准下注的 0.5 / 1 / 2 倍，赔付随下注同比变化，不改变中奖概率。"
+            limit="一笔下注覆盖 5 条支付线；客房下注固定。餐费和献祭封顶按标准下注计价，不随切档变化。" /></HelpButton></legend>
+          {activeRoom(state) !== null && <p>客房固定下注 ¥{getCurrentBet(state)}，本段不可切档。</p>}
           {(Object.keys(BET_LABELS) as BetMode[]).map((mode) => (
             <button
               type="button"
               aria-pressed={state.betMode === mode}
               className={state.betMode === mode ? "is-active" : ""}
               key={mode}
+              disabled={activeRoom(state) !== null}
               onClick={() => onCommand({ type: "SET_BET_MODE", mode })}
             >{BET_LABELS[mode]}</button>
           ))}
@@ -106,8 +113,13 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
               <label>食物转轮<select value={serviceReel} onChange={(event) => setServiceReel(Number(event.target.value) as ReelIndex)}>
                 <option value={0}>第1轮</option><option value={1}>第2轮</option><option value={2}>第3轮</option>
               </select></label>
-              <button type="button" disabled={!foodIsLegal} onClick={() => onCommand(foodCommand)}>购买食物（¥10）</button>
-              {!foodIsLegal && <p className="muted">余额不足：厨房服务需要 ¥10。</p>}
+              <button type="button" disabled={!foodIsLegal} onClick={() => onCommand(foodCommand)}>购买食物（¥{mealCost}）</button>
+              <HelpButton title="购买食物"><HelpFacts cost={"立即支付 ¥" + mealCost + "（本关标准下注 ×0.75）。"}
+                effect={"接下来 3 转适用赔付 +50%；另向第" + (serviceReel + 1) + "轮加入食物，抽中后追加之后 3 转 +25%。"}
+                limit="每段第一转前限买一次；免费转也消耗加成次数。食物会暂时稀释原有图案；空转也扣次数，不退餐费。"
+                current={"余额 ¥" + state.bankroll + (foodIsLegal ? "，可购买。" : "，不足以支付餐费。")} /></HelpButton>
+              <p className="action-hint">接下来 3 转 +50% · 点 ? 查看餐费与叠加规则</p>
+              {!foodIsLegal && <p className="muted">余额不足：厨房服务需要 ¥{mealCost}。</p>}
             </div>
           )}
           {showPrayer && (
@@ -117,17 +129,31 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
                 <option value="bell">铃铛</option><option value="seven">幸运7</option>
               </select></label>
               <button type="button" disabled={!prayerIsLegal} onClick={() => onCommand(prayerCommand)}>祈祷下一转</button>
+              <HelpButton title="祈祷"><HelpFacts cost="1 点专注，并占用下一转唯一一次干预。" effect={"下一转三个转轮各临时加入 2 个" + SYMBOL_LABELS[prayerSymbol] + "；目标没中线时获得 1 层恶兆。"}
+                limit="小教堂每班一次，不保证中奖。祈祷后不能再对该转重转或踹击；恶兆需要收集器才能兑现。" current={"剩余专注 " + state.interventionPoints + " 点。"} /></HelpButton>
+              <p className="action-hint">1 专注 · 下一转目标图案增多 · 不能再重转</p>
               {!prayerIsLegal && <p className="muted">祈祷需要至少 1 点专注。</p>}
             </div>
           )}
           {showMartyr && (
             <div className="field-row">
               <button type="button" disabled={!martyrIsLegal} onClick={() => onCommand(martyrCommand)}>启用殉道者硬币（献祭 ¥{martyrCost}）</button>
+              <HelpButton title="殉道者献祭"><HelpFacts cost={"立即支付 ¥" + martyrCost + "：余额 10% 向上取整，最多标准下注 ×2。"}
+                effect={"本班每条幸运7中奖线额外复制 " + (state.partSlots.find((part) => part?.id === "martyr-coin")?.level ?? 1) + " 次，不是整转总奖金翻倍。"}
+                limit="仅首转前启用一次，持续整班；未中幸运7不退钱。不消耗专注，可搭配祈祷。" current={martyrIsLegal ? "可以启用。" : "余额不足。"} /></HelpButton>
               {!martyrIsLegal && <p className="muted">余额不足：殉道者硬币需要 ¥{martyrCost}。</p>}
             </div>
           )}
           {!showBuyFood && !showPrayer && !showMartyr && <p className="muted">本转没有额外的准备行动，直接拉动拉杆。</p>}
         </div>
+        {state.baseSpinsInShift === 0 && state.partSlots.some((part) => part?.level === 1) && <details className="tip-workshop">
+          <summary>小费精修 · {state.tips} 枚小费</summary>
+          <p>每个部件花 3 小费直接升到 L2，不占班末三选一。只在本段第一转前开放。</p>
+          {state.partSlots.map((part, slot) => part?.level !== 1 ? null : <div className="field-row" key={slot}>
+            <button type="button" disabled={state.tips < 3} onClick={() => onCommand({ type: "UPGRADE_PART", slot })}>{UPGRADES[part.id].name} → L2（3 小费）</button>
+            <p>{describeUpgrade(state, part.id).levelTwoEffect}</p>
+          </div>)}
+        </details>}
       </section>
     );
   }
@@ -138,6 +164,12 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
         <div className="tray-heading">
           <p className="tray-kicker">结果已停</p>
           <h2>收下，还是动手？</h2>
+        </div>
+        <div className="intervention-help">
+          <span>重转 <HelpButton title="重转"><HelpFacts cost="1 专注，不再扣下注。" effect="随机改变选中转轮的停点，其他两轮保持。"
+            limit="每转只能干预一次；结果可能变差，也可能看起来一样。专注不足或已祈祷就不能重转。" current={"剩余专注 " + state.interventionPoints + " 点。"} /></HelpButton></span>
+          {state.service === "repair" && <span>锁轮 <HelpButton title="锁轮"><HelpFacts cost="1 专注，不再扣下注。" effect="锁住选中的整列，另外两轮随机重转。"
+            limit="仅维修间，每班一次；与普通重转共用本转唯一干预机会。" /></HelpButton></span>}
         </div>
         {respinReels.length > 0 && (
           <ReelButtons reels={respinReels} label="重转第{n}轮" onSelect={(reelIndex) => onCommand({ type: "RESPIN_REEL", reelIndex })} />
@@ -152,6 +184,8 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
             </select></label>
             <p aria-live="polite">预览：{securityAction.preview.map((symbol) => SYMBOL_LABELS[symbol]).join(" · ")}</p>
             <button type="button" onClick={() => onCommand({ type: "KICK_REEL", reelIndex: securityAction.reel })}>踢第{securityAction.reel + 1}轮</button>
+            <HelpButton title="踹击"><HelpFacts cost="0 金钱、0 专注，占用本转干预。" effect="按旁边的预览确定性推进选定转轮，不随机重抽。"
+              limit="每班一次；向该轮加入 1 个永久裂纹，装备弹簧也不增加损伤。之后可见时会让非免疫部件失效。" /></HelpButton>
           </div>
         )}
         {interventions.length > 0
@@ -166,7 +200,8 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
       <section className="action-bar boundary-repairs" aria-label="边界维修">
         <div className="tray-heading">
           <p className="tray-kicker">维修间夜班服务</p>
-          <h2>处理永久裂纹</h2>
+          <h2>处理永久裂纹 <HelpButton title="维修裂纹"><HelpFacts cost="1 枚小费。" effect="从选中转轮永久移除最多 2 个裂纹。"
+            limit="只在班次边界、维修间服务下可用。不会恢复已结算那一转的部件效果。" /></HelpButton></h2>
         </div>
         <div className="reel-actions">
           {state.reels.map((strip, reel) => strip.includes("crack") ? (

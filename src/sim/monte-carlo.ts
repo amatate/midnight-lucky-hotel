@@ -152,6 +152,7 @@ function simulateGeneral(request: ValidatedRequest, sampleIndex: number): Trajec
   let totalPayout = 0;
   let completedSpins = 0;
   let ruined = false;
+  let paidInBlock = 0;
 
   while (completedSpins < request.horizonSpins) {
     const rescue = attemptFuse(state, request.bet);
@@ -164,8 +165,12 @@ function simulateGeneral(request: ValidatedRequest, sampleIndex: number): Trajec
     }
 
     const bankroll = isFree ? state.bankroll : roundMoney(state.bankroll - request.bet);
-    if (!isFree) totalWager = roundMoney(totalWager + request.bet);
-    const draw = drawReels(state.reels, state.rng);
+    if (!isFree) {
+      totalWager = roundMoney(totalWager + request.bet);
+      paidInBlock += 1;
+    }
+    const strips = state.reels.map((strip, reel) => [...strip, ...(state.blockReelAdditions?.[reel] ?? [])]) as unknown as ReelSet;
+    const draw = drawReels(strips, state.rng);
     const settlementState: RunState = {
       ...state,
       phase: "AWAITING_INTERVENTION",
@@ -180,6 +185,11 @@ function simulateGeneral(request: ValidatedRequest, sampleIndex: number): Trajec
     };
     const settlement = resolveSpin(settlementState, draw);
     state = { ...settlement.state, phase: "READY_TO_SPIN", pendingSpin: null };
+    // Temporary blessing damage spans the paid block plus its free spins, not the whole forecast.
+    if (paidInBlock === 3 && state.freeSpinQueue === 0) {
+      state = { ...state, blockReelAdditions: [[], [], []] };
+      paidInBlock = 0;
+    }
     totalPayout = state.shiftPayout;
     completedSpins += 1;
   }

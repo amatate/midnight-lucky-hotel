@@ -240,6 +240,8 @@ function completeUpgrade(
   const resetState: RunState = {
     ...acquired,
     phase: "READY_TO_SPIN",
+    blockStartBankroll: acquired.bankroll,
+    blockReelAdditions: [[], [], []],
     shift: original.shift + 1,
     baseSpinsInShift: 0,
     shiftWager: 0,
@@ -316,11 +318,32 @@ function applyUpgradeCommand(state: RunState, choice: UpgradeChoice, command: Ga
 }
 
 export function applyUpgrade(state: RunState, choice: UpgradeChoice): DispatchResult {
-  return applyUpgradeCommand(state, choice, { type: "CHOOSE_UPGRADE", choice });
+  const command = { type: "CHOOSE_UPGRADE", choice } as const;
+  if (state.workshop?.status !== "shopping") return applyUpgradeCommand(state, choice, command);
+  if (choice.action === "decline") return closeWorkshop(state, command);
+  const cost = state.workshop.cost;
+  if (state.bankroll < cost) return { ok: false, state, error: { code: "INSUFFICIENT_FUNDS", message: `整备需要 ¥${cost}，金币不足；可不购买离开。` } };
+  const result = applyUpgradeCommand({ ...state, bankroll: roundMoney(state.bankroll - cost) }, choice, command);
+  if (!result.ok) return { ...result, state };
+  const event: GameEvent = { sequence: state.pendingEvents.length + 1, type: "WORKSHOP_PURCHASED", cost };
+  return { ok: true, events: [...result.events, event], state: { ...result.state,
+    workshop: { cost, status: "finished" },
+    expenses: { ...result.state.expenses, workshop: roundMoney((state.expenses.workshop ?? 0) + cost) },
+    pendingEvents: [...result.state.pendingEvents, event]
+  } };
+}
+
+function closeWorkshop(state: RunState, command: GameCommand): DispatchResult {
+  if (state.phase !== "AFTER_HOURS" || state.currentCandidates === null || state.workshop?.status !== "shopping") {
+    return rejected(state, "INVALID_PHASE", "当前没有待处理的整备选项");
+  }
+  return { ok: true, events: [], state: { ...state, currentCandidates: null,
+    workshop: { ...state.workshop, status: "finished" }, commandHistory: [...state.commandHistory, command] } };
 }
 
 /** Safely discards the wildcard offer without revalidating stale upgrade prerequisites. */
 export function declineUpgrade(state: RunState): DispatchResult {
+  if (state.workshop?.status === "shopping") return closeWorkshop(state, { type: "DECLINE_UPGRADE" });
   if (state.phase !== "CHOOSING_UPGRADE" && state.phase !== "AFTER_HOURS") {
     return rejected(state, "INVALID_PHASE", `DECLINE_UPGRADE is invalid during ${state.phase}`);
   }

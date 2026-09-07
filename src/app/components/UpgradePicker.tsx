@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { UpgradeStrategyDetails } from "@/app/components/UpgradeStrategyDetails";
+import { HelpButton, HelpFacts } from "@/app/components/HelpWindow";
 import {
   buildUpgradeChoice,
   needsUpgradeReelTarget,
@@ -28,6 +29,7 @@ interface UpgradePickerProps {
 
 export function UpgradePicker({ state, onCommand, currentEstimate = null }: UpgradePickerProps): React.JSX.Element | null {
   const offers = state.currentCandidates;
+  const workshop = state.workshop?.status === "shopping" ? state.workshop : null;
   const [selectedId, setSelectedId] = useState<UpgradeId | null>(null);
   const [reel, setReel] = useState<ReelIndex>(0);
   const [secondReel, setSecondReel] = useState<ReelIndex>(1);
@@ -82,8 +84,9 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null }: Upgr
       <header className="upgrade-header">
         <div>
           <p className="tray-kicker">凌晨维修票</p>
-          <h2>选择一项升级</h2>
-          <p>三张票据只取一张，先看清整套影响再落锤。</p>
+          <h2>{workshop === null ? "选择一项升级" : "金币整备 · 三选一"}</h2>
+          <p>{workshop === null ? "三张票据只取一张，先看清整套影响再落锤。" : `每项整备 ¥${workshop.cost}，确认才扣款；奉献箱另有 ¥10 自带消耗。本次结算限一次。`}</p>
+          {workshop !== null && <p>当前钱包 ¥{state.bankroll}；不购买离开不扣钱，也不返小费。</p>}
           <p className="ticket-wallet">小费 {state.tips}</p>
         </div>
         <button
@@ -113,7 +116,12 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null }: Upgr
                     {presentation.immediateCost !== null && <p className="upgrade-warning"><strong>立即影响</strong> {presentation.immediateCost}</p>}
                     {ownedLevelOne && <p className="owned-level">已持有 L1 → 本次升为 L2</p>}
                   </div>
-                  <UpgradeStrategyDetails presentation={presentation} levelLabel={ownedLevelOne ? "L1 → L2" : "L2 效果"} />
+                  <HelpButton title={presentation.name + "升级说明"} trigger="效果与代价" className="upgrade-help-button">
+                    <HelpFacts cost={workshop === null ? presentation.immediateCost ?? "占用本班一次三选一机会；无额外即时金钱支出。" : `整备费 ¥${workshop.cost}。${presentation.immediateCost ?? "无其他即时支出。"}`}
+                      effect={ownedLevelOne ? presentation.levelTwoEffect ?? presentation.effect : presentation.effect}
+                      limit={presentation.risk} current={presentation.currentImpact} />
+                    <UpgradeStrategyDetails presentation={presentation} levelLabel={ownedLevelOne ? "L1 → L2" : "L2 效果"} />
+                  </HelpButton>
                 </>
               ) : null}
               <button className="select-ticket" type="button" aria-pressed={selected} onClick={() => choose(id)}>选择{definition.name}</button>
@@ -167,16 +175,16 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null }: Upgr
                   <button
                     className="primary-button"
                     type="button"
-                    disabled={selectedChoice === null}
+                    disabled={selectedChoice === null || (workshop !== null && state.bankroll < workshop.cost + (selectedId === "tithe-box" ? 10 : 0))}
                     onClick={() => selectedChoice !== null && onCommand({ type: "CHOOSE_UPGRADE", choice: selectedChoice })}
-                  >获取{selectedDefinition.name}</button>
+                  >{workshop === null ? "获取" : `支付 ¥${workshop.cost + (selectedId === "tithe-box" ? 10 : 0)} · 购买`}{selectedDefinition.name}</button>
                 </div>
               )}
             </article>
           );
         })}
       </div>
-      <button className="quiet-button" type="button" onClick={() => onCommand({ type: "DECLINE_UPGRADE" })}>放弃升级</button>
+      <button className="quiet-button" type="button" onClick={() => onCommand({ type: "DECLINE_UPGRADE" })}>{workshop === null ? "放弃升级" : "本次不购买（不返小费）"}</button>
     </div>
   );
 }

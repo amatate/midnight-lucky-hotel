@@ -13,6 +13,7 @@ import {
   isGameEventV2,
   isPlainRecord,
   isReelDraw,
+  isReels,
   isSafeInteger,
   validateCommonSnapshot
 } from "@/persistence/codec-shared";
@@ -95,7 +96,32 @@ function isSpinHistory(value: unknown, nextSpinOrdinal: unknown): value is reado
 }
 
 export function decodeRunStateV2(value: unknown): RunState | null {
-  if (!hasShape(value, ROOT_KEYS_V2) || value.schemaVersion !== 2) return null;
+  if (!hasShape(value, ROOT_KEYS_V2, ["hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "blockReelAdditions"]) || value.schemaVersion !== 2) return null;
+  if (Object.hasOwn(value, "blockReelAdditions") && (!isReels(value.blockReelAdditions, true)
+    || value.blockReelAdditions.some((strip) => strip.some((symbol) => symbol !== "blank")))) return null;
+  if (Object.hasOwn(value, "freeAfterHoursLevel") && !isSafeInteger(value.freeAfterHoursLevel, 0, Number(value.afterHoursLevel))) return null;
+  if (Object.hasOwn(value, "blockStartBankroll") && !isBoundedMoney(value.blockStartBankroll)) return null;
+  if (Object.hasOwn(value, "workshop") && value.workshop !== null) {
+    const workshop = value.workshop;
+    if (!hasShape(workshop, ["cost", "status"]) || !isBoundedMoney(workshop.cost) || workshop.cost <= 0
+      || !["shopping", "finished"].includes(String(workshop.status))) return null;
+    if (workshop.status === "shopping" && (value.phase !== "AFTER_HOURS" || value.currentCandidates === null)) return null;
+  }
+  if (Object.hasOwn(value, "hotel")) {
+    const hotel = value.hotel;
+    if (!hasShape(hotel, ["cleared", "challenge"]) || !isSafeInteger(hotel.cleared, 0, 3)) return null;
+    if (hotel.challenge !== null) {
+      const challenge = hotel.challenge;
+      if (!hasShape(challenge, ["tier", "status"], ["target"]) || !isSafeInteger(challenge.tier, 1, 3)
+        || (Object.hasOwn(challenge, "target") && !isBoundedMoney(challenge.target))
+        || !["playing", "cleared", "failed"].includes(String(challenge.status))
+        || value.shift !== 5 || !isSafeInteger(value.afterHoursLevel, 1) || value.exitUnlocked !== true) return null;
+      if (challenge.status === "cleared" ? challenge.tier !== hotel.cleared : challenge.tier !== hotel.cleared + 1) return null;
+      if (challenge.status === "playing") {
+        if (!["READY_TO_SPIN", "SPINNING", "AWAITING_INTERVENTION", "RESOLVING_EFFECTS", "RUN_LOST"].includes(String(value.phase))) return null;
+      } else if (!["AFTER_HOURS", "RUN_WON"].includes(String(value.phase)) || value.baseSpinsInShift !== 3) return null;
+    }
+  }
   if (!validateCommonSnapshot(value, isPendingSpinV2, isGameEventV2)
     || !isSpinHistory(value.spinHistory, value.nextSpinOrdinal)) return null;
   return value as unknown as RunState;

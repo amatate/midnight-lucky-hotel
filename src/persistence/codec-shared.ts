@@ -27,6 +27,7 @@ export const PHASES = new Set<RunPhase>([
 export const SYMBOLS = new Set<SymbolId>(["cherry", "lemon", "bell", "seven", "wild", "blank", "food", "crack"]);
 const BASE_SYMBOLS = new Set(["cherry", "lemon", "bell", "seven"]);
 export const PARTS = new Set<PartId>([
+  "cherry-press", "salad-dressing",
   "lemon-infection", "jam-jar", "fruit-salad", "leftovers", "omen-collector", "triple-blessing",
   "midnight-bell", "martyr-coin", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud",
   "overload-motor", "safety-fuse"
@@ -94,7 +95,7 @@ function isReelIndex(value: unknown): boolean {
   return value === 0 || value === 1 || value === 2;
 }
 
-function isReels(value: unknown, allowEmpty = false): value is ReelSet {
+export function isReels(value: unknown, allowEmpty = false): value is ReelSet {
   return isDenseArray(value, 3, 3) && value.every((strip) =>
     isDenseArray(strip, MAX_REEL_SYMBOLS)
     && (allowEmpty || strip.length > 0)
@@ -222,12 +223,13 @@ function isUpgradeChoice(value: unknown): value is UpgradeChoice {
   }
 }
 
-function isGameCommand(value: unknown): value is GameCommand {
+export function isGameCommand(value: unknown): value is GameCommand {
   if (!isPlainRecord(value) || typeof value.type !== "string") return false;
   switch (value.type) {
     case "SELECT_SERVICE": return hasShape(value, ["type", "serviceId"]) && isEnum(value.serviceId, SERVICES);
     case "SET_BET_MODE": return hasShape(value, ["type", "mode"]) && isEnum(value.mode, BET_MODES);
     case "BUY_FOOD": return hasShape(value, ["type", "reelIndex"]) && isReelIndex(value.reelIndex);
+    case "UPGRADE_PART": return hasShape(value, ["type", "slot"]) && isSafeInteger(value.slot, 0, 4);
     case "PRAY": return hasShape(value, ["type", "symbol"]) && isEnum(value.symbol, BASE_SYMBOLS);
     case "RESPIN_REEL": return hasShape(value, ["type", "reelIndex"]) && isReelIndex(value.reelIndex);
     case "LOCK_AND_RESPIN_OTHERS": return hasShape(value, ["type", "lockedReelIndex"]) && isReelIndex(value.lockedReelIndex);
@@ -235,6 +237,8 @@ function isGameCommand(value: unknown): value is GameCommand {
     case "CHOOSE_UPGRADE": return hasShape(value, ["type", "choice"]) && isUpgradeChoice(value.choice);
     case "REMOVE_CRACKS": return hasShape(value, ["type", "reelIndex"]) && isReelIndex(value.reelIndex);
     case "ENABLE_MARTYR":
+    case "ENTER_ROOM":
+    case "OPEN_WORKSHOP":
     case "SPIN":
     case "REELS_STOPPED":
     case "ACCEPT_OUTCOME":
@@ -268,6 +272,15 @@ function hasV2FormulaFields(value: PlainRecord): boolean {
 
 function commonEvent(value: PlainRecord, money: (candidate: unknown) => candidate is number): boolean | null {
   switch (value.type) {
+    case "WORKSHOP_PURCHASED": return eventBase(value, ["cost"]) && money(value.cost) && Number(value.cost) > 0;
+    case "MEAL_SERVED": return eventBase(value, ["spins", "additivePayout"])
+      && value.spins === 3 && value.additivePayout === 0.5;
+    case "PART_UPGRADED": return eventBase(value, ["partId", "cost"])
+      && isEnum(value.partId, PARTS) && value.cost === 3;
+    case "ROOM_ENTERED": return eventBase(value, ["tier", "bet", "target", "focus"])
+      && isSafeInteger(value.tier, 1, 3) && money(value.bet) && money(value.target) && isSafeInteger(value.focus, 0, 3);
+    case "ROOM_COMPLETED": return eventBase(value, ["tier", "payout", "target", "cleared"])
+      && isSafeInteger(value.tier, 1, 3) && money(value.payout) && money(value.target) && isBoolean(value.cleared);
     case "BET_PLACED": return eventBase(value, ["amount"]) && money(value.amount);
     case "REELS_DRAWN": return eventBase(value, ["draw"]) && isReelDraw(value.draw);
     case "INTERVENTION_USED": {
@@ -428,7 +441,8 @@ export function validateCommonSnapshot(
     && value.acquiredUpgrades.every((id) => isEnum(id, UPGRADES))
     && isEventHistory(value.pendingEvents, eventValidator)
     && exactNumberRecord(value.attribution, ["base", "part", "intervention", "service", "agitation", "overload"])
-    && exactNumberRecord(value.expenses, ["wagers", "kitchen", "chapel", "repair"])
+    && hasShape(value.expenses, ["wagers", "kitchen", "chapel", "repair"], ["workshop"])
+    && Object.values(value.expenses).every(isBoundedMoney)
     && isDenseArray(value.shiftHistory, MAX_SHIFT_HISTORY) && value.shiftHistory.every(isShiftSnapshot)
     && isDenseArray(value.commandHistory, MAX_COMMANDS) && value.commandHistory.every(isGameCommand)
     && phaseIsCoherent(value);

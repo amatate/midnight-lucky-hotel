@@ -129,7 +129,12 @@ describe("run storage", () => {
     for (const key of Object.keys(valid)) {
       const copy = structuredClone(valid) as unknown as Record<string, unknown>;
       delete copy[key];
-      expectInvalid(copy);
+      if (["hotel", "blockStartBankroll", "freeAfterHoursLevel", "workshop", "blockReelAdditions"].includes(key)) {
+        localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify(copy));
+        expect(loadRun().ok, key).toBe(true);
+      } else {
+        expectInvalid(copy);
+      }
     }
   });
 

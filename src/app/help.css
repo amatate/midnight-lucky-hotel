@@ -1,0 +1,42 @@
+.help-trigger {
+  display: inline-grid; place-items: center; flex: 0 0 auto;
+  min-width: 36px; min-height: 36px; padding: 4px; margin-inline-start: 6px;
+  border: 1px solid #987447; border-radius: 50%; color: #f9dba4; background: #282018;
+  font: 700 16px Georgia, serif; vertical-align: middle; cursor: pointer;
+}
+.help-trigger:hover, .help-trigger:focus-visible { background: #554026; outline: 2px solid #e7bd77; outline-offset: 2px; }
+.help-backdrop { position: fixed; inset: 0; z-index: 1000; background: #080707c9; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.help-window { display: flex; flex-direction: column; width: min(620px, 100%); max-height: calc(100dvh - 40px); overflow: hidden; color: #efe5ce; background: #221d18; border: 1px solid #a9824c; border-radius: 18px; box-shadow: 0 22px 90px #000b; padding: 24px; line-height: 1.65; }
+.help-heading { flex-shrink: 0; background: #221d18; display: flex; align-items: start; justify-content: space-between; gap: 12px; border-bottom: 1px solid #705639; padding-bottom: 12px; }
+.help-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.help-heading h2 { margin: 0; font-size: 23px; color: #f5d598; }
+.help-heading .eyebrow { margin: 0 0 4px; color: #bca783; font-size: 11px; }
+.help-close { min-width: 44px; min-height: 44px; font-size: 24px; color: #ffdeb0; background: #342b21; border: 1px solid #806444; border-radius: 10px; cursor: pointer; }
+.help-facts { margin: 0; }
+.help-facts > div { padding: 14px 0; border-bottom: 1px solid #574330; }
+.help-facts dt { color: #cfad70; font-size: 12px; letter-spacing: .1em; margin-bottom: 3px; }
+.help-facts dd { margin: 0; }
+.help-footnote { flex-shrink: 0; margin: 18px 0 0; font-size: 12px; color: #b7a48c; }
+.help-content .part-detail { margin: 14px 0 0; padding: 0; background: transparent; border: 0; }
+.help-content .part-detail-title { display: none; }
+.game-guide { line-height: 1.7; }
+.game-guide > p { color: #cdbda5; }
+.game-guide details { border-bottom: 1px solid #765c3b; padding: 10px 0; }
+.game-guide summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: #f1d298; font-weight: 600; }
+.game-guide summary::before { content: "+"; margin-right: 12px; }
+.game-guide details[open] > summary::before { content: "−"; }
+.game-guide h3 { color: #eed9b5; font-size: 16px; margin: 18px 0 5px; }
+.game-guide p { margin: 8px 0; }
+.game-guide dl { margin: 10px 0; }
+.game-guide dt { margin-top: 14px; color: #edd09c; font-weight: 600; }
+.game-guide dd { margin: 3px 0 10px; }
+.guide-rooms { padding-left: 22px; }
+.guide-rooms li { padding: 8px 0; }
+.hud-resources > span { display: inline-flex; align-items: center; }
+.intervention-help { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 13px; color: #cdb695; }
+.action-bar .field-row .action-hint { flex-basis: 100%; margin: 0; font-size: 13px; color: #c9b895; }
+.help-content .game-guide, .help-content dd { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .help-backdrop { align-items: flex-end; padding: 8px; }
+  .help-window { max-height: calc(100dvh - 16px); border-radius: 18px 18px 10px 10px; padding: 18px; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+}

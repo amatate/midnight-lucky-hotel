@@ -36,6 +36,7 @@ async function installSnapshot(page: Page, state: RunState): Promise<void> {
     localStorage.setItem(storageKey, JSON.stringify(snapshot));
   }, { storageKey: RUN_STORAGE_KEY, snapshot: state });
   await page.reload();
+  await page.getByRole("button", { name: "继续游戏", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "恢复上次进度" })).toBeVisible();
 }
 
@@ -43,6 +44,8 @@ async function startFreshRun(page: Page, seed = REAL_FLOW_SEED): Promise<void> {
   await page.goto(`/?seed=${seed}`);
   await page.evaluate(() => localStorage.clear());
   await page.goto(`/?seed=${seed}`);
+  await page.getByRole("button", { name: "开始新局" }).click();
+  await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续游戏" }).click();
 }
 
 async function storedCommandCount(page: Page, type: string): Promise<number> {
@@ -189,6 +192,7 @@ test("a real kitchen shift automatically stops, settles, and applies a targeted 
   await attachScreenshot(page, testInfo, "acquired-fruit-change");
 
   await page.reload();
+  await page.getByRole("button", { name: "继续游戏", exact: true }).click();
   const recovery = page.getByRole("dialog", { name: "恢复上次进度" });
   await expect(recovery).toBeVisible();
   await recovery.getByRole("button", { name: "继续游戏" }).click();
@@ -280,6 +284,8 @@ test("the controlled production shell restores local assets and a saved run offl
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   if (!await page.evaluate(() => navigator.serviceWorker.controller !== null)) await page.reload();
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  await page.getByRole("button", { name: "开始新局" }).click();
+  await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续游戏" }).click();
 
   const decision = page.getByRole("region", { name: "当前决策" });
   await decision.getByRole("group", { name: "选择服务" }).getByRole("button", { name: /深夜厨房/ }).click();
@@ -290,6 +296,7 @@ test("the controlled production shell restores local assets and a saved run offl
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "午夜好运酒店" })).toBeVisible();
+    await page.getByRole("button", { name: "继续游戏", exact: true }).click();
     const recovery = page.getByRole("dialog", { name: "恢复上次进度" });
     await expect(recovery).toBeVisible();
 

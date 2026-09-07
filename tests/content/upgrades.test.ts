@@ -6,6 +6,8 @@ import { createRun, dispatchCommand } from "@/core/run";
 import type { PartInstance, ReelSet, RunState, UpgradeChoice, UpgradeId } from "@/core/types";
 
 const EXPECTED_NAMES = {
+  "cherry-press": "樱桃压榨机",
+  "salad-dressing": "沙拉酱",
   "lemon-crate": "柠檬木箱",
   "cherry-pitter": "樱桃去核器",
   "lemon-infection": "柠檬感染",
@@ -61,12 +63,12 @@ function expectAccepted(result: ReturnType<typeof applyUpgrade>): RunState {
 }
 
 describe("UPGRADES", () => {
-  it("publishes exactly the 24 design IDs with unique exact Chinese names and complete metadata", () => {
-    expect(UPGRADE_IDS).toHaveLength(24);
-    expect(new Set(UPGRADE_IDS).size).toBe(24);
+  it("publishes the 26 design IDs with unique exact Chinese names and complete metadata", () => {
+    expect(UPGRADE_IDS).toHaveLength(26);
+    expect(new Set(UPGRADE_IDS).size).toBe(26);
     expect(Object.keys(UPGRADES)).toEqual(UPGRADE_IDS);
     expect(Object.fromEntries(UPGRADE_IDS.map((id) => [id, UPGRADES[id].name]))).toEqual(EXPECTED_NAMES);
-    expect(new Set(UPGRADE_IDS.map((id) => UPGRADES[id].name)).size).toBe(24);
+    expect(new Set(UPGRADE_IDS.map((id) => UPGRADES[id].name)).size).toBe(26);
 
     for (const id of UPGRADE_IDS) {
       expect(UPGRADES[id].id).toBe(id);

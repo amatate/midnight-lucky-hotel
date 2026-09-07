@@ -3,7 +3,7 @@ import type { GameCommand } from "../src/core/commands";
 import { normalizeDrawIdentity } from "../src/core/reels";
 import { createRun, dispatchCommand } from "../src/core/run";
 import type { Grid, ReelSet, RunState } from "../src/core/types";
-import { LEGACY_RUN_STORAGE_KEY, RUN_STORAGE_KEY } from "../src/persistence/storage";
+import { RUN_STORAGE_KEY } from "../src/persistence/storage";
 
 const SALAD_STRIPS: ReelSet = [
   ["cherry", "cherry", "blank", "bell", "lemon", "blank"],
@@ -30,6 +30,7 @@ async function installSnapshot(page: Page, state: RunState): Promise<void> {
     localStorage.setItem(storageKey, JSON.stringify(snapshot));
   }, { storageKey: RUN_STORAGE_KEY, snapshot: state });
   await page.reload();
+  await page.getByRole("button", { name: "继续游戏", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "恢复上次进度" })).toBeVisible();
 }
 
@@ -131,6 +132,7 @@ test("reload restores history and the next shift preserves the resolved grid", a
   await finishPresentation(page);
 
   await page.reload();
+  await page.getByRole("button", { name: "继续游戏", exact: true }).click();
   await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续游戏" }).click();
   const { ledger } = await openOnlyReceipt(page);
   await page.getByRole("button", { name: "关闭账本" }).click();
@@ -143,13 +145,11 @@ test("reload restores history and the next shift preserves the resolved grid", a
   expect(labels).toEqual(["樱桃", "樱桃", "空白", "柠檬", "樱桃", "空白", "铃铛", "樱桃", "空白"]);
 });
 
-test("a genuinely fresh run clears receipt history", async ({ page }) => {
+test("a new run starts with empty receipts while the prior run remains archived", async ({ page }) => {
   await installSnapshot(page, saladResolvingFixture());
-  await page.evaluate(({ currentKey, legacyKey }) => {
-    localStorage.removeItem(currentKey);
-    localStorage.removeItem(legacyKey);
-  }, { currentKey: RUN_STORAGE_KEY, legacyKey: LEGACY_RUN_STORAGE_KEY });
   await page.goto("/?seed=808");
+  await page.getByRole("button", { name: "开始新局" }).click();
+  await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续游戏" }).click();
 
   await page.getByRole("button", { name: "账本" }).click();
   const ledger = page.getByRole("dialog", { name: "前台账本" });

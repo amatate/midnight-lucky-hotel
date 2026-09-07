@@ -1,6 +1,6 @@
 import type { DispatchResult } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
-import { roundMoney } from "@/core/progression";
+import { getMartyrCost, roundMoney } from "@/core/progression";
 import type { BaseSymbolId, RunState } from "@/core/types";
 
 function rejected(
@@ -81,7 +81,7 @@ export function enableMartyr(state: RunState): DispatchResult {
   if (!state.partSlots.some((part) => part?.id === "martyr-coin")) {
     return rejected(state, "INVALID_TARGET", "martyr coin is not equipped");
   }
-  const cost = Number.isFinite(state.bankroll) && state.bankroll > 0 ? Math.ceil(state.bankroll * 0.1) : 0;
+  const cost = getMartyrCost(state);
   if (cost <= 0 || state.bankroll < cost) {
     return rejected(state, "INSUFFICIENT_FUNDS", "bankroll is below the martyr offering");
   }

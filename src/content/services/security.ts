@@ -18,7 +18,7 @@ function isReelIndex(value: number): value is ReelIndex {
 function looseSpring(state: RunState): { readonly steps: number; readonly cracks: number } {
   const spring = state.partSlots.find((part) => part?.id === "loose-spring");
   if (spring === undefined || spring === null) return { steps: 1, cracks: 1 };
-  return { steps: spring.level === 1 ? 2 : 3, cracks: 2 };
+  return { steps: spring.level === 1 ? 2 : 3, cracks: 1 };
 }
 
 function legalityError(

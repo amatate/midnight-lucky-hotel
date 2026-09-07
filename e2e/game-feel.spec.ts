@@ -151,6 +151,7 @@ async function installSnapshot(page: Page, state: RunState): Promise<void> {
     localStorage.setItem(storageKey, JSON.stringify(snapshot));
   }, { storageKey: RUN_STORAGE_KEY, snapshot: state });
   await page.reload();
+  await page.getByRole("button", { name: "继续游戏", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "恢复上次进度" })).toBeVisible();
 }
 

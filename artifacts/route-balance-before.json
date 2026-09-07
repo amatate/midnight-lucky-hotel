@@ -1,0 +1,378 @@
+{
+  "fingerprint": "rules-705e0a792a2c3847",
+  "samplesPerScenario": 24,
+  "maxSpinsPerBlock": 24,
+  "method": "Four real-command blocks; no upgrades, meals, prayer or interventions; offering included. Net in B=10. Censored means are window observations, not completed-block estimates or player win rates.",
+  "scenarios": [
+    {
+      "id": "seven_martyr",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 0.908,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 2.296,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 2.783,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 4.413,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        }
+      ]
+    },
+    {
+      "id": "seven_blessing_l1",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 2.571,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 4.375
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 3.425,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 5.75
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 3.592,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 7.375
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 6.708,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 9.5
+        }
+      ]
+    },
+    {
+      "id": "seven_blessing_l2",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 4.113,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 5.75
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 3.1,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 8
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 3.446,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 10.5
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 3.75,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 13
+        }
+      ]
+    },
+    {
+      "id": "seven_blessing_capacitor",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 17,
+          "censored": 7,
+          "meanObservedNetB": 19.437,
+          "meanObservedSpins": 9.792,
+          "meanPermanentBlanks": 10
+        },
+        {
+          "observed": 17,
+          "completed": 12,
+          "censored": 5,
+          "meanObservedNetB": 28.047,
+          "meanObservedSpins": 12,
+          "meanPermanentBlanks": 13.941
+        },
+        {
+          "observed": 12,
+          "completed": 3,
+          "censored": 9,
+          "meanObservedNetB": 25.975,
+          "meanObservedSpins": 19.167,
+          "meanPermanentBlanks": 16.5
+        },
+        {
+          "observed": 3,
+          "completed": 1,
+          "censored": 2,
+          "meanObservedNetB": 25.8,
+          "meanObservedSpins": 17,
+          "meanPermanentBlanks": 13
+        }
+      ]
+    },
+    {
+      "id": "cherry_press_early",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": -0.779,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 0.25,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": -0.529,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": -0.475,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 3
+        }
+      ]
+    },
+    {
+      "id": "lemon_mature_l2",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 10.5,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 10.5,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 10.5,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 10.5,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        }
+      ]
+    },
+    {
+      "id": "salad_l2",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 72,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 72,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 72,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 72,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        }
+      ]
+    },
+    {
+      "id": "cherry_mature_l2",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 93,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 93,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 93,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": 93,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 0
+        }
+      ]
+    },
+    {
+      "id": "fault_magnet",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": -1.575,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 9
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": -1.121,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 9
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": -1.45,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 9
+        },
+        {
+          "observed": 24,
+          "completed": 24,
+          "censored": 0,
+          "meanObservedNetB": -0.867,
+          "meanObservedSpins": 3,
+          "meanPermanentBlanks": 9
+        }
+      ]
+    },
+    {
+      "id": "blank_loop_probe",
+      "blocks": [
+        {
+          "observed": 24,
+          "completed": 0,
+          "censored": 24,
+          "meanObservedNetB": -1,
+          "meanObservedSpins": 24,
+          "meanPermanentBlanks": 36
+        },
+        {
+          "observed": 0,
+          "completed": 0,
+          "censored": 0,
+          "meanObservedNetB": null,
+          "meanObservedSpins": null,
+          "meanPermanentBlanks": null
+        },
+        {
+          "observed": 0,
+          "completed": 0,
+          "censored": 0,
+          "meanObservedNetB": null,
+          "meanObservedSpins": null,
+          "meanPermanentBlanks": null
+        },
+        {
+          "observed": 0,
+          "completed": 0,
+          "censored": 0,
+          "meanObservedNetB": null,
+          "meanObservedSpins": null,
+          "meanPermanentBlanks": null
+        }
+      ]
+    }
+  ]
+}

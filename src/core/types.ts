@@ -74,6 +74,8 @@ export interface CommandError {
 }
 
 export type PartId =
+  | "cherry-press"
+  | "salad-dressing"
   | "lemon-infection"
   | "jam-jar"
   | "fruit-salad"
@@ -163,6 +165,8 @@ export interface PendingSpin {
 }
 
 export type UpgradeId =
+  | "cherry-press"
+  | "salad-dressing"
   | "lemon-crate"
   | "cherry-pitter"
   | "lemon-infection"
@@ -206,6 +210,7 @@ export type Effect =
     }
   | { readonly type: "TRANSFORM_CELL"; readonly reel: ReelIndex; readonly row: RowIndex; readonly symbol: SymbolId }
   | { readonly type: "ADD_TO_REEL"; readonly reel: ReelIndex; readonly symbol: SymbolId; readonly count: number }
+  | { readonly type: "ADD_BLOCK_BLANK"; readonly reel: ReelIndex; readonly count: number }
   | { readonly type: "REMOVE_FROM_REEL"; readonly reel: ReelIndex; readonly symbol: SymbolId; readonly count: number }
   | {
       readonly type: "REMOVE_PHYSICAL_CELLS";
@@ -331,6 +336,12 @@ export interface ShiftSnapshot {
   readonly totalPayout: Money;
 }
 
+export type RoomTier = 1 | 2 | 3;
+export interface HotelProgress {
+  readonly cleared: 0 | RoomTier;
+  readonly challenge: { readonly tier: RoomTier; readonly status: "playing" | "cleared" | "failed"; readonly target?: Money } | null;
+}
+
 export interface RunState {
   readonly schemaVersion: 2;
   readonly initialSeed: number;
@@ -350,6 +361,8 @@ export interface RunState {
   readonly interventionUsedThisSpin: boolean;
   readonly reels: ReelSet;
   readonly temporaryReelAdditions: ReelSet;
+  /** Blessing pollution lasts through this paid block and its free spins, not future blocks. */
+  readonly blockReelAdditions?: ReelSet;
   readonly pendingPrayer: BaseSymbolId | null;
   readonly pendingSpin: PendingSpin | null;
   readonly freeSpinQueue: number;
@@ -371,6 +384,12 @@ export interface RunState {
   readonly buffs: readonly TimedBuff[];
   readonly contract: ContractState | null;
   readonly afterHoursLevel: number;
+  /** Optional only for read-only archives created before the hotel rules. */
+  readonly hotel?: HotelProgress;
+  /** Log block ordinals include rooms; only this counter scales free-overtime stakes. */
+  readonly freeAfterHoursLevel?: number;
+  readonly blockStartBankroll?: Money;
+  readonly workshop?: { readonly cost: Money; readonly status: "shopping" | "finished" } | null;
   readonly exitUnlocked: boolean;
   readonly currentCandidates: CandidateSet | null;
   readonly acquiredUpgrades: readonly UpgradeId[];
@@ -378,7 +397,7 @@ export interface RunState {
   readonly spinHistory: readonly SpinReceipt[];
   readonly nextSpinOrdinal: number;
   readonly attribution: Readonly<Record<AttributionSource, number>>;
-  readonly expenses: Readonly<Record<ExpenseSource, Money>>;
+  readonly expenses: Readonly<Record<ExpenseSource, Money>> & { readonly workshop?: Money };
   readonly shiftHistory: readonly ShiftSnapshot[];
   readonly commandHistory: readonly GameCommand[];
 }

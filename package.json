@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
+    "balance": "node scripts/run-balance.ts",
+    "model:experience": "node scripts/model-experience.ts",
     "verify": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {

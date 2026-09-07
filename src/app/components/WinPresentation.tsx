@@ -3,6 +3,7 @@ import { AnimatedMoney } from "@/app/components/AnimatedMoney";
 import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
 import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
+import { eventLabel } from "@/app/archive-copy";
 import type { GameEvent } from "@/core/events";
 import type { RunState } from "@/core/types";
 import { feedbackPlan } from "@/presentation/feedback";
@@ -37,6 +38,11 @@ function totalTriggers(state: RunState, partId: Extract<GameEvent, { type: "PART
 export function settlementEventLabel(state: RunState, event: GameEvent | null): string {
   if (event === null) return "没有结算事件";
   switch (event.type) {
+    case "WORKSHOP_PURCHASED":
+    case "MEAL_SERVED":
+    case "PART_UPGRADED":
+    case "ROOM_ENTERED":
+    case "ROOM_COMPLETED": return eventLabel(event);
     case "BET_PLACED": return `下注 ¥${event.amount}`;
     case "REELS_DRAWN": return "真实转轮结果已停稳";
     case "INTERVENTION_USED": return `干预生效：${event.kind === "respin" ? "重转" : event.kind === "repair-lock" ? "锁轮维修" : event.kind === "kick" ? "踹击" : "祈祷"}`;
@@ -46,6 +52,7 @@ export function settlementEventLabel(state: RunState, event: GameEvent | null): 
       if (event.partId === "jam-jar") {
         const final = state.counters.cherryWinsThisShift;
         const before = Math.max(0, final - totalTriggers(state, event.partId) + currentTriggerNumber(state, event) - 1);
+        if (before >= 6) return `果酱罐：充能已满 6 层（本班累计 ${before + 1} 条）`;
         return `果酱罐：樱桃刻度 ${before} → ${before + 1}`;
       }
       if (event.partId === "fruit-salad") return "水果沙拉：字面樱桃 + 柠檬 + 铃铛；百搭不能代替";

@@ -1,6 +1,8 @@
 import type { RunState, UpgradeDefinition, UpgradeId } from "@/core/types";
 
 export const UPGRADE_IDS = [
+  "cherry-press",
+  "salad-dressing",
   "lemon-crate",
   "cherry-pitter",
   "lemon-infection",
@@ -52,6 +54,15 @@ function hasCrackSource(state: RunState): boolean {
 }
 
 export const UPGRADES = {
+  "cherry-press": {
+    id: "cherry-press", name: "樱桃压榨机", kind: "part", route: "fruit",
+    tags: ["fruit", "cherry", "density"], candidateRoles: ["synergy", "wildcard"], requires: always
+  },
+  "salad-dressing": {
+    id: "salad-dressing", name: "沙拉酱", kind: "part", route: "fruit",
+    tags: ["fruit", "cherry", "lemon", "bell", "literal-symbols"], candidateRoles: ["synergy", "wildcard"],
+    requires: (state) => state.partSlots.some((part) => part?.id === "fruit-salad")
+  },
   "lemon-crate": {
     id: "lemon-crate",
     name: "柠檬木箱",
@@ -131,7 +142,7 @@ export const UPGRADES = {
     route: "chapel",
     tags: ["chapel", "seven", "omen", "prayer"],
     candidateRoles: ["synergy"],
-    requires: (state) => state.service === "chapel"
+    requires: (state) => state.service === "chapel" || state.omen > 0 || state.partSlots.some((part) => part?.id === "omen-collector")
   },
   "triple-blessing": {
     id: "triple-blessing",

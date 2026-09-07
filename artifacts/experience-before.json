@@ -1,0 +1,236 @@
+{
+  "model": "synthetic-three-paid-spin-blocks-v1",
+  "seed": 820127,
+  "samplesPerScenario": 64,
+  "maxSpinsPerSample": 12,
+  "units": "B = fixed wager, net includes meal/offering fees; no respin policy; room rates are threshold comparisons, not player win rates",
+  "baseExact": {
+    "stops": 1728,
+    "rawRtp": 0.579,
+    "hitRate": 0.485,
+    "profitableRate": 0.1655
+  },
+  "scenarios": [
+    {
+      "id": "base",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 1.8109,
+      "meanNetB": -1.1891,
+      "meanPartB": 0,
+      "p50PayoutB": 1.7,
+      "p90PayoutB": 3.2,
+      "emptySpinRate": 0.526,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "base_meal",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 2.641,
+      "meanNetB": -1.359,
+      "meanPartB": 0,
+      "p50PayoutB": 2.55,
+      "p90PayoutB": 4.95,
+      "emptySpinRate": 0.5573,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "base_meal_high_stake",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 2.641,
+      "meanNetB": -0.459,
+      "meanPartB": 0,
+      "p50PayoutB": 2.55,
+      "p90PayoutB": 4.95,
+      "emptySpinRate": 0.5573,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "lemon_growing",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 6.7613,
+      "meanNetB": 2.7613,
+      "meanPartB": 0,
+      "p50PayoutB": 7.05,
+      "p90PayoutB": 10.8,
+      "emptySpinRate": 0.3542,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "lemon_full",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 13.5,
+      "meanNetB": 10.5,
+      "meanPartB": 0,
+      "p50PayoutB": 13.5,
+      "p90PayoutB": 13.5,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "lemon_full_meal",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 19.8176,
+      "meanNetB": 15.8176,
+      "meanPartB": 0,
+      "p50PayoutB": 20.25,
+      "p90PayoutB": 20.25,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        0.9063,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "cherry_growing_l1",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 8.4531,
+      "meanNetB": 4.4531,
+      "meanPartB": 4.7656,
+      "p50PayoutB": 7.95,
+      "p90PayoutB": 14.85,
+      "emptySpinRate": 0.375,
+      "noInterventionRoomPassRate": [
+        0.0625,
+        0.0156,
+        0
+      ]
+    },
+    {
+      "id": "cherry_growing_l2",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 13.2188,
+      "meanNetB": 9.2188,
+      "meanPartB": 9.5313,
+      "p50PayoutB": 11.55,
+      "p90PayoutB": 23.05,
+      "emptySpinRate": 0.375,
+      "noInterventionRoomPassRate": [
+        0.2344,
+        0.0625,
+        0.0156
+      ]
+    },
+    {
+      "id": "cherry_full_l2",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 186.7938,
+      "meanNetB": 182.7938,
+      "meanPartB": 173.582,
+      "p50PayoutB": 198,
+      "p90PayoutB": 198,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "salad_full_l2",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 110.0977,
+      "meanNetB": 106.0977,
+      "meanPartB": 110.0977,
+      "p50PayoutB": 112.5,
+      "p90PayoutB": 112.5,
+      "emptySpinRate": 0,
+      "noInterventionRoomPassRate": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "chapel_growing",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 28.1828,
+      "meanNetB": 15.1828,
+      "meanPartB": 17.7266,
+      "p50PayoutB": 29,
+      "p90PayoutB": 40.1,
+      "emptySpinRate": 0.3698,
+      "noInterventionRoomPassRate": [
+        0.8906,
+        0.4219,
+        0.0313
+      ]
+    },
+    {
+      "id": "fault_startup",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 0.9781,
+      "meanNetB": -2.0219,
+      "meanPartB": 0,
+      "p50PayoutB": 0,
+      "p90PayoutB": 2.9,
+      "emptySpinRate": 0.8646,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "fault_ready",
+      "samples": 64,
+      "completed": 64,
+      "truncated": 0,
+      "meanPayoutB": 5.1188,
+      "meanNetB": 2.1188,
+      "meanPartB": 3.2109,
+      "p50PayoutB": 4.5,
+      "p90PayoutB": 8.25,
+      "emptySpinRate": 0.7022,
+      "noInterventionRoomPassRate": [
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

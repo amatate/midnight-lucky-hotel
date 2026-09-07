@@ -37,7 +37,7 @@ export interface SafetyFuseResult {
 export function getSafetyFuseRescuePayout(state: RunState): number {
   if (state.bankroll >= getMinimumBet(state)) return 0;
   const fuse = state.partSlots.find((part) => part?.id === "safety-fuse");
-  return fuse === undefined || fuse === null ? 0 : fuse.level === 2 ? 40 : 20;
+  return fuse === undefined || fuse === null ? 0 : Math.max(fuse.level === 2 ? 40 : 20, getMinimumBet(state) * fuse.level);
 }
 
 /** Consumes the leftmost safety fuse once when bankroll is strictly below the minimum bet. */

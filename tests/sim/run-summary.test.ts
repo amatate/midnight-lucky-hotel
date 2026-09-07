@@ -18,6 +18,14 @@ function estimate(patch: Partial<MachineEstimate> = {}): MachineEstimate {
 }
 
 describe("buildRunSummary", () => {
+  it("does not recommend infection as the missing piece of a salad or jam engine", () => {
+    for (const id of ["fruit-salad", "jam-jar"] as const) {
+      const state: RunState = { ...createRun(2), service: "kitchen",
+        acquiredUpgrades: ["cherry-press", "salad-dressing", "lemon-crate", "cherry-pitter", "jam-jar", "fruit-salad", "leftovers"],
+        partSlots: [{ id, level: 1 }, null, null, null, null] };
+      expect(buildRunSummary(state, []).buildSuggestion).toBeNull();
+    }
+  });
   it("uses ledger totals and declared source order for equal nonzero income", () => {
     const state: RunState = {
       ...createRun(1),

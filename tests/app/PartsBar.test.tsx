@@ -8,7 +8,7 @@ import type { RunState } from "@/core/types";
 afterEach(cleanup);
 
 describe("PartsBar", () => {
-  it("opens one five-socket machine part into a full-width player-facing inspection", async () => {
+  it("opens a five-socket machine part in a read-only floating inspection", async () => {
     const user = userEvent.setup();
     const state: RunState = {
       ...createRun(91),
@@ -31,8 +31,9 @@ describe("PartsBar", () => {
     await user.click(socket);
 
     expect(socket).toHaveAttribute("aria-expanded", "true");
-    expect(socket).toHaveAttribute("aria-controls", "part-detail-0");
-    const part = within(panel).getByRole("group", { name: "果酱罐部件详情" });
+    expect(socket).toHaveAttribute("aria-haspopup", "dialog");
+    const dialog = screen.getByRole("dialog", { name: "果酱罐 · L1" });
+    const part = within(dialog).getByRole("group", { name: "果酱罐部件详情" });
     expect(within(part).getByText(/每条樱桃中奖线都会充能/)).toBeInTheDocument();
     expect(within(part).getByText(/L1 → L2/).closest("p")).toHaveTextContent("0.5 × 当前下注提高为 1 × 当前下注");
     expect(within(part).getByText(/本班已有 2 条樱桃中奖线/).closest("p")).toHaveTextContent("下一条额外赔付 ¥10");
@@ -46,8 +47,8 @@ describe("PartsBar", () => {
       ...createRun(92),
       phase: "RESOLVING_EFFECTS",
       service: "security",
-      partSlots: [{ id: "scrap-magnet", level: 2 }, null, null, null, null],
-      pendingEvents: [{ sequence: 1, type: "PART_DISABLED", partId: "scrap-magnet", slot: 0 }]
+      partSlots: [{ id: "overload-motor", level: 2 }, null, null, null, null],
+      pendingEvents: [{ sequence: 1, type: "PART_DISABLED", partId: "overload-motor", slot: 0 }]
     };
     const { rerender } = render(<PartsBar state={state} presentedThroughSequence={0} />);
 
@@ -59,8 +60,9 @@ describe("PartsBar", () => {
     const disabled = screen.getAllByTestId("part-slot")[0]!;
     expect(disabled).toHaveAttribute("data-disabled", "true");
     expect(within(disabled).getByText("本转失效")).toBeVisible();
-    await userEvent.setup().click(within(disabled).getByRole("button", { name: /废料磁铁.*L2/ }));
-    expect(screen.getByText(/本转状态：因可见裂纹失效/)).toBeInTheDocument();
-    expect(screen.getByText(/L1 → L2/).closest("p")).toHaveTextContent("4 × 当前下注");
+    await userEvent.setup().click(within(disabled).getByRole("button", { name: /过载马达.*L2/ }));
+    const dialog = screen.getByRole("dialog", { name: "过载马达 · L2" });
+    expect(dialog).toHaveTextContent("本转状态：因可见裂纹失效");
+    expect(within(dialog).getByText(/L1 → L2/).closest("p")).toHaveTextContent("0.5 × 当前下注");
   });
 });

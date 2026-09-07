@@ -5,6 +5,9 @@ export type GameCommand =
   | { readonly type: "SELECT_SERVICE"; readonly serviceId: ServiceId }
   | { readonly type: "SET_BET_MODE"; readonly mode: BetMode }
   | { readonly type: "BUY_FOOD"; readonly reelIndex: ReelIndex }
+  | { readonly type: "UPGRADE_PART"; readonly slot: number }
+  | { readonly type: "ENTER_ROOM" }
+  | { readonly type: "OPEN_WORKSHOP" }
   | { readonly type: "PRAY"; readonly symbol: BaseSymbolId }
   | { readonly type: "ENABLE_MARTYR" }
   | { readonly type: "SPIN" }

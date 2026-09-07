@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BASE_REELS } from "@/content/base-machine";
-import { resolveBasePaylines } from "@/core/base-settlement";
+import { resolveBaseMachineSpin, resolveBasePaylines } from "@/core/base-settlement";
 import { drawReels } from "@/core/reels";
 import { estimateMachine } from "@/sim/monte-carlo";
 import type { EstimateRequest } from "@/sim/types";
@@ -113,24 +113,40 @@ describe("estimateMachine", () => {
     ]);
   });
 
-  it("keeps 100,000 raw base-payline spins in the designed RTP range", () => {
+  it("keeps 100,000 player-visible base settlements in the designed RTP range", () => {
     let rng = { value: 820_126 };
-    let payout = 0;
+    let bankroll = 1_000_000;
+    let shiftPayout = 0;
+    let agitation = 0;
+    let rawPaylinePayout = 0;
     for (let spin = 0; spin < 100_000; spin += 1) {
       const draw = drawReels(BASE_REELS, rng);
       rng = draw.rng;
-      payout += resolveBasePaylines(draw.grid, 10);
+      rawPaylinePayout += resolveBasePaylines(draw.grid, 10);
+      const settlement = resolveBaseMachineSpin({
+        grid: draw.grid,
+        currentBet: 10,
+        bankroll: bankroll - 10,
+        shiftPayout,
+        agitation
+      });
+      bankroll = settlement.bankroll;
+      shiftPayout = settlement.shiftPayout;
+      agitation = settlement.agitation;
     }
 
-    expect(payout / 1_000_000).toBeGreaterThanOrEqual(0.75);
-    expect(payout / 1_000_000).toBeLessThanOrEqual(0.85);
+    const playerVisibleRtp = shiftPayout / 1_000_000;
+    const rawPaylineDiagnosticRtp = rawPaylinePayout / 1_000_000;
+    expect(playerVisibleRtp).toBeGreaterThanOrEqual(0.75);
+    expect(playerVisibleRtp).toBeLessThanOrEqual(0.85);
+    expect(rawPaylineDiagnosticRtp).toBeLessThan(playerVisibleRtp);
   });
 
   it("runs a 100,000-spin settlement-aware accountant estimate", () => {
     const estimate = estimateMachine(request({ horizonSpins: 1_000, sampleCount: 100 }));
 
-    expect(estimate.rtpMean).toBeGreaterThanOrEqual(0.95);
-    expect(estimate.rtpMean).toBeLessThanOrEqual(1.1);
+    expect(estimate.rtpMean).toBeGreaterThanOrEqual(0.75);
+    expect(estimate.rtpMean).toBeLessThanOrEqual(0.85);
   });
 
   it("marks ruin before the horizon and caps completed-spin expectancy at the horizon", () => {
@@ -147,7 +163,7 @@ describe("estimateMachine", () => {
     expect(estimate.expectedAffordableSpins).toBe(1);
   });
 
-  it("uses the settlement kernel for part-granted free spins without charging their wager", () => {
+  it("funds one paid and one free spin without recursively recharging the capacitor", () => {
     const estimate = estimateMachine(request({
       reels: [["blank"], ["blank"], ["blank"]],
       parts: [{ id: "blank-capacitor", level: 1 }],
@@ -157,8 +173,8 @@ describe("estimateMachine", () => {
       sampleCount: 1
     }));
 
-    expect(estimate.ruinProbability).toBe(0);
-    expect(estimate.expectedAffordableSpins).toBe(4);
+    expect(estimate.ruinProbability).toBe(1);
+    expect(estimate.expectedAffordableSpins).toBe(2);
     expect(estimate.rtpMean).toBe(0);
   });
 
@@ -172,7 +188,7 @@ describe("estimateMachine", () => {
       simulationSeed: 820_126
     }));
 
-    expect(estimate.rtpMean).toBe(6.6);
+    expect(estimate.rtpMean).toBe(4.95);
   });
 
   it("sanitizes invalid strip entries through the core reel boundary", () => {

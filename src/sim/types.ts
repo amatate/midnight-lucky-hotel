@@ -32,6 +32,11 @@ export interface RunSummaryData {
   readonly totalWager: number;
   readonly totalPayout: number;
   readonly bankrollDelta: number;
+  readonly serviceExpenses: number;
+  readonly workshopExpenses: number;
+  readonly block: { readonly start: number; readonly end: number; readonly payout: number; readonly wager: number;
+    readonly otherCosts: number; readonly net: number; readonly afterBlockCosts: number } | null;
+  readonly partContributions: readonly { readonly id: import("@/core/types").PartId; readonly amount: number; readonly payingSpins: number }[];
   readonly largestIncome: { readonly source: AttributionSource; readonly amount: number } | null;
   readonly buildSuggestion: UpgradeId | null;
   readonly currentRtp: number | null;

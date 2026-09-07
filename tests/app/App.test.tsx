@@ -1,20 +1,24 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { App } from "@/app/App";
 
 const appStyles = readFileSync(resolve(process.cwd(), "src/app/styles.css"), "utf8");
+beforeEach(() => localStorage.clear());
 
 afterEach(() => {
   cleanup();
   document.querySelectorAll("[data-task7-safe-area-style]").forEach((style) => style.remove());
 });
 
-it("renders the midnight hotel cabinet", () => {
+it("opens the hotel front desk and starts a game without discarding history", () => {
   render(<App />);
 
   expect(screen.getByRole("heading", { name: "午夜好运酒店" })).toBeVisible();
+  expect(screen.getByRole("navigation", { name: "主菜单" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
+  fireEvent.click(screen.getByRole("button", { name: "继续游戏" }));
   expect(screen.getByRole("region", { name: "午夜好运老虎机" })).toBeVisible();
 });
 

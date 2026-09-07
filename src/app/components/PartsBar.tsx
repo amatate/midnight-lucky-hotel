@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { HelpButton } from "@/app/components/HelpWindow";
 import { describeEquippedPart } from "@/content/player-copy";
 import type { PartId, RunState } from "@/core/types";
 
 const PART_GLYPHS: Readonly<Record<PartId, string>> = {
+  "cherry-press": "M6 4h12M12 4v7M5 11h14v4H5m3 0v5h8v-5",
+  "salad-dressing": "M10 3h4v5l3 4v8H7v-8l3-4V3m-3 11h10",
   "lemon-infection": "M12 4c4 0 7 3 7 7s-3 8-8 8-7-3-7-7 3-7 8-7c1-2 3-3 5-3",
   "jam-jar": "M7 7h10l1 12H6L7 7m0-3h10v3H7",
   "fruit-salad": "M4 12h16c0 5-3 8-8 8s-8-3-8-8m4-3 3 3 3-5 3 5",
@@ -38,7 +40,6 @@ function currentPartStatus(currentImpact: string): string {
 }
 
 export function PartsBar({ state, activePartId = null, presentedThroughSequence }: PartsBarProps): React.JSX.Element {
-  const [openSlot, setOpenSlot] = useState<number | null>(null);
   const orderedEvents = [...state.pendingEvents].sort((left, right) => left.sequence - right.sequence);
   const visibleEvents = presentedThroughSequence === undefined
     ? orderedEvents
@@ -50,8 +51,6 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
   const activeSlot = activePartId === null
     ? -1
     : state.partSlots.findIndex((part, slot) => part?.id === activePartId && !disabledSlots.has(slot));
-  const inspectedPart = openSlot === null ? null : state.partSlots[openSlot] ?? null;
-  const inspectedPresentation = inspectedPart === null ? null : describeEquippedPart(visibleState, inspectedPart);
 
   return (
     <section className="parts-panel" aria-label="部件栏">
@@ -64,7 +63,6 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
           const presentation = part === null ? null : describeEquippedPart(visibleState, part);
           const active = slot === activeSlot;
           const disabled = disabledSlots.has(slot);
-          const expanded = slot === openSlot;
           return (
             <div
               className={`part-slot ${part === null ? "is-empty" : "is-loaded"}${active ? " is-triggered" : ""}${disabled ? " is-disabled" : ""}`}
@@ -78,42 +76,29 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
               {part === null || presentation === null ? (
                 <span className="empty-socket"><span className="sr-only">空部件槽 {slot + 1}</span></span>
               ) : (
-                <button
+                <HelpButton
                   className="part-socket-button"
-                  type="button"
-                  aria-expanded={expanded}
-                  aria-controls={expanded ? `part-detail-${slot}` : undefined}
-                  onClick={() => setOpenSlot(expanded ? null : slot)}
-                >
+                  title={presentation.name + " · L" + part.level}
+                  trigger={<>
                   <PartGlyph id={part.id} />
                   <span className="part-socket-name">{presentation.name} · L{part.level}</span>
                   <span className="part-level-ring" aria-hidden="true">L{part.level}</span>
-                  {!expanded && <span className="sr-only">{currentPartStatus(presentation.currentImpact)}</span>}
-                </button>
+                  <span className="sr-only">{currentPartStatus(presentation.currentImpact)}</span>
+                  </>}>
+                  <div className="part-detail" role="group" aria-label={presentation.name + "部件详情"}>
+                    <p><strong>触发与效果：</strong>{presentation.effect}</p>
+                    <p><strong>L1 → L2：</strong>{presentation.levelTwoEffect?.replace(/^L2：/, "")}</p>
+                    <p><strong>当前进度／状态：</strong>{presentation.currentImpact}</p>
+                    <p><strong>代价／风险：</strong>{presentation.risk}</p>
+                    <details><summary>搭配建议</summary><p>{presentation.synergy}</p></details>
+                  </div>
+                </HelpButton>
               )}
               {disabled && <span className="part-disabled-label">本转失效</span>}
             </div>
           );
         })}
       </div>
-      {openSlot !== null && inspectedPart !== null && inspectedPresentation !== null && (
-        <div
-          className="part-detail"
-          id={`part-detail-${openSlot}`}
-          role="group"
-          aria-label={`${inspectedPresentation.name}部件详情`}
-        >
-          <div className="part-detail-title">
-            <PartGlyph id={inspectedPart.id} />
-            <h3>{inspectedPresentation.name} · L{inspectedPart.level}</h3>
-          </div>
-          <p><strong>完整触发规则：</strong>{inspectedPresentation.effect}</p>
-          <p><strong>L1 → L2：</strong>{inspectedPresentation.levelTwoEffect?.replace(/^L2：/, "")}</p>
-          <p><strong>当前进度／状态：</strong>{inspectedPresentation.currentImpact}</p>
-          <p><strong>协同：</strong>{inspectedPresentation.synergy}</p>
-          <p><strong>代价／风险：</strong>{inspectedPresentation.risk}</p>
-        </div>
-      )}
     </section>
   );
 }
