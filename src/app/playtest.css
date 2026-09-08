@@ -1,0 +1,31 @@
+.reel-upgrade-preview { min-width: 0; padding-block: 0.5rem; }
+.reel-upgrade-preview > header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; font-size: 0.875rem; }
+.reel-upgrade-preview > header strong { color: var(--payout-gold); font-size: 1rem; }
+.preview-reel { border-top: 1px dashed var(--brass); margin-top: 0.75rem; padding-top: 0.5rem; min-width: 0; }
+.preview-reel h5 { margin: 0 0 0.35rem; font-size: 1rem; }
+.preview-strip-row { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); align-items: center; gap: 0.4rem; margin-block: 0.5rem; }
+.preview-strip-label { font-size: 0.875rem; }
+.preview-strip-label small { display: block; font: 0.875rem "Barlow Condensed", sans-serif; opacity: 0.8; }
+.preview-strip { display: flex; gap: 0.3rem; overflow-x: auto; list-style: none; padding: 0.3rem 0.2rem 0.7rem; margin: 0; overscroll-behavior-inline: contain; }
+.preview-strip .preview-cell { position: relative; flex: 0 0 2.15rem; width: 2.15rem; height: 2.6rem; background: var(--enamel); border: 2px solid transparent; border-radius: 3px; }
+.preview-cell .symbol-face { display: block; width: 100%; height: 100%; }
+.preview-cell .symbol-face svg { width: 100%; height: 100%; }
+.preview-strip .preview-cell.is-added { border-color: var(--payout-gold); box-shadow: 0 0 0 1px var(--brass); }
+.preview-strip .preview-cell.is-removed { border-color: var(--hotel-red); opacity: 0.65; }
+.preview-cell.is-removed::after { content: ""; position: absolute; left: 5%; right: 5%; top: 50%; height: 3px; background: var(--hotel-red); transform: rotate(-40deg); }
+.preview-cell-mark { position: absolute; right: -0.15rem; top: -0.35rem; line-height: 1rem; min-width: 1rem; text-align: center; color: var(--ink); background: var(--payout-gold); border-radius: 50%; font-weight: 700; font-size: 0.875rem; }
+.is-removed .preview-cell-mark { color: var(--enamel); background: var(--hotel-red); }
+.preview-footnote { font-size: 0.875rem; line-height: 1.55; opacity: 0.85; margin: 0.5rem 0; }
+.upgrade-consequences { list-style: none; padding: 0; display: grid; gap: 0.6rem; margin-block: 1rem; }
+.upgrade-consequences li { display: grid; grid-template-columns: 5.2rem minmax(0, 1fr); gap: 0.5rem; font-size: 0.875rem; line-height: 1.6; }
+.upgrade-consequences strong { color: var(--payout-gold); font-weight: 500; }
+.part-discovery { border-left: 3px solid var(--payout-gold); padding: 0.8rem 1rem; background: color-mix(in srgb, var(--ink) 88%, var(--brass)); margin-block: 0.75rem; }
+.part-discovery header { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; }
+.part-discovery h3 { font-family: "Smiley Sans", sans-serif; font-size: 1.2rem; margin: 0; }
+.part-discovery p { margin: 0.6rem 0; font-size: 1rem; line-height: 1.65; }
+.part-discovery .discovery-caption { font-size: 0.875rem; opacity: 0.85; }
+.feedback-summary { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.875rem; }
+.feedback-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--payout-gold); }
+.update-notice { padding: 0.8rem 1rem; border: 1px solid var(--brass); margin-block: 0.75rem; font-size: 0.875rem; line-height: 1.6; }
+.update-notice p { margin-block: 0.3rem 0.75rem; }
+@media (prefers-reduced-motion: reduce) { .preview-cell { transition: none; } }

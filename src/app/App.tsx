@@ -2,6 +2,7 @@ import { GameScreen } from "@/app/GameScreen";
 import "@/app/archives.css";
 import { useState } from "react";
 import { FrontDesk } from "@/app/components/FrontDesk";
+import { UpdateNotice } from "@/app/components/UpdateNotice";
 import { initializeLibrary, validSeed, type ArchiveLibrary } from "@/persistence/archives";
 
 const DEFAULT_SEED = 20_260_812;
@@ -29,6 +30,7 @@ export function App({ seed }: { readonly seed?: number } = {}): React.JSX.Elemen
   };
   return (
     <main className={playing ? "app-shell" : "app-shell frontdesk-shell"}>
+      <UpdateNotice playing={playing} />
       {playing ? <GameScreen seed={resolvedSeed} onHome={home} /> : <FrontDesk
         library={loaded.library} error={loaded.error} defaultSeed={resolvedSeed}
         onLibrary={(library) => setLoaded({ library, error: null })} onPlay={() => setPlaying(true)} />}

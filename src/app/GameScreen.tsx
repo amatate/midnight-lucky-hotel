@@ -7,6 +7,8 @@ import { GameGuide } from "@/app/components/GameGuide";
 import { HOTEL_ROOMS } from "@/content/hotel";
 import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { PartsBar } from "@/app/components/PartsBar";
+import { PartDiscovery } from "@/app/components/PartDiscovery";
+import { FeedbackButton } from "@/app/components/FeedbackButton";
 import { PullLever } from "@/app/components/PullLever";
 import { RunSummary } from "@/app/components/RunSummary";
 import { ShiftReceipt } from "@/app/components/ShiftReceipt";
@@ -168,7 +170,7 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
           <span>{game.state.phase === "AFTER_HOURS" && game.state.hotel?.challenge != null ? "客房结算" : PHASE_LABELS[game.state.phase]}</span>
         </div>
       </header>
-      <div className="game-guide-entry"><HelpButton title="游戏介绍" trigger="玩法与术语" className="guide-open-button"><GameGuide /></HelpButton></div>
+      <div className="game-guide-entry"><HelpButton title="游戏介绍" trigger="玩法与术语" className="guide-open-button"><GameGuide /></HelpButton><FeedbackButton seed={game.state.initialSeed} /></div>
 
       {game.archive !== null && <section className="game-archive-bar" aria-label="档案工具">
         <div className="frontdesk-actions">
@@ -236,6 +238,7 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
         </section>
       )}
 
+      <PartDiscovery key={game.archive?.id ?? game.state.initialSeed} state={game.state} presentedThroughSequence={presentedThroughSequence} observedEvents={settlementPresentation === null ? game.events : undefined} />
       {!showCabinet && (
         <div className="page-ledger">
           <LedgerDrawer receipts={game.state.spinHistory} />

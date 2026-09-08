@@ -3,6 +3,7 @@ import { downloadText, money } from "@/app/archive-copy";
 import { ArchiveViewer } from "@/app/components/ArchiveViewer";
 import { describeUpgrade } from "@/content/player-copy";
 import { GameGuide } from "@/app/components/GameGuide";
+import { FeedbackButton } from "@/app/components/FeedbackButton";
 import { UPGRADES, UPGRADE_IDS } from "@/content/upgrades";
 import { createRun } from "@/core/run";
 import type { UpgradeId } from "@/core/types";
@@ -137,7 +138,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
         <section className="archive-card"><h2>本地数据</h2><p>所有记录保存在当前浏览器。清理网站数据会丢失本地存档，请定期导出。容量不足时会提示并暂停自动推进，不自动删除旧记录。</p><button type="button" onClick={exportRaw}>导出全部原始备份</button><p className="fine-print">原始备份用于留底和排错；跨浏览器游玩请在历史中导出单局复盘包。规则版本：{RULES_VERSION}</p></section>
       </>}
       {error !== null && <button type="button" onClick={exportRaw}>导出原始备份（不覆盖数据）</button>}
-      <footer className="frontdesk-footer">本地原型 · 无真实货币 · 无账号或云同步</footer>
+      <footer className="frontdesk-footer"><FeedbackButton seed={active?.snapshot.initialSeed ?? null} /><p>试玩原型 · 无真实货币 · 无账号或云同步</p><p>存档只在当前浏览器和站点保存。从本地版换到网页版，请先导出本局，再在这里导入。</p></footer>
     </section>
   );
 }

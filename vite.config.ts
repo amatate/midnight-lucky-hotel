@@ -17,7 +17,7 @@ const rulesFingerprint = createHash("sha256")
   .digest("hex").slice(0, 16);
 
 export default defineConfig({
-  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint) },
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.08") },
   plugins: [
     {
       name: "restart-on-rule-change",
@@ -31,8 +31,8 @@ export default defineConfig({
     },
     react(),
     VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: "auto",
+      registerType: "prompt",
+      injectRegister: false,
       includeAssets: [
         "icons/icon-192.svg",
         "icons/icon-512.svg",

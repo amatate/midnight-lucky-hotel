@@ -9,6 +9,8 @@ import {
   upgradeSymbolTargets
 } from "@/app/upgrade-choice";
 import { useUpgradePreviewEstimate } from "@/app/useUpgradePreviewEstimate";
+import { ReelUpgradePreview } from "@/app/components/ReelUpgradePreview";
+import { UpgradeConsequences } from "@/app/components/UpgradeConsequences";
 import { describeUpgrade } from "@/content/player-copy";
 import { UPGRADES } from "@/content/upgrades";
 import type { GameCommand } from "@/core/commands";
@@ -164,6 +166,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null }: Upgr
                   {selectedDefinition.kind === "reel-mod" ? (
                     <aside className="maintenance-ticket" aria-label="维修票据">
                       <h4>维修票据</h4>
+                      {selectedChoice !== null && <ReelUpgradePreview state={state} choice={selectedChoice} />}
                       <p>{selectedPresentation.currentImpact}</p>
                       {state.toolLevel >= 2 && previewEstimate.status !== "ready" && <p>正在配对估算当前机器与改造后机器</p>}
                     </aside>
@@ -172,6 +175,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null }: Upgr
                       <p><strong>立即结果：</strong>{selectedImpact}</p>
                     </div>
                   )}
+                  <UpgradeConsequences state={state} id={selectedId} />
                   <button
                     className="primary-button"
                     type="button"
