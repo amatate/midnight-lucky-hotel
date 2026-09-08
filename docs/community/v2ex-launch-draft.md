@@ -25,7 +25,7 @@
 仓库与运行说明：
 https://github.com/amatate/midnight-lucky-hotel
 
-网页试玩：https://midnight-lucky-hotel.green-emu-3354.chatgpt.site
+网页试玩：https://midnight-lucky-hotel.teddyding.chatgpt.site
 
 支持桌面浏览器，也按手机竖屏设计，不需要游戏账号。存档只保存在当前浏览器，可自行导出备份。也能本地运行：Node.js 24.13.1+、npm 11.8.0+，克隆后执行 `npm ci` 和 `npm run dev`。源码可以查看，项目源码许可证尚未确定；字体保留各自许可。
 

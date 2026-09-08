@@ -41,7 +41,7 @@ Interfaces: `feedbackIssueUrl(seed: number | null): string` builds a GitHub Issu
 - [x] Implement feedback as a help dialog with disclosure before external GitHub navigation. Keep existing explicit export action for optional attachments.
 - [x] Switch PWA from automatic update/reload to explicit prompt, defer activation to front desk, and tell players to export before switching site origins. Keep dependencies and lockfile intact.
 - [x] Run targeted tests, full suite and production build. Capture one real game screenshot for the README using an isolated browser context, not player storage.
-- [ ] Commit validated source, push existing GitHub repository and Sites source, package `dist`, save and deploy the exact version with public access requested by user. Verify terminal deployment success and HTTP response; update README with actual public URL.
+- [x] Commit validated source, push existing GitHub repository and Sites source, package `dist`, save and deploy the exact version with public access requested by user. Verify terminal deployment success and HTTP response; update README with actual public URL.
 
 ## Delivery gates
 
@@ -55,4 +55,5 @@ Interfaces: `feedbackIssueUrl(seed: number | null): string` builds a GitHub Issu
 - `git diff --check` passed; `src/core` and `src/content` unchanged. Rules fingerprint remains `rules-54eb1749df08ea12`; dependencies and archive schemas unchanged.
 - Read-only review exposed fuse rescue attribution, queued-but-unseen teaching state, and spring intervention discovery. Regression tests now cover each through the appropriate UI/event path.
 - README image is a real seeded first-spin capture from an isolated Playwright context. No player profile or saved game was read or changed. Physical-phone feel and real multi-tab update behavior still need player acceptance.
-- Publication is the remaining delivery gate for this committed source; use the live deployment result, not this checklist, as evidence of availability.
+- Published source: `bc97050cdc8da12f18cf30f9dc8a67d43a3b8f4d`, saved Site version 1. Deployment succeeded; an unauthenticated HTTP request returned the game HTML with status 200 at https://midnight-lucky-hotel.teddyding.chatgpt.site/.
+- The final deployment origin differed from the pre-publication expected URL. This documentation-only follow-up updates GitHub's play link and records delivery; it does not change the published game build. Community draft remains unpublished.

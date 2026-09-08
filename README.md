@@ -6,7 +6,7 @@ A mobile-first, Chinese-language slot-machine roguelite prototype. Build the ree
 
 这是一个优先追求「自己玩起来好玩」的小项目：通过改造转轮、搭配部件和有限干预，把随机结果变成可以经营的构筑。项目仍在迭代，欢迎真实试玩反馈。
 
-**[打开网页试玩](https://midnight-lucky-hotel.green-emu-3354.chatgpt.site)** · [反馈问题](https://github.com/amatate/midnight-lucky-hotel/issues)
+**[打开网页试玩](https://midnight-lucky-hotel.teddyding.chatgpt.site)** · [反馈问题](https://github.com/amatate/midnight-lucky-hotel/issues)
 
 > 游戏中的金额和下注全部是虚拟资源，没有充值、真实货币投注或兑换功能。手机和电脑均可打开试玩；也可按下方说明本地运行。源码公开，但项目源码许可证尚未确定，见文末说明。
 
