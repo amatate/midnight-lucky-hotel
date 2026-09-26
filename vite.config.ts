@@ -15,9 +15,12 @@ const rulesRoot = fileURLToPath(new URL("./src", import.meta.url));
 const rulesFingerprint = createHash("sha256")
   .update([...ruleSources(join(rulesRoot, "core")), ...ruleSources(join(rulesRoot, "content"))].join("\n"))
   .digest("hex").slice(0, 16);
+// Root hosting and local development stay unchanged; Pages builds opt into a subpath.
+const deployBase = process.env.DEPLOY_BASE_PATH ?? "/";
 
 export default defineConfig({
-  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.08") },
+  base: deployBase,
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.26-mobile-pages") },
   plugins: [
     {
       name: "restart-on-rule-change",
@@ -37,23 +40,31 @@ export default defineConfig({
         "icons/icon-192.svg",
         "icons/icon-512.svg",
         "fonts/SmileySans-Oblique.woff2",
-        "fonts/BarlowCondensed-SemiBold.woff2"
+        "fonts/BarlowCondensed-SemiBold.woff2",
+        "art/cabinet-frame-v1.png",
+        "art/hotel-lobby-v1.png",
+        "art/installed-parts-v1.png",
+        "art/room-crowns-v1.png",
+        "art/hotel-rooms-v1.png"
       ],
       manifest: {
         name: "午夜好运酒店",
         short_name: "好运酒店",
+        lang: "zh-CN",
         description: "一拉一爆的午夜酒店老虎机 Roguelite",
         display: "standalone",
         orientation: "portrait",
-        theme_color: "#0B0908",
-        background_color: "#0B0908",
-        start_url: "/",
+        theme_color: "#0c1715",
+        background_color: "#0c1715",
+        start_url: deployBase,
+        scope: deployBase,
         icons: [
-          { src: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
-          { src: "/icons/icon-512.svg", sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+          { src: `${deployBase}icons/icon-192.svg`, sizes: "192x192", type: "image/svg+xml", purpose: "any maskable" },
+          { src: `${deployBase}icons/icon-512.svg`, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
         ]
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
         navigateFallback: "index.html",
         runtimeCaching: [],

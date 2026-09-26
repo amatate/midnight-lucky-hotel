@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoinBurst } from "@/app/components/CoinBurst";
@@ -183,6 +183,7 @@ describe("food buff tickets", () => {
       <Hud state={resolving} estimate={null} estimateStatus="idle" presentedThroughSequence={1} />
     );
 
+    fireEvent.click(screen.getByText("状态与加成"));
     let status = screen.getByRole("region", { name: "食物加成" });
     expect(within(status).getByText("食物加成 1 层")).toBeVisible();
     expect(within(status).getByLabelText("第 1 层 +25%，剩余 2/3 次转动")).toBeVisible();
@@ -217,6 +218,7 @@ describe("food buff tickets", () => {
       buffs: spinsRemaining === 0 ? [] : [{ id: "food", spinsRemaining, additivePayout: 0.25 }]
     });
     const { rerender } = render(<Hud state={withRemaining(3)} estimate={null} estimateStatus="idle" />);
+    fireEvent.click(screen.getByText("状态与加成"));
 
     const activeCells = () => within(screen.getByRole("region", { name: "食物加成" }))
       .queryAllByTestId("food-ticket")

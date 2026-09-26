@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -19,6 +19,8 @@ it("opens the hotel front desk and starts a game without discarding history", ()
   expect(screen.getByRole("navigation", { name: "主菜单" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
   fireEvent.click(screen.getByRole("button", { name: "继续游戏" }));
+  expect(screen.queryByRole("region", { name: "午夜好运老虎机" })).not.toBeInTheDocument();
+  fireEvent.click(within(screen.getByRole("group", { name: "选择服务" })).getAllByRole("button")[0]!);
   expect(screen.getByRole("region", { name: "午夜好运老虎机" })).toBeVisible();
 });
 

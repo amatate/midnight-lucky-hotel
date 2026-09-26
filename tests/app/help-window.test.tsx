@@ -34,7 +34,7 @@ it("pauses automatic stopping while help is open, without changing archived stat
   vi.useFakeTimers();
   render(<GameScreen seed={8} initialState={ready()} />);
   fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
-  fireEvent.click(screen.getByRole("button", { name: "了解专注" }));
+  fireEvent.click(screen.getByRole("button", { name: "了解干预点" }));
   const before = activeRecord(readLibrary())!;
   const storedBefore = localStorage.getItem("midnight-lucky-hotel.run.v2");
   expect(before.snapshot.phase).toBe("SPINNING");
@@ -42,7 +42,7 @@ it("pauses automatic stopping while help is open, without changing archived stat
   // initialState mounts use the legacy mirror; readLibrary assigns ephemeral checkpoint metadata.
   expect(activeRecord(readLibrary())!.snapshot).toEqual(before.snapshot);
   expect(localStorage.getItem("midnight-lucky-hotel.run.v2")).toBe(storedBefore);
-  expect(screen.getByRole("dialog", { name: "专注" })).toHaveTextContent("每次重转、锁轮或祈祷花 1 点");
+  expect(screen.getByRole("dialog", { name: "干预点" })).toHaveTextContent("每次重转、锁轮或祈祷花 1 点");
   fireEvent.click(screen.getByRole("button", { name: "关闭说明" }));
   await act(async () => vi.advanceTimersByTimeAsync(1_440));
   expect(activeRecord(readLibrary())!.snapshot.phase).toBe("AWAITING_INTERVENTION");
@@ -55,11 +55,38 @@ it("opens part details as a read-only floating window, with capped jam progress"
   const before = activeRecord(readLibrary())!;
   fireEvent.click(screen.getByRole("button", { name: /果酱罐 · L2/ }));
   const dialog = screen.getByRole("dialog", { name: "果酱罐 · L2" });
-  expect(within(dialog).getByRole("group", { name: "果酱罐部件详情" })).toHaveTextContent("下一条额外赔付 ¥60");
+  expect(within(dialog).getByRole("group", { name: "果酱罐部件详情" })).toHaveTextContent("下一条额外奖金 ¥60");
   expect(dialog).toHaveTextContent("最多计 6 层");
   fireEvent.click(dialog.parentElement!);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(activeRecord(readLibrary())).toEqual(before);
+});
+
+it("keeps the game paused after closing a nested help window until the menu also closes", async () => {
+  vi.useFakeTimers();
+  render(<GameScreen seed={8} initialState={ready()} />);
+  fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
+  fireEvent.click(screen.getByRole("button", { name: "菜单" }));
+  fireEvent.click(screen.getByRole("button", { name: "玩法与术语" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "游戏介绍" })).getByRole("button", { name: "关闭说明" }));
+  await act(async () => vi.advanceTimersByTimeAsync(4000));
+  expect(activeRecord(readLibrary())!.snapshot.phase).toBe("SPINNING");
+  fireEvent.click(within(screen.getByRole("dialog", { name: "酒店菜单" })).getByRole("button", { name: "关闭说明" }));
+  await act(async () => vi.advanceTimersByTimeAsync(1500));
+  expect(activeRecord(readLibrary())!.snapshot.phase).toBe("AWAITING_INTERVENTION");
+});
+
+it("also pauses while reading the ledger without recording a game command", async () => {
+  vi.useFakeTimers();
+  render(<GameScreen seed={8} initialState={ready()} />);
+  fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
+  fireEvent.click(screen.getByRole("button", { name: "账本" }));
+  const before = activeRecord(readLibrary())!.snapshot;
+  await act(async () => vi.advanceTimersByTimeAsync(4000));
+  expect(activeRecord(readLibrary())!.snapshot).toEqual(before);
+  fireEvent.click(screen.getByRole("button", { name: "关闭账本" }));
+  await act(async () => vi.advanceTimersByTimeAsync(1500));
+  expect(activeRecord(readLibrary())!.snapshot.phase).toBe("AWAITING_INTERVENTION");
 });
 
 it("also pauses settlement completion and resumes once after closing help", async () => {
@@ -68,7 +95,7 @@ it("also pauses settlement completion and resumes once after closing help", asyn
   fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
   await act(async () => vi.advanceTimersByTimeAsync(1_440));
   fireEvent.click(screen.getByRole("button", { name: "收下这把" }));
-  fireEvent.click(screen.getByRole("button", { name: "了解专注" }));
+  fireEvent.click(screen.getByRole("button", { name: "了解干预点" }));
   const before = activeRecord(readLibrary())!.snapshot;
   expect(before.phase).toBe("RESOLVING_EFFECTS");
   await act(async () => vi.advanceTimersByTimeAsync(20_000));
@@ -85,10 +112,19 @@ it("also pauses settlement completion and resumes once after closing help", asyn
 
 it("puts route choices, glossary, public room targets and estimate limitations into the guide", () => {
   render(<GameGuide />);
-  fireEvent.click(screen.getByText("专注、裂纹、恶兆……这些资源有什么用？"));
-  expect(screen.getByText(/废料磁铁、保修欺诈免疫裂纹/)).toBeVisible();
+  fireEvent.click(screen.getByText("干预点、裂纹、恶兆：用在哪里？"));
+  expect(screen.getByText(/飞轮、磁铁、保修欺诈免疫裂纹/)).toBeVisible();
   fireEvent.click(screen.getByText("升级、合同、加班和客房目标"));
-  expect(screen.getByText(/顶层套房：每转 ¥100，目标 ¥3600/)).toBeVisible();
+  expect(screen.getByText(/顶层套房：3 次付费转，每转 ¥100；本段奖金合计 ¥3600/)).toBeVisible();
   fireEvent.click(screen.getByText("RTP、报告、种子与日志怎么看"));
   expect(screen.getByText(/不是实时胜率/)).toBeVisible();
+});
+
+it("starts with the short play loop and reveals payout math only when requested", () => {
+  render(<GameGuide />);
+  expect(screen.getByText("先玩一班：只需记住这三步").closest("details")).toHaveAttribute("open");
+  const payout = screen.getByText("奖金怎么算？为什么中奖不等于净赚？");
+  expect(payout.closest("details")).not.toHaveAttribute("open");
+  fireEvent.click(payout);
+  expect(payout.closest("details")).toHaveAttribute("open");
 });

@@ -1,0 +1,261 @@
+/* A hotel arrival screen, not a dashboard. Artwork supplies the room; controls stay live. */
+.app-shell.frontdesk-shell:has(.frontdesk-scene) {
+  width: min(100%, 1080px);
+  overflow: clip;
+  background: #0c1412;
+}
+
+.frontdesk.frontdesk-scene {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 100svh;
+  padding: max(28px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: #0c1412;
+}
+
+.frontdesk-scene[data-section="lobby"] {
+  background: linear-gradient(180deg, #07110dbb, #07110d00 26%, #08110c0d 46%, #0c1412e6 72%, #0c1412 91%),
+    url("/art/hotel-lobby-v1.png") center top / 100% auto no-repeat,
+    radial-gradient(ellipse at 50% 32%, #6e6442, #21312a 45%, #0c1412 75%);
+}
+
+.frontdesk-scene .frontdesk-heading {
+  position: relative;
+  justify-content: center;
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.frontdesk-scene .hotel-sign {
+  color: #d3c29c;
+  font: 500 0.7rem/1.5 "Barlow Condensed", sans-serif;
+  letter-spacing: 0.29em;
+  margin: 0 0 9px;
+  text-shadow: 0 2px 12px #000;
+}
+
+.frontdesk-scene .frontdesk-heading h1 {
+  margin: 0;
+  color: #f1e0b7;
+  font: oblique clamp(2rem, 8.6vw, 3.6rem)/1.25 "Smiley Sans", sans-serif;
+  text-shadow: 0 2px 3px #080b08, 0 0 30px #cab7812b;
+  letter-spacing: 0.04em;
+}
+
+.frontdesk-scene .frontdesk-tagline {
+  margin: 10px 0 0;
+  color: #d4c7ad;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-shadow: 0 2px 8px #000;
+}
+
+.frontdesk-scene .frontdesk-key { display: none; }
+.frontdesk-scene .frontdesk-notice:empty { min-height: 0; margin: 0; }
+.frontdesk-scene .frontdesk-notice:not(:empty) {
+  position: relative;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  background: #0a1412ec;
+  border-left: 2px solid #d1b57d;
+  color: #f0dfb7;
+  font-size: 0.875rem;
+}
+.frontdesk-scene .archive-warning { position: relative; }
+
+.frontdesk-scene .lobby-vista {
+  position: relative;
+  min-height: clamp(145px, 24svh, 290px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding-bottom: 14px;
+  pointer-events: none;
+}
+
+.frontdesk-scene .lobby-door-sign {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: #e8d6ad;
+  text-shadow: 0 2px 8px #000;
+  font: 400 0.65rem "Barlow Condensed", sans-serif;
+  letter-spacing: 0.2em;
+}
+.frontdesk-scene .lobby-door-sign b { font-size: 1.1rem; font-weight: 500; letter-spacing: 0.12em; }
+
+.frontdesk-scene .lobby-playdesk {
+  position: relative;
+  width: min(100%, 460px);
+  margin: 0 auto;
+  padding: 17px 12px 4px;
+  background: linear-gradient(180deg, #0c1712dc, #0c171200);
+  border-top: 1px solid #c1a56a91;
+}
+.frontdesk-scene .lobby-playdesk::before,
+.frontdesk-scene .lobby-playdesk::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: #cbb47e;
+  box-shadow: 0 0 0 3px #14201a;
+}
+.frontdesk-scene .lobby-playdesk::before { left: 3px; }
+.frontdesk-scene .lobby-playdesk::after { right: 3px; }
+
+.frontdesk-scene .frontdesk-hero {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  text-align: center;
+}
+.frontdesk-scene .frontdesk-hero > .eyebrow {
+  color: #bfae86;
+  font: 500 0.65rem/1.4 "Barlow Condensed", sans-serif;
+  letter-spacing: 0.2em;
+  margin: 0 0 6px;
+}
+.frontdesk-scene .frontdesk-hero h2 {
+  margin: 0 0 10px;
+  font: oblique 1.35rem/1.4 "Smiley Sans", sans-serif;
+  color: #efe0bc;
+}
+.frontdesk-scene .lobby-premise { margin: 0 0 16px; font-size: 0.8125rem; line-height: 1.65; color: #d3c9b2; }
+.frontdesk-scene .lobby-current-run { display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 14px; font-size: 0.8125rem; color: #d3c9b2; }
+.frontdesk-scene .frontdesk-balance { display: inline; margin: 0; font: 500 1.5rem/1.2 "Barlow Condensed", sans-serif; color: #ecd6a8; }
+
+.frontdesk-scene .lobby-enter-button {
+  position: relative;
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  min-height: 60px;
+  padding: 13px 38px;
+  border: 1px solid #f1dfb1;
+  border-radius: 2px;
+  color: #172218;
+  background: linear-gradient(110deg, #f2dfb3, #d0b176 85%, #e5cb95);
+  box-shadow: inset 0 0 0 3px #ab8b4f40, inset 0 4px 0 #fff4, 0 4px 0 #665335, 0 8px 14px #0007;
+  font: oblique 1.45rem/1.2 "Smiley Sans", sans-serif;
+  letter-spacing: 0.12em;
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+.frontdesk-scene .lobby-enter-button > span { position: absolute; right: 20px; font-size: 1rem; font-style: normal; opacity: 0.65; }
+.frontdesk-scene .lobby-enter-button:hover:not(:disabled) { color: #172218; filter: brightness(1.06); background: linear-gradient(110deg, #f2dfb3, #d0b176 85%, #e5cb95); }
+.frontdesk-scene .lobby-enter-button:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 0 0 3px #ab8b4f40, inset 0 2px 0 #fff4, 0 1px 0 #665335, 0 4px 8px #0007; }
+.frontdesk-scene .lobby-enter-button:disabled { opacity: 0.5; }
+.frontdesk-scene .lobby-goal { margin: 14px 0 0; text-align: center; color: #b9b199; font-size: 0.75rem; line-height: 1.6; }
+
+.frontdesk-scene .new-run-form { padding: 0; margin: 0; background: none; border: 0; box-shadow: none; }
+.frontdesk-scene .new-run-form.has-current-run { margin-top: 2px; text-align: center; }
+.frontdesk-scene .lobby-new-night { min-height: 44px; padding: 8px 18px; border: 0; background: none; color: #dbc99f; box-shadow: none; font-size: 0.875rem; }
+.frontdesk-scene .lobby-new-night::before { content: "+"; padding-right: 6px; color: #b69a66; }
+.frontdesk-scene .lobby-seed-options, .frontdesk-scene .lobby-run-details { margin-top: 10px; text-align: left; }
+.frontdesk-scene .lobby-run-details { margin-top: 6px; }
+.frontdesk-scene .lobby-seed-options > summary,
+.frontdesk-scene .lobby-run-details > summary {
+  min-height: 44px;
+  padding: 12px 2px;
+  text-align: center;
+  color: #bfb293;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  list-style-position: inside;
+}
+.frontdesk-scene .lobby-seed-options[open], .frontdesk-scene .lobby-run-details[open] { padding: 0 12px 12px; background: #08110fec; border: 1px solid #bca16a55; }
+.frontdesk-scene .lobby-seed-options label { font-size: 0.8125rem; }
+.frontdesk-scene .lobby-favorite-seeds h3 { font-size: 0.875rem; font-weight: 400; }
+
+.frontdesk-scene .frontdesk-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(100%, 620px);
+  gap: 0;
+  overflow: visible;
+  margin: 24px auto 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid #bea16955;
+}
+.frontdesk-scene .frontdesk-tabs button,
+.frontdesk-scene .frontdesk-tabs button[aria-current="page"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 62px;
+  padding: 5px 1px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #c7ba99;
+  box-shadow: none;
+  font-size: 0.75rem;
+  white-space: normal;
+}
+.frontdesk-scene .frontdesk-tabs button[aria-current="page"] { color: #f2e1b8; }
+.frontdesk-scene .frontdesk-tabs button:hover { color: #fff0c9; background: #bea1690b; }
+.frontdesk-scene .lobby-menu-mark { position: relative; display: block; width: 18px; height: 18px; border: 1px solid currentColor; opacity: 0.78; }
+.frontdesk-scene .lobby-menu-mark-lobby { border-radius: 8px 8px 0 0; width: 14px; }
+.frontdesk-scene .lobby-menu-mark-lobby::after { content: ""; position: absolute; width: 2px; height: 2px; right: 2px; top: 10px; background: currentColor; }
+.frontdesk-scene .lobby-menu-mark-history { border-radius: 1px 5px 1px 1px; }
+.frontdesk-scene .lobby-menu-mark-history::after { content: ""; position: absolute; inset: 4px; border-block: 1px solid currentColor; }
+.frontdesk-scene .lobby-menu-mark-collection { transform: rotate(45deg); width: 15px; height: 15px; box-shadow: inset 0 0 0 3px #0c1412, inset 0 0 0 4px currentColor; }
+.frontdesk-scene .lobby-menu-mark-settings { border-radius: 50%; width: 17px; height: 17px; }
+.frontdesk-scene .lobby-menu-mark-settings::after { content: ""; position: absolute; inset: 5px; border: 1px solid currentColor; border-radius: 50%; }
+
+.frontdesk-scene .frontdesk-footer {
+  width: min(100%, 620px);
+  margin: 18px auto 0;
+  padding: 0;
+  text-align: center;
+  border: 0;
+  color: #a59b85;
+  font-size: 0.6875rem;
+  line-height: 1.6;
+}
+.frontdesk-scene .frontdesk-footer p { margin: 8px 0; }
+.frontdesk-scene .frontdesk-footer button { min-height: 44px; color: #c6b895; padding: 8px 12px; border: 0; background: none; box-shadow: none; font-size: 0.75rem; }
+.frontdesk-scene[data-section="lobby"] .frontdesk-footer p:last-child { max-width: 34em; margin-inline: auto; }
+
+.frontdesk-scene:not([data-section="lobby"]) .frontdesk-heading { padding-bottom: 5px; }
+.frontdesk-scene:not([data-section="lobby"]) .frontdesk-heading h1 { font-size: clamp(1.7rem, 7vw, 2.5rem); }
+.frontdesk-scene:not([data-section="lobby"]) .frontdesk-tagline { display: none; }
+.frontdesk-scene:not([data-section="lobby"]) .frontdesk-tabs { margin: 16px auto 24px; }
+.frontdesk-scene .archive-card { border-radius: 2px; border-color: #8f7a505e; background: linear-gradient(120deg, #2531297a, #151c15); box-shadow: inset 0 1px 0 #eed7a108, 0 7px 18px #0002; }
+.frontdesk-scene .collection-item > .eyebrow { color: #cbb788; }
+
+@media (min-width: 760px) {
+  .frontdesk.frontdesk-scene { padding: 40px 44px 24px; }
+  .frontdesk-scene[data-section="lobby"] { background-size: auto, auto 800px, auto; background-position: center, center top, center; }
+  .frontdesk-scene[data-section="lobby"]::before { content: ""; position: absolute; inset: 12px; z-index: -1; border: 1px solid #d1b7834d; pointer-events: none; }
+  .frontdesk-scene .lobby-vista { min-height: clamp(190px, 28svh, 350px); }
+  .frontdesk-scene .lobby-playdesk { padding: 20px 30px 6px; background: linear-gradient(180deg, #0c1712ed, #0c17126e); }
+  .frontdesk-scene .frontdesk-tabs { margin-top: 24px; }
+  .frontdesk-scene .frontdesk-tabs button { font-size: 0.8125rem; }
+  .frontdesk-scene:not([data-section="lobby"]) { padding-inline: 60px; }
+}
+
+@media (max-width: 359px) {
+  .frontdesk.frontdesk-scene { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+  .frontdesk-scene .frontdesk-heading h1 { font-size: 1.9rem; }
+  .frontdesk-scene .lobby-playdesk { padding-inline: 4px; }
+  .frontdesk-scene .frontdesk-tabs button { font-size: 0.6875rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frontdesk-scene .lobby-enter-button { transition: none; }
+}
+.frontdesk-scene[data-reduce-motion="true"] .lobby-enter-button { transition: none; }

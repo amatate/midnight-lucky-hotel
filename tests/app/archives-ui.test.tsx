@@ -17,6 +17,7 @@ it("shows gameplay choices in the full log and returns without advancing the gam
   render(<App seed={12} />);
   start();
   const before = activeRecord(readLibrary())!.snapshot;
+  fireEvent.click(screen.getByRole("button", { name: "菜单" }));
   fireEvent.click(screen.getByRole("button", { name: "完整日志" }));
   expect(screen.getByRole("region", { name: "完整游戏日志" })).toBeVisible();
   expect(screen.getByText(/选择服务 · /)).toBeVisible();
@@ -29,6 +30,7 @@ it("shows gameplay choices in the full log and returns without advancing the gam
 it("saves a named checkpoint and restores it as a separate branch", () => {
   render(<App seed={12} />);
   start();
+  fireEvent.click(screen.getByRole("button", { name: "菜单" }));
   fireEvent.click(screen.getByText(/存档与种子/));
   fireEvent.change(screen.getByLabelText("备份名称"), { target: { value: "水果测试存档" } });
   fireEvent.click(screen.getByRole("button", { name: "保存手动备份" }));
@@ -50,6 +52,7 @@ it("validates seeds and keeps the previous game when starting a new one", () => 
   expect(readLibrary().runs).toHaveLength(0);
   fireEvent.change(screen.getByLabelText("游戏种子"), { target: { value: "42" } });
   start();
+  fireEvent.click(screen.getByRole("button", { name: "菜单" }));
   fireEvent.click(screen.getByRole("button", { name: "返回前台" }));
   fireEvent.change(screen.getByLabelText("游戏种子"), { target: { value: "43" } });
   fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
@@ -60,6 +63,7 @@ it("lets players browse route explanations and favorite parts without altering a
   render(<App seed={12} />);
   start();
   const before = activeRecord(readLibrary())!.snapshot;
+  fireEvent.click(screen.getByRole("button", { name: "菜单" }));
   fireEvent.click(screen.getByRole("button", { name: "返回前台" }));
   fireEvent.click(screen.getByRole("button", { name: "收藏图鉴" }));
   fireEvent.change(screen.getByLabelText("搜索部件"), { target: { value: "柠檬感染" } });

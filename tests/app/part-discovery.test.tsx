@@ -22,7 +22,9 @@ it("introduces a part only when its event is visible and never reveals unpresent
   expect(screen.queryByRole("region", { name: "初次发现" })).not.toBeInTheDocument();
   rerender(<PartDiscovery state={run} presentedThroughSequence={1} />);
   expect(screen.getByRole("region", { name: "初次发现" })).toHaveTextContent("三重祝福");
-  expect(screen.getByRole("region", { name: "初次发现" })).not.toHaveTextContent("35");
+  // The full rules may contain a fixed ¥35 example; the live reward must still
+  // remain undisclosed until the payout event is actually presented.
+  expect(screen.getByText(/直接奖励随结算/)).not.toHaveTextContent("35");
   rerender(<PartDiscovery state={run} presentedThroughSequence={2} />);
   expect(screen.getByRole("region", { name: "初次发现" })).toHaveTextContent("+¥35");
   expect(run).toEqual(original);
@@ -82,6 +84,7 @@ it("introduces the real presentation-complete fuse rescue through the controller
     partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null] }} />);
   await userEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
   await userEvent.click(await screen.findByRole("button", { name: "收下这把" }));
+  await userEvent.click(await screen.findByRole("button", { name: "新发现 · 安全保险丝" }));
   expect(await screen.findByRole("region", { name: "初次发现" })).toHaveTextContent("安全保险丝");
   expect(screen.getByRole("region", { name: "初次发现" })).toHaveTextContent("+¥20");
 });

@@ -4,8 +4,9 @@ import { createPortal } from "react-dom";
 /** Reading help is presentation-only: pause automatic commands, never mutate the run. */
 export const HelpPauseContext = createContext<(open: boolean) => void>(() => {});
 
-function HelpWindow({ title, children, onClose }: {
+export function HelpWindow({ title, children, onClose, interactive = false }: {
   readonly title: string; readonly children: ReactNode; readonly onClose: () => void;
+  readonly interactive?: boolean;
 }): React.JSX.Element {
   const id = useId();
   const panel = useRef<HTMLElement>(null);
@@ -15,6 +16,9 @@ function HelpWindow({ title, children, onClose }: {
     const root = document.getElementById("root");
     const previousInert = root?.inert ?? false;
     const previousOverflow = document.body.style.overflow;
+    const previousDialogs = [...document.querySelectorAll<HTMLElement>(".help-window")]
+      .filter((dialog) => dialog !== panel.current).map((dialog) => ({ dialog, inert: dialog.inert }));
+    previousDialogs.forEach(({ dialog }) => { dialog.inert = true; });
     if (root) root.inert = true;
     document.body.style.overflow = "hidden";
     onOpenChange(true);
@@ -22,6 +26,7 @@ function HelpWindow({ title, children, onClose }: {
     return () => {
       if (root) root.inert = previousInert;
       document.body.style.overflow = previousOverflow;
+      previousDialogs.forEach(({ dialog, inert }) => { dialog.inert = inert; });
       onOpenChange(false);
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
@@ -38,24 +43,25 @@ function HelpWindow({ title, children, onClose }: {
           if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
         }}>
-        <header className="help-heading"><div><p className="eyebrow">酒店便笺 · 只读说明</p><h2 id={id}>{title}</h2></div>
+        <header className="help-heading"><div><p className="eyebrow">{interactive ? "酒店控制台" : "酒店便笺 · 只读说明"}</p><h2 id={id}>{title}</h2></div>
           <button type="button" className="help-close" onClick={onClose} aria-label="关闭说明">×</button></header>
         <div className="help-content">{children}</div>
-        <p className="help-footnote">查看不消耗资源。游戏中的自动停轮与结算推进会暂停，关闭后继续。</p>
+        <p className="help-footnote">{interactive ? "打开不收费；操作的费用以按钮和说明为准。" : "查看不消耗资源。"}自动停轮与结算暂停，关闭后继续。</p>
       </section>
     </div>, document.body
   );
 }
 
-export function HelpButton({ title, children, trigger, className }: {
-  readonly title: string; readonly children: ReactNode; readonly trigger?: ReactNode; readonly className?: string;
+export function HelpButton({ title, children, trigger, className, label, interactive = false }: {
+  readonly title: string; readonly children: ReactNode; readonly trigger?: ReactNode; readonly className?: string; readonly label?: string;
+  readonly interactive?: boolean;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   return <>
-    <button type="button" className={className ?? "help-trigger"} aria-label={trigger === undefined ? "了解" + title : undefined}
+    <button type="button" className={className ?? "help-trigger"} aria-label={label ?? (trigger === undefined ? "了解" + title : undefined)}
       aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>{trigger ?? "?"}</button>
-    {open && <HelpWindow title={title} onClose={close}>{children}</HelpWindow>}
+    {open && <HelpWindow title={title} onClose={close} interactive={interactive}>{children}</HelpWindow>}
   </>;
 }
 

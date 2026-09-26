@@ -67,6 +67,18 @@ function gesture(progress: number, pointerId = 1): HTMLElement {
 }
 
 describe("PullLever", () => {
+  it("requires a fresh pointer press after the control becomes enabled", () => {
+    const onPull = vi.fn();
+    const { rerender } = render(<PullLever disabled reducedMotion={false} onPull={onPull} />);
+    const button = screen.getByRole("button", { name: "拉动老虎机" });
+    fireEvent.pointerDown(button);
+    rerender(<PullLever reducedMotion={false} onPull={onPull} />);
+    fireEvent.click(button, { detail: 1 });
+    expect(onPull).not.toHaveBeenCalled();
+    fireEvent.pointerDown(button);
+    fireEvent.click(button, { detail: 1 });
+    expect(onPull).toHaveBeenCalledTimes(1);
+  });
   it.each([
     [0, "0"],
     [0.72, "0.72"],

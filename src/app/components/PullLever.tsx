@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { playLeverDetentTone, unlockAudio } from "@/presentation/audio";
 import { vibrateLeverDetent } from "@/presentation/haptics";
 
@@ -26,6 +26,8 @@ export interface PullLeverProps {
   readonly disabled?: boolean;
   readonly reducedMotion: boolean;
   readonly onPull: () => void;
+  readonly costLabel?: string;
+  readonly statusLabel?: string;
 }
 
 function clampProgress(distance: number): number {
@@ -51,10 +53,13 @@ function emitDetent(gesture: Gesture): void {
   vibrateLeverDetent();
 }
 
-export function PullLever({ disabled = false, reducedMotion, onPull }: PullLeverProps): React.JSX.Element {
+export function PullLever({ disabled = false, reducedMotion, onPull, costLabel, statusLabel }: PullLeverProps): React.JSX.Element {
+  const costId = useId();
+  const statusId = useId();
   const gestureRef = useRef<Gesture | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const busyRef = useRef(false);
+  const buttonArmed = useRef(false);
   const [visual, setVisual] = useState<LeverVisual>({ progress: 0, motion: "idle", actuation: "pointer" });
 
   const clearTimers = (): void => {
@@ -104,6 +109,7 @@ export function PullLever({ disabled = false, reducedMotion, onPull }: PullLever
   };
 
   useLayoutEffect(() => {
+    buttonArmed.current = false;
     if (!disabled || busyRef.current || gestureRef.current === null) return;
     const gesture = gestureRef.current;
     gestureRef.current = null;
@@ -123,7 +129,7 @@ export function PullLever({ disabled = false, reducedMotion, onPull }: PullLever
   const inputDisabled = disabled || busyRef.current;
 
   return (
-    <section className={`pull-control${reducedMotion ? " reduce-motion" : ""}`} aria-label="拉杆控制">
+    <section className={`pull-control${reducedMotion ? " reduce-motion" : ""}`} aria-label="拉杆控制" data-lever-state={visual.motion} style={style}>
       <div
         className="lever-track"
         data-testid="pull-gesture"
@@ -160,18 +166,27 @@ export function PullLever({ disabled = false, reducedMotion, onPull }: PullLever
         <span aria-hidden="true" className="lever-detent" />
         <span aria-hidden="true" className="lever-shaft" />
         <span aria-hidden="true" className="lever-knob" />
-        <small>向下拉到底</small>
+        <small>向下拉</small>
       </div>
       <button
         className="pull-button"
         type="button"
         aria-label="拉动老虎机"
+        aria-describedby={[costLabel ? costId : null, disabled && statusLabel ? statusId : null].filter(Boolean).join(" ") || undefined}
         data-thumb-control="true"
         disabled={inputDisabled}
-        onClick={() => triggerPull("button")}
+        onPointerDown={() => { buttonArmed.current = !inputDisabled; }}
+        onPointerCancel={() => { buttonArmed.current = false; }}
+        onClick={(event) => {
+          // A pointer released after a phase change must not become the next wager.
+          const freshPress = event.detail === 0 || buttonArmed.current;
+          buttonArmed.current = false;
+          if (freshPress && event.detail < 2) triggerPull("button");
+        }}
       >
-        <span aria-hidden="true">PULL</span>
-        拉动老虎机
+        <strong id={statusId}>{disabled && statusLabel ? statusLabel : "拉动一转"}</strong>
+        {costLabel && <small id={costId}>{costLabel}</small>}
+        <span className="pull-button-indicator" aria-hidden="true"><i /></span>
       </button>
     </section>
   );

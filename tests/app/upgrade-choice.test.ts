@@ -10,7 +10,7 @@ function legalState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
     ? "kitchen"
     : id === "omen-collector"
       ? "chapel"
-      : id === "loose-spring" || id === "scrap-magnet" || id === "warranty-fraud"
+      : id === "loose-spring" || id === "scrap-magnet" || id === "warranty-fraud" || id === "shock-absorber"
         ? "security"
         : "repair";
   const alternatives = UPGRADE_IDS.filter((candidate) => candidate !== id);
@@ -22,6 +22,8 @@ function legalState(id: UpgradeId, patch: Partial<RunState> = {}): RunState {
     bankroll: 100,
     baseSpinsInShift: 3,
     toolLevel,
+    ...(id === "harvest-vat" ? { partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null] as RunState["partSlots"] } : {}),
+    ...(id === "votive-candle" ? { omen: 1 } : {}),
     ...(id === "salad-dressing" ? { partSlots: [{ id: "fruit-salad", level: 1 }, null, null, null, null] as RunState["partSlots"] } : {}),
     currentCandidates: { synergy: id, pivot: alternatives[0]!, wildcard: alternatives[1]! },
     ...patch

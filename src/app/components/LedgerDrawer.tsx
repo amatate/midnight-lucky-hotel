@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useContext, useEffect, useId, useRef, useState } from "react";
+import { HelpPauseContext } from "@/app/components/HelpWindow";
 import { createPortal } from "react-dom";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { UPGRADES } from "@/content/upgrades";
@@ -96,6 +97,7 @@ function focusableElements(container: HTMLElement): readonly HTMLElement[] {
 
 export function LedgerDrawer({ receipts }: LedgerDrawerProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
+  const onOpenChange = useContext(HelpPauseContext);
   const [expandedOrdinal, setExpandedOrdinal] = useState<number | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -104,8 +106,21 @@ export function LedgerDrawer({ receipts }: LedgerDrawerProps): React.JSX.Element
   const trustedReceipts = receipts.filter(isSpinReceipt).toReversed();
 
   useEffect(() => {
-    if (open) closeRef.current?.focus();
-  }, [open]);
+    if (!open) return;
+    const root = document.getElementById("root");
+    const wasInert = root?.inert ?? false;
+    const overflow = document.body.style.overflow;
+    if (root) root.inert = true;
+    document.body.style.overflow = "hidden";
+    onOpenChange(true);
+    closeRef.current?.focus();
+    return () => {
+      if (root) root.inert = wasInert;
+      document.body.style.overflow = overflow;
+      onOpenChange(false);
+      triggerRef.current?.focus();
+    };
+  }, [open, onOpenChange]);
 
   const closeDrawer = () => {
     setOpen(false);

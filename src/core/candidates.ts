@@ -3,6 +3,7 @@ import { nextInt } from "@/core/random";
 import type {
   CandidateResult,
   CandidateRole,
+  CandidateSet,
   PartId,
   RunState,
   UpgradeId,
@@ -109,7 +110,7 @@ function seededRoleOrder(
 }
 
 /** Finds a unique role assignment, backtracking over seeded preference orders when necessary. */
-export function assignCandidateRoles(state: RunState, eligible: readonly UpgradeId[]): CandidateResult {
+export function assignCandidateRoles(state: RunState, eligible: readonly UpgradeId[], previous?: CandidateSet): CandidateResult {
   const dominantRoute = getDominantRoute(state);
   const tags = acquiredTags(state);
   const synergy = seededRoleOrder(
@@ -131,7 +132,9 @@ export function assignCandidateRoles(state: RunState, eligible: readonly Upgrade
   for (const synergyId of synergy.ids) {
     for (const pivotId of pivot.ids) {
       if (pivotId === synergyId) continue;
-      const wildcardId = wildcard.ids.find((id) => id !== synergyId && id !== pivotId);
+      const old = previous === undefined ? [] : Object.values(previous);
+      const wildcardId = wildcard.ids.find((id) => id !== synergyId && id !== pivotId &&
+        (previous === undefined || [synergyId, pivotId, id].some((candidate) => !old.includes(candidate))));
       if (wildcardId !== undefined) {
         return {
           candidates: { synergy: synergyId, pivot: pivotId, wildcard: wildcardId },
@@ -145,6 +148,6 @@ export function assignCandidateRoles(state: RunState, eligible: readonly Upgrade
 }
 
 /** Generates role-ordered construction choices without mutating the run. */
-export function generateCandidates(state: RunState): CandidateResult {
-  return assignCandidateRoles(state, eligibleIds(state));
+export function generateCandidates(state: RunState, previous?: CandidateSet): CandidateResult {
+  return assignCandidateRoles(state, eligibleIds(state), previous);
 }

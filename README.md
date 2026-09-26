@@ -6,11 +6,11 @@ A mobile-first, Chinese-language slot-machine roguelite prototype. Build the ree
 
 这是一个优先追求「自己玩起来好玩」的小项目：通过改造转轮、搭配部件和有限干预，把随机结果变成可以经营的构筑。项目仍在迭代，欢迎真实试玩反馈。
 
-**[打开网页试玩](https://midnight-lucky-hotel.teddyding.chatgpt.site)** · [反馈问题](https://github.com/amatate/midnight-lucky-hotel/issues)
+**[打开网页试玩（GitHub Pages）](https://amatate.github.io/midnight-lucky-hotel/)** · [反馈问题](https://github.com/amatate/midnight-lucky-hotel/issues)
 
 > 游戏中的金额和下注全部是虚拟资源，没有充值、真实货币投注或兑换功能。手机和电脑均可打开试玩；也可按下方说明本地运行。源码公开，但项目源码许可证尚未确定，见文末说明。
 
-<img src="docs/media/gameplay.png" alt="真实游戏截图：完成第一转后的酒店老虎机、奖金与部件栏" width="430" />
+<img src="docs/media/mobile-ui-audit-2026-09-26/implemented-house.png" alt="手机固定机台：九宫格转轮、五个部件槽、列键与拉杆" width="390" />
 
 ## 有什么好玩？
 
@@ -57,6 +57,25 @@ npm run dev
 - 新版本需要在前台主动点击更新，不在游玩中强制刷新。更新前建议导出备份；多标签游玩时请先让其他标签也回到前台。
 
 ## 开发与验证
+
+### 网页发布
+
+推送到 `main` 后，[Pages 工作流](https://github.com/amatate/midnight-lucky-hotel/actions/workflows/pages.yml) 自动运行测试和生产构建，通过后发布。仓库 Settings → Pages 的 Source 需选择 GitHub Actions。
+
+默认构建使用根路径 `/`，保持本地开发兼容。复现 Pages 子路径构建：
+
+```bash
+DEPLOY_BASE_PATH=/midnight-lucky-hotel/ npm run build
+DEPLOY_BASE_PATH=/midnight-lucky-hotel/ npm run preview
+```
+
+预览地址为终端地址后接 `/midnight-lucky-hotel/`。PWA 启动地址、缓存作用域、字体和机台素材都使用相同子路径。
+
+执行 `npx playwright test --config playwright.pages.config.ts` 可用独立端口 4197 检查上述生产构建的手机流程、资源路径与离线启动，不读取个人浏览器存档。
+
+手机可直接打开上方试玩链接，也可从浏览器菜单添加到主屏幕。旧试玩站、本地版与 Pages 的存档互不自动同步；切换前先导出备份，在新站导入。旧试玩站不随这个工作流更新。
+
+### 自动检查
 
 ```bash
 npm test                # 规则、存档和组件测试

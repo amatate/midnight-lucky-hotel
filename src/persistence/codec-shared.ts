@@ -1,12 +1,16 @@
 import { UPGRADE_IDS } from "@/content/upgrades";
+import { getPaidSpinLimit, MAX_ROOM_TIER } from "@/content/hotel";
 import { MAX_MONEY, safePayout } from "@/core/money";
 import type { GameCommand } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
 import type {
   PartId,
+  HotelProgress,
+  PaidSpinLimit,
   ReelDraw,
   ReelSet,
   RunPhase,
+  RoomObjective,
   SymbolId,
   UpgradeChoice
 } from "@/core/types";
@@ -27,6 +31,7 @@ export const PHASES = new Set<RunPhase>([
 export const SYMBOLS = new Set<SymbolId>(["cherry", "lemon", "bell", "seven", "wild", "blank", "food", "crack"]);
 const BASE_SYMBOLS = new Set(["cherry", "lemon", "bell", "seven"]);
 export const PARTS = new Set<PartId>([
+  "harvest-vat", "votive-candle", "shock-absorber",
   "cherry-press", "salad-dressing",
   "lemon-infection", "jam-jar", "fruit-salad", "leftovers", "omen-collector", "triple-blessing",
   "midnight-bell", "martyr-coin", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud",
@@ -237,6 +242,7 @@ export function isGameCommand(value: unknown): value is GameCommand {
     case "CHOOSE_UPGRADE": return hasShape(value, ["type", "choice"]) && isUpgradeChoice(value.choice);
     case "REMOVE_CRACKS": return hasShape(value, ["type", "reelIndex"]) && isReelIndex(value.reelIndex);
     case "ENABLE_MARTYR":
+    case "LIGHT_CANDLE":
     case "ENTER_ROOM":
     case "OPEN_WORKSHOP":
     case "SPIN":
@@ -253,8 +259,35 @@ export function isGameCommand(value: unknown): value is GameCommand {
   }
 }
 
-function eventBase(value: PlainRecord, keys: readonly string[]): boolean {
-  return hasShape(value, ["sequence", "type", ...keys]) && isSafeInteger(value.sequence, 1);
+function eventBase(value: PlainRecord, keys: readonly string[], optional: readonly string[] = []): boolean {
+  return hasShape(value, ["sequence", "type", ...keys], optional) && isSafeInteger(value.sequence, 1);
+}
+
+export function isPaidSpinLimit(value: unknown): value is PaidSpinLimit {
+  return value === 3 || value === 4 || value === 5;
+}
+
+export function isRoomObjective(value: unknown): value is RoomObjective {
+  if (!isPlainRecord(value)) return false;
+  return value.kind === "scoring-spins"
+    ? hasShape(value, ["kind", "count"]) && isSafeInteger(value.count, 1)
+    : hasShape(value, ["kind"]) && (value.kind === "total-payout" || value.kind === "best-spin");
+}
+
+function hasRoomRuleFields(value: PlainRecord): boolean {
+  return (!Object.hasOwn(value, "paidSpins") || isPaidSpinLimit(value.paidSpins))
+    && (!Object.hasOwn(value, "objective") || isRoomObjective(value.objective))
+    && (!Object.hasOwn(value, "progress") || isBoundedMoney(value.progress)
+      && (!isPlainRecord(value.objective) || value.objective.kind !== "scoring-spins" || isSafeInteger(value.progress, 0)));
+}
+
+/** Only a validated room may widen the ordinary three-pull block. V1 has no hotel. */
+function snapshotPaidSpinLimit(value: PlainRecord): PaidSpinLimit {
+  if (!isPlainRecord(value.hotel) || !isPlainRecord(value.hotel.challenge)) return 3;
+  const challenge = value.hotel.challenge;
+  if (!isSafeInteger(challenge.tier, 1, MAX_ROOM_TIER)
+    || Object.hasOwn(challenge, "paidSpins") && !isPaidSpinLimit(challenge.paidSpins)) return 3;
+  return getPaidSpinLimit({ hotel: value.hotel as unknown as HotelProgress });
 }
 
 function hasLegacyFormulaFields(value: PlainRecord): boolean {
@@ -277,10 +310,12 @@ function commonEvent(value: PlainRecord, money: (candidate: unknown) => candidat
       && value.spins === 3 && value.additivePayout === 0.5;
     case "PART_UPGRADED": return eventBase(value, ["partId", "cost"])
       && isEnum(value.partId, PARTS) && value.cost === 3;
-    case "ROOM_ENTERED": return eventBase(value, ["tier", "bet", "target", "focus"])
-      && isSafeInteger(value.tier, 1, 3) && money(value.bet) && money(value.target) && isSafeInteger(value.focus, 0, 3);
-    case "ROOM_COMPLETED": return eventBase(value, ["tier", "payout", "target", "cleared"])
-      && isSafeInteger(value.tier, 1, 3) && money(value.payout) && money(value.target) && isBoolean(value.cleared);
+    case "ROOM_ENTERED": return eventBase(value, ["tier", "bet", "target", "focus"], ["paidSpins", "objective"])
+      && isSafeInteger(value.tier, 1, MAX_ROOM_TIER) && money(value.bet) && money(value.target)
+      && isSafeInteger(value.focus, 0, 3) && hasRoomRuleFields(value);
+    case "ROOM_COMPLETED": return eventBase(value, ["tier", "payout", "target", "cleared"], ["paidSpins", "objective", "progress"])
+      && isSafeInteger(value.tier, 1, MAX_ROOM_TIER) && money(value.payout) && money(value.target)
+      && isBoolean(value.cleared) && hasRoomRuleFields(value);
     case "BET_PLACED": return eventBase(value, ["amount"]) && money(value.amount);
     case "REELS_DRAWN": return eventBase(value, ["draw"]) && isReelDraw(value.draw);
     case "INTERVENTION_USED": {
@@ -402,7 +437,7 @@ function phaseIsCoherent(value: PlainRecord): boolean {
       return hasService && !hasSpin && !hasCandidates;
     case "AFTER_HOURS":
       return hasService && !hasSpin && value.shift === 5 && isSafeInteger(value.afterHoursLevel, 1)
-        && value.baseSpinsInShift === 3 && value.freeSpinQueue === 0 && value.exitUnlocked === true;
+        && value.baseSpinsInShift === snapshotPaidSpinLimit(value) && value.freeSpinQueue === 0 && value.exitUnlocked === true;
     default: return false;
   }
 }
@@ -414,7 +449,7 @@ export function validateCommonSnapshot(
 ): boolean {
   if (!isEnum(value.phase, PHASES) || !isSafeInteger(value.initialSeed) || !isRng(value.rng)
     || !isFiniteSafe(value.bankroll) || value.checkoutTarget !== 200
-    || !isSafeInteger(value.shift, 1) || !isSafeInteger(value.baseSpinsInShift, 0, 3)
+    || !isSafeInteger(value.shift, 1) || !isSafeInteger(value.baseSpinsInShift, 0, snapshotPaidSpinLimit(value))
     || !isFiniteSafe(value.shiftWager) || !isFiniteSafe(value.shiftPayout) || !isFiniteSafe(value.baseBet)
     || !isEnum(value.betMode, BET_MODES) || !isSafeInteger(value.interventionPoints, 0)
     || !isSafeInteger(value.maxInterventionPoints, 0) || !isSafeInteger(value.nextShiftFocusBonus, 0)
@@ -427,7 +462,10 @@ export function validateCommonSnapshot(
     || !value.serviceCandidates.every((service) => isEnum(service, SERVICES))
     || new Set(value.serviceCandidates).size !== 3 || !isSafeInteger(value.tips, 0)
     || !isSafeInteger(value.agitation, 0) || !isSafeInteger(value.omen)
-    || !exactNumberRecord(value.counters, ["blankCharge", "cherryWinsThisShift"])) return false;
+    || !hasShape(value.counters, ["blankCharge", "cherryWinsThisShift"], ["harvestCharge", "votiveCharge"])
+    || !isSafeInteger(value.counters.blankCharge, 0) || !isSafeInteger(value.counters.cherryWinsThisShift, 0)
+    || (Object.hasOwn(value.counters, "harvestCharge") && !isSafeInteger(value.counters.harvestCharge, 0, 2))
+    || (Object.hasOwn(value.counters, "votiveCharge") && !isSafeInteger(value.counters.votiveCharge, 0, 3))) return false;
   const shiftFlags = value.shiftFlags;
   if (!hasShape(shiftFlags, ["foodBought", "prayerUsed", "kickUsed", "repairLockUsed", "martyrEnabled", "warrantyPaid", "returnedFoodCount"])
     || !["foodBought", "prayerUsed", "kickUsed", "repairLockUsed", "martyrEnabled", "warrantyPaid"]

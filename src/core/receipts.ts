@@ -2,6 +2,7 @@ import type { GameEvent } from "@/core/events";
 import { MAX_MONEY, safeMoney, safePayout } from "@/core/money";
 import type {
   AttributionSource,
+  BaseSpinIndex,
   Grid,
   LineWin,
   Money,
@@ -32,7 +33,7 @@ export interface SpinReceiptBuildInput {
   readonly shift: number;
   readonly afterHoursLevel: number;
   readonly isFree: boolean;
-  readonly baseSpinIndex: 1 | 2 | 3 | null;
+  readonly baseSpinIndex: BaseSpinIndex | null;
   readonly bankrollBefore: Money;
   readonly wager: Money;
   readonly finalGrid: Grid;
@@ -53,6 +54,7 @@ export class SpinReceiptInvariantError extends Error {
 const SYMBOL_IDS = new Set<SymbolId>(["cherry", "lemon", "bell", "seven", "wild", "blank", "food", "crack"]);
 const LINE_IDS = new Set<LineWin["lineId"]>(["top", "middle", "bottom", "diagonal-down", "diagonal-up"]);
 const PART_IDS = new Set<PartId>([
+  "harvest-vat", "votive-candle", "shock-absorber",
   "cherry-press", "salad-dressing",
   "lemon-infection", "jam-jar", "fruit-salad", "leftovers", "omen-collector", "triple-blessing", "midnight-bell",
   "martyr-coin", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud", "overload-motor", "safety-fuse"
@@ -100,7 +102,8 @@ function isReceiptMetadata(input: SpinReceiptBuildInput, totalPayout: Money): bo
     || !isNonnegativeMoney(input.wager)
     || !isNonnegativeMoney(input.bankrollAfter)
     || !isGrid(input.finalGrid)) return false;
-  if (input.isFree ? input.baseSpinIndex !== null || input.wager !== 0 : ![1, 2, 3].includes(input.baseSpinIndex ?? 0) || input.wager <= 0) return false;
+  if (input.isFree ? input.baseSpinIndex !== null || input.wager !== 0 : ![1, 2, 3, 4, 5].includes(input.baseSpinIndex ?? 0) || input.wager <= 0) return false;
+  if (input.afterHoursLevel === 0 && (input.baseSpinIndex ?? 0) > 3) return false;
   if (input.bankrollBefore < input.wager) return false;
   return input.bankrollAfter === safeMoney(input.bankrollBefore - input.wager + totalPayout);
 }
@@ -279,7 +282,8 @@ export function isSpinReceipt(value: unknown): value is SpinReceipt {
     || !Array.isArray(value.awards)
     || value.awards.length > MAX_RECEIPT_AWARDS
     || !value.awards.every(isReceiptAward)) return false;
-  if (value.isFree ? value.baseSpinIndex !== null || value.wager !== 0 : ![1, 2, 3].includes(value.baseSpinIndex as number) || value.wager <= 0) return false;
+  if (value.isFree ? value.baseSpinIndex !== null || value.wager !== 0 : ![1, 2, 3, 4, 5].includes(value.baseSpinIndex as number) || value.wager <= 0) return false;
+  if (value.afterHoursLevel === 0 && Number(value.baseSpinIndex) > 3) return false;
   if (value.bankrollBefore < value.wager || value.bankrollAfter !== safeMoney(value.bankrollBefore - value.wager + value.totalPayout)) return false;
   const awards = value.awards as readonly ReceiptAward[];
   if (!awards.every((award, index) => index === 0 || award.sequence > awards[index - 1]!.sequence)) return false;

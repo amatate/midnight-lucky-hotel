@@ -83,13 +83,6 @@ describe("buyFood", () => {
       message: "BUY_FOOD requires no pending spin"
     },
     {
-      name: "after the first base spin",
-      state: () => kitchenReady({ baseSpinsInShift: 1 }),
-      reel: 0,
-      code: "RESOURCE_EXHAUSTED",
-      message: "food is only available before the first base spin"
-    },
-    {
       name: "without kitchen",
       state: () => kitchenReady({ service: "repair" }),
       reel: 0,

@@ -1,0 +1,127 @@
+/* Room shells and real installed modules. No rule, reel sizing or timing overrides. */
+.game-page { --room-face: #10231b; --room-cheek: #3b5b43; --room-metal: #d8c48f; --room-seam: #86764e; }
+.game-page[data-room-tier="2"] { --room-face: #10262b; --room-cheek: #46747a; --room-metal: #d8cda8; --room-seam: #719091; }
+.game-page[data-room-tier="3"] { --room-face: #151919; --room-cheek: #d6cbb0; --room-metal: #e6d5aa; --room-seam: #a89a79; }
+.game-page[data-room-tier="4"] { --room-face: #251b13; --room-cheek: #745030; --room-metal: #d4b581; --room-seam: #a07d49; }
+.game-page[data-room-tier="5"] { --room-face: #111e30; --room-cheek: #435671; --room-metal: #d8d6bb; --room-seam: #828e9b; }
+.game-page[data-room-tier="6"] { --room-face: #0c1820; --room-cheek: #283b46; --room-metal: #c9b68a; --room-seam: #8b7953; }
+.room-backdrop { position: fixed; inset: 0; z-index: -2; pointer-events: none; background: #0c1715; }
+.room-backdrop > svg { width: 100%; height: 100%; display: block; opacity: 0.56; }
+.room-backdrop::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, #07100d42, #07100d6e 65%, #07100de6); }
+.game-page:not([data-room-tier="house"]) .hotel-header,
+.game-page:not([data-room-tier="house"]) .shift-plaque { text-shadow: 0 2px 4px #000; }
+.cabinet-shell:not([data-room-tier="house"]) {
+  margin-top: 7px; padding-top: 76px; padding-bottom: 24px;
+  background: var(--room-face); border-radius: 9px 9px 4px 4px;
+  box-shadow: 0 20px 40px #000b, inset 0 0 0 1px var(--room-metal);
+}
+.cabinet-shell:not([data-room-tier="house"])::before {
+  border-image: none; border: 1px solid var(--room-seam); border-bottom: 10px double var(--room-metal); border-radius: inherit;
+  background: linear-gradient(90deg, var(--room-metal), var(--room-cheek) 3px, var(--room-cheek) 8px, var(--room-seam) 10px, var(--room-face) 13px, var(--room-face) calc(100% - 13px), var(--room-seam) calc(100% - 10px), var(--room-cheek) calc(100% - 8px), var(--room-cheek) calc(100% - 3px), var(--room-metal));
+}
+.cabinet-shell[data-room-tier="3"]::before { border-inline: 5px solid var(--room-cheek); }
+.cabinet-shell[data-room-tier="4"] { border-radius: 28px 28px 7px 7px; }
+.cabinet-shell[data-room-tier="4"]::before { border-inline: 3px double #cbaa75; }
+.cabinet-shell[data-room-tier="5"]::before { border-inline: 4px double var(--room-metal); }
+.cabinet-shell[data-room-tier="6"]::before { border-inline: 3px double var(--room-seam); }
+.room-crown-art { position: absolute; top: -8px; left: 0; width: 100%; height: 56px; pointer-events: none; }
+.cabinet-shell:not([data-room-tier="house"]) > .cabinet-marquee {
+  top: 52px; inset-inline: 10%; font: 0.875rem "Smiley Sans", sans-serif; letter-spacing: 0.1em; color: var(--room-metal);
+}
+.cabinet-shell:not([data-room-tier="house"]) .room-counters,
+.cabinet-shell:not([data-room-tier="house"]) .spin-payout-plaque {
+  background: linear-gradient(115deg, #06100ff0, var(--room-face)); border-color: var(--room-seam);
+}
+.room-progress { position: relative; margin: 5px 0 0; padding: 4px 40px 5px 9px; background: #0002; border-color: var(--room-metal); }
+.room-progress > strong { font-size: 0.75rem; color: var(--deco-muted); font-weight: 400; }
+.room-progress > p { margin: 3px 0; font-size: 0.8125rem; line-height: 1.4; }
+.room-progress > .help-trigger { position: absolute; inset: 0 0 auto auto; }
+.room-turn-ticks { display: flex; gap: 5px; margin-top: 5px; }
+.room-turn-ticks i { width: 17px; height: 3px; background: var(--room-metal); border-radius: 1px; }
+.room-turn-ticks i[data-used="true"] { background: #635b46; }
+.target-meter.meter-best-spin, .target-meter.meter-scoring-spins { height: auto; margin-top: 5px !important; border-radius: 0; background: none; }
+.target-meter .goal-peak-gauge { display: block; width: 100%; height: 38px; color: #dec894; background: linear-gradient(#d8c59120, #bd9f5910); border-radius: 45% 45% 3px 3px; }
+.target-meter > .goal-star-lamps { display: flex; gap: 8px; height: auto; background: none; }
+.goal-star-lamps i { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid #948466; border-radius: 50%; background: #08100e; color: #736e5e; font: normal 15px sans-serif; }
+.goal-star-lamps i[data-lit="true"] { color: #ffedbe; background: #75562a; box-shadow: inset 0 0 7px #eac37750; }
+
+/* One atlas, nineteen distinguishable parts. Names remain available if art fails. */
+.installed-part-art { position: relative; display: inline-block; width: 100%; height: 58px; min-width: 0; pointer-events: none; }
+.installed-part-art > svg { display: block; width: 100%; height: 100%; opacity: 0; filter: drop-shadow(0 2px 2px #0009); }
+.installed-part-art[data-art-ready="true"] > svg { opacity: 1; }
+.part-art-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: #d8c48f; }
+.installed-part-art[data-art-ready="true"] .part-art-fallback { display: none; }
+.physical-parts { border-top: 1px solid var(--room-seam); padding: 7px 0 0; }
+.physical-parts .parts-heading { align-items: baseline; }
+.physical-parts .parts-heading p { font-size: 0.6875rem; }
+.physical-parts .parts-bar { gap: 4px; padding: 4px 3px; border-block: 2px solid #8b784940; background: linear-gradient(#050c09, #16251f); box-shadow: inset 0 2px 6px #0009; }
+.physical-parts .part-slot { position: relative; min-height: 117px; border-radius: 7px 7px 3px 3px; background: linear-gradient(130deg, #2a38295c, #060d0a 70%); border-color: #a690603d; }
+.physical-parts .part-socket-button { width: 100%; min-width: 0; min-height: 115px; display: grid; grid-template-rows: 58px minmax(28px, auto) 17px; gap: 2px; align-items: center; justify-items: center; margin: 0; padding: 7px 2px 2px; overflow: hidden; }
+.physical-parts .part-socket-name { font-size: 0.6875rem; line-height: 1.3; overflow-wrap: anywhere; }
+.physical-parts .part-level-ring { display: block; position: absolute; top: 2px; left: 3px; right: auto; width: auto; height: auto; padding: 1px 2px; border: 0; border-radius: 1px; background: #08130ec9; color: #dfc994; font: 600 0.625rem "Barlow Condensed", sans-serif; }
+.physical-parts .is-loaded > .part-slot-number { display: none; }
+.physical-parts .empty-socket { top: 30px; }
+.physical-parts .part-slot.is-triggered { border-color: #eed497; background: linear-gradient(#5e4e253b, #13251b); box-shadow: inset 0 0 15px #edc98438; }
+.physical-parts .part-slot.is-triggered .installed-part-art { filter: brightness(1.2); }
+.physical-parts .part-slot.is-disabled .installed-part-art { filter: grayscale(0.9) brightness(0.48); }
+.physical-parts .part-disabled-label { bottom: 2px; font-size: 0.625rem; background: #341c20; color: #ffe2d4; z-index: 2; }
+.part-readout { display: flex; align-items: center; justify-content: center; gap: 3px; font: 600 0.6875rem "Barlow Condensed", "PingFang SC", sans-serif; color: #e4d3aa; white-space: nowrap; }
+.part-charge-lights { display: flex; gap: 2px; }
+.part-charge-lights i { width: 3px; height: 8px; border: 1px solid #7c6a43; background: #070d09; border-radius: 1px; }
+.part-charge-lights i[data-lit="true"] { background: #edd29a; box-shadow: 0 0 3px #edc47780; }
+.part-readout[data-pending="true"] { color: #c4bba8; }
+.part-readout[data-pending="true"] .part-charge-lights { display: none; }
+
+/* Preparation now belongs to the machine, not an external web form. */
+.cabinet-shell > .preparation-deck { grid-column: 1 / -1; grid-row: 5; min-width: 0; padding: 8px; border: 1px solid var(--room-seam); border-radius: 3px 3px 8px 8px; background: linear-gradient(130deg, #ffffff07, #0004), var(--room-face); box-shadow: inset 0 2px 5px #0008; }
+.cabinet-shell .pull-button { grid-row: 6; }
+.cabinet-shell > .acquired-upgrades { grid-row: 7; }
+.preparation-deck .ready-actions { display: flex; flex-direction: column; gap: 7px; }
+.preparation-deck .tray-heading { display: none; }
+.preparation-deck .action-section { order: 0; margin: 0; padding: 0; border: 0; background: none; }
+.preparation-deck .bet-selector { order: 1; margin: 0; padding: 0; gap: 4px; border: 0; }
+.preparation-deck .bet-selector legend { display: flex; align-items: center; width: 100%; margin: 0; font-size: 0.75rem; color: #d5c6a2; }
+.preparation-deck .bet-selector legend .help-trigger { margin-left: auto; }
+.preparation-deck .bet-selector button:not(.help-trigger) { flex: 1; min-width: 0; padding: 7px 4px; font-size: 0.8125rem; }
+.preparation-deck .bet-selector > p { grid-column: 1 / -1; margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--enamel); }
+.preparation-deck .fixed-bet { border-top: 1px solid #c3a76b24; }
+.preparation-deck .bet-warning { order: 2; }
+.preparation-deck .tip-workshop { order: 3; padding-top: 3px; border-top: 1px solid #c3a76b30; }
+.preparation-deck .tip-workshop summary { display: flex; align-items: center; font-size: 0.8125rem; color: #dbca9d; }
+.preparation-deck .tip-workshop p { margin-bottom: 5px; font-size: 0.8125rem; }
+.preparation-deck .service-fixture { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px; padding-bottom: 7px; border-bottom: 1px solid #c3a76b24; }
+.preparation-deck .service-fixture + .service-fixture { margin-top: 8px; }
+.preparation-deck .service-fixture > .installed-part-art { flex: 0 0 42px; width: 42px; height: 50px; }
+.preparation-deck .service-fixture > label { flex: 1 1 58px; min-width: 0; max-width: 100px; gap: 2px; font-size: 0.6875rem; }
+.preparation-deck .service-fixture select { width: 100%; min-width: 0; padding: 5px; font-size: 0.8125rem; }
+.preparation-deck .service-fixture > button:not(.help-trigger) { flex: 1 1 95px; min-width: 0; min-height: 44px; padding: 7px 4px; font-size: 0.8125rem; line-height: 1.4; color: #162119; background: linear-gradient(#f0dfb2, #c9b079); border-color: #e5d6af; box-shadow: 0 2px 0 #5b4f34; }
+.preparation-deck .service-fixture > button:not(.help-trigger):hover { color: #162119; background: #e7d4a3; }
+.preparation-deck .service-fixture > .help-trigger { flex: 0 0 44px; }
+.preparation-deck .action-hint, .preparation-deck .muted, .preparation-deck .service-fixture > p { flex-basis: 100%; margin: 4px 0 0; font-size: 0.75rem; line-height: 1.55; color: #d2c7ad; }
+.preparation-deck .action-status { padding: 3px; }
+.preparation-deck .action-status h2 { font-size: 0.9375rem; }
+.preparation-deck .action-status p { font-size: 0.75rem; margin-bottom: 0; }
+
+@media (max-width: 359px) {
+  .physical-parts .parts-heading p { font-size: 0.625rem; }
+  .physical-parts .parts-bar { gap: 3px; padding-inline: 0; }
+  .physical-parts .part-socket-button { grid-template-rows: 50px minmax(30px, auto) 17px; min-height: 110px; }
+  .physical-parts .part-slot { min-height: 112px; }
+  .physical-parts .installed-part-art { height: 50px; }
+  .physical-parts .part-socket-name { font-size: 0.6875rem; }
+  .part-charge-lights { display: none; }
+  .preparation-deck .service-fixture > .installed-part-art { flex-basis: 32px; width: 32px; }
+  .preparation-deck .service-fixture { column-gap: 3px; }
+}
+@media (min-width: 960px) {
+  .game-page[data-cabinet-visible="true"] { grid-template-columns: minmax(360px, 560px) minmax(240px, 1fr); gap: 12px 28px; }
+  .game-page[data-cabinet-visible="true"] .cabinet-shell:not([data-room-tier="house"]) { padding-top: 102px; --cabinet-rail: 22px; }
+  .room-crown-art { height: 82px; }
+  .cabinet-shell:not([data-room-tier="house"]) > .cabinet-marquee { top: 78px; }
+  .game-page[data-cabinet-visible="true"] > .game-utilities { grid-row: 3; }
+  .room-backdrop > svg { opacity: 0.7; }
+  .physical-parts .installed-part-art { height: 70px; }
+  .physical-parts .part-socket-button { grid-template-rows: 70px minmax(28px, auto) 17px; }
+  .physical-parts .part-slot { min-height: 129px; }
+  .preparation-deck .service-fixture > .installed-part-art { flex-basis: 56px; height: 60px; }
+}

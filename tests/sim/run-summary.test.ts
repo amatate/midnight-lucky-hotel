@@ -21,7 +21,7 @@ describe("buildRunSummary", () => {
   it("does not recommend infection as the missing piece of a salad or jam engine", () => {
     for (const id of ["fruit-salad", "jam-jar"] as const) {
       const state: RunState = { ...createRun(2), service: "kitchen",
-        acquiredUpgrades: ["cherry-press", "salad-dressing", "lemon-crate", "cherry-pitter", "jam-jar", "fruit-salad", "leftovers"],
+        acquiredUpgrades: ["cherry-press", "salad-dressing", "lemon-crate", "cherry-pitter", "jam-jar", "fruit-salad", "leftovers", "harvest-vat"],
         partSlots: [{ id, level: 1 }, null, null, null, null] };
       expect(buildRunSummary(state, []).buildSuggestion).toBeNull();
     }
@@ -52,14 +52,15 @@ describe("buildRunSummary", () => {
 
     const summary = buildRunSummary(state, []);
 
-    expect(summary.buildSuggestion).toBe("fruit-salad");
+    // The fruit/cherry/lemon tags overlap the new vat more than fruit-salad.
+    expect(summary.buildSuggestion).toBe("harvest-vat");
   });
 
   it("excludes owned, level-two, and requirement-failing upgrades from incomplete synergy", () => {
     const state: RunState = {
       ...createRun(3),
       service: "security",
-      acquiredUpgrades: ["artificial-crack", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud"],
+      acquiredUpgrades: ["artificial-crack", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud", "shock-absorber"],
       partSlots: [
         { id: "scrap-magnet", level: 2 },
         { id: "loose-spring", level: 1 },

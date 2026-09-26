@@ -1,6 +1,9 @@
 import type { RunState, UpgradeDefinition, UpgradeId } from "@/core/types";
 
 export const UPGRADE_IDS = [
+  "harvest-vat",
+  "votive-candle",
+  "shock-absorber",
   "cherry-press",
   "salad-dressing",
   "lemon-crate",
@@ -54,6 +57,21 @@ function hasCrackSource(state: RunState): boolean {
 }
 
 export const UPGRADES = {
+  "harvest-vat": {
+    id: "harvest-vat", name: "陈酿果桶", kind: "part", route: "fruit",
+    tags: ["fruit", "cherry", "lemon", "stored-harvest"], candidateRoles: ["synergy", "wildcard"],
+    requires: (state) => state.partSlots.some((part) => part !== null && ["harvest-vat", "lemon-infection", "jam-jar", "cherry-press", "fruit-salad"].includes(part.id))
+  },
+  "votive-candle": {
+    id: "votive-candle", name: "还愿烛台", kind: "part", route: "chapel",
+    tags: ["chapel", "omen", "controlled-payout"], candidateRoles: ["synergy", "wildcard"],
+    requires: (state) => state.omen > 0 || state.partSlots.some((part) => part?.id === "votive-candle")
+  },
+  "shock-absorber": {
+    id: "shock-absorber", name: "减震飞轮", kind: "part", route: "violent",
+    tags: ["violent", "crack", "damage-control"], candidateRoles: ["synergy", "wildcard"],
+    requires: (state) => hasCrackSource(state) || state.partSlots.some((part) => part?.id === "shock-absorber")
+  },
   "cherry-press": {
     id: "cherry-press", name: "樱桃压榨机", kind: "part", route: "fruit",
     tags: ["fruit", "cherry", "density"], candidateRoles: ["synergy", "wildcard"], requires: always

@@ -1,8 +1,13 @@
 import { HelpButton } from "@/app/components/HelpWindow";
-import { describeEquippedPart } from "@/content/player-copy";
+import { CabinetPartArt } from "@/app/components/CabinetArtwork";
+import { PartReadout } from "@/app/components/PartReadout";
+import { describeEquippedPart } from "@/app/player-copy";
 import type { PartId, RunState } from "@/core/types";
 
 const PART_GLYPHS: Readonly<Record<PartId, string>> = {
+  "harvest-vat": "M7 4h10l2 8-2 8H7l-2-8 2-8m-1 5h12M6 15h12M10 4v16m4-16v16",
+  "votive-candle": "M8 20h8M9 9h6v11H9V9m3-7c-5 5 3 8 0 0",
+  "shock-absorber": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18m-3 5h6l-6 4h6l-6 4h6",
   "cherry-press": "M6 4h12M12 4v7M5 11h14v4H5m3 0v5h8v-5",
   "salad-dressing": "M10 3h4v5l3 4v8H7v-8l3-4V3m-3 11h10",
   "lemon-infection": "M12 4c4 0 7 3 7 7s-3 8-8 8-7-3-7-7 3-7 8-7c1-2 3-3 5-3",
@@ -47,16 +52,20 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
       ? []
       : orderedEvents.filter((event) => event.sequence <= presentedThroughSequence);
   const visibleState = { ...state, pendingEvents: visibleEvents };
+  const shownSequences = new Set(visibleEvents.map((event) => event.sequence));
+  const unpresentedPartPayout = orderedEvents.reduce((sum, event) => sum +
+    (event.type === "PAYOUT_ADDED" && event.source === "part" && !shownSequences.has(event.sequence) ? event.amount : 0), 0);
+  const visibleContribution = Math.max(0, Math.round((state.attribution.part - unpresentedPartPayout) * 100) / 100);
   const disabledSlots = new Set(visibleEvents.flatMap((event) => event.type === "PART_DISABLED" ? [event.slot] : []));
   const activeSlot = activePartId === null
     ? -1
     : state.partSlots.findIndex((part, slot) => part?.id === activePartId && !disabledSlots.has(slot));
 
   return (
-    <section className="parts-panel" aria-label="部件栏">
+    <section className="parts-panel physical-parts" aria-label="部件栏">
       <header className="parts-heading">
         <h2>五槽部件架</h2>
-        <p>本局全部部件贡献 ¥{state.attribution.part}</p>
+        <p>本局全部部件贡献 ¥{visibleContribution}</p>
       </header>
       <div className="parts-bar">
         {state.partSlots.map((part, slot) => {
@@ -67,6 +76,7 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
             <div
               className={`part-slot ${part === null ? "is-empty" : "is-loaded"}${active ? " is-triggered" : ""}${disabled ? " is-disabled" : ""}`}
               data-testid="part-slot"
+              data-part-id={part?.id}
               data-active={active ? "true" : undefined}
               data-disabled={disabled ? "true" : undefined}
               key={slot}
@@ -79,10 +89,12 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
                 <HelpButton
                   className="part-socket-button"
                   title={presentation.name + " · L" + part.level}
+                  label={presentation.name + " · L" + part.level + " · " + currentPartStatus(presentation.currentImpact)}
                   trigger={<>
-                  <PartGlyph id={part.id} />
-                  <span className="part-socket-name">{presentation.name} · L{part.level}</span>
+                  <CabinetPartArt id={part.id} fallback={<PartGlyph id={part.id} />} />
+                  <span className="part-socket-name">{presentation.name}<span className="sr-only"> · L{part.level}</span></span>
                   <span className="part-level-ring" aria-hidden="true">L{part.level}</span>
+                  <PartReadout part={part} state={state} disabled={disabled} />
                   <span className="sr-only">{currentPartStatus(presentation.currentImpact)}</span>
                   </>}>
                   <div className="part-detail" role="group" aria-label={presentation.name + "部件详情"}>

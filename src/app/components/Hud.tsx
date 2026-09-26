@@ -1,14 +1,15 @@
 import { SYMBOL_LABELS } from "@/app/labels";
 import { HelpButton, HelpFacts } from "@/app/components/HelpWindow";
-import { activeRoom } from "@/content/hotel";
-import { roundMoney } from "@/core/progression";
+import { activeRoom, getPaidSpinLimit, getRoomProgress } from "@/content/hotel";
+import { roomGoalCopy, roomObjectiveLabel, roomProgressCopy } from "@/app/room-copy";
 import { AnimatedMoney } from "@/app/components/AnimatedMoney";
-import { LedgerDrawer } from "@/app/components/LedgerDrawer";
+import { RoomGoalInstrument } from "@/app/components/RoomGoalInstrument";
 import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
 import { getCurrentBet } from "@/core/progression";
 import type { RunState, SymbolId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
 import type { EstimateStatus } from "@/app/useEstimate";
+import type { ReactNode } from "react";
 
 const BAND_LABELS = {
   danger: "凶险",
@@ -21,6 +22,7 @@ function percent(value: number): string {
 }
 
 interface HudProps {
+  readonly compact?: boolean;
   readonly state: RunState;
   readonly estimate: MachineEstimate | null;
   readonly estimateStatus: EstimateStatus;
@@ -44,6 +46,7 @@ function visibleFoodBuffs(state: RunState, presentedThroughSequence: number | nu
 }
 
 export function Hud({
+  compact = false,
   state,
   estimate,
   estimateStatus,
@@ -56,8 +59,14 @@ export function Hud({
   const foodBuffs = visibleFoodBuffs(state, presentedThroughSequence);
   const blockBlanks = (state.blockReelAdditions ?? []).reduce((total, strip) => total + strip.length, 0);
   const activePayout = settlementPresentation?.awardDelta ?? payoutAmount;
+  const room = activeRoom(state);
+  const visibleBankroll = settlementPresentation?.visibleBankrollTarget ?? state.bankroll;
+  const roomProgress = room === null ? null : getRoomProgress(state,
+    settlementPresentation?.visiblePayoutTarget ?? (state.phase === "RESOLVING_EFFECTS" ? 0 : undefined));
+  const target = roomProgress?.required ?? state.checkoutTarget;
+  const progress = Math.max(0, Math.min(target, roomProgress?.value ?? visibleBankroll));
   return (
-    <section className="hud" aria-label="本局状态">
+    <section className="hud" aria-label="本局状态" data-has-room={room !== null}>
       <dl className="room-counters" role="group" aria-label="酒店房号计数窗" data-payout-active={activePayout > 0 ? "true" : undefined}>
         <div className="room-counter room-counter-bankroll">
           <dt className="sr-only">余额</dt>
@@ -67,7 +76,7 @@ export function Hud({
             data-coin-destination="true"
           >
             <span aria-hidden="true" className="bankroll-visual">
-              余额 ¥{settlementPresentation === null
+              <span className="bankroll-caption">余额 </span>¥{settlementPresentation === null
                 ? state.bankroll
                 : <AnimatedMoney
                     target={settlementPresentation.visibleBankrollTarget}
@@ -82,34 +91,49 @@ export function Hud({
             </span>
           </dd>
         </div>
-        <LedgerDrawer receipts={state.spinHistory} />
-        <div className="room-counter">
+        <div className="room-counter room-counter-target">
           <dt className="sr-only">目标</dt>
-          <dd data-counter="target">{activeRoom(state) === null ? `目标 ¥${state.checkoutTarget}` : `本段目标 ¥${activeRoom(state)!.target}`}</dd>
+          <dd data-counter="target">{roomProgress === null ? `目标 ¥${state.checkoutTarget}` : compact
+            ? roomProgress.objective.kind === "scoring-spins" ? `达标 ${roomProgress.value} / ${roomProgress.required} 转`
+              : `${roomProgress.objective.kind === "best-spin" ? "峰值" : "本段"} ¥${roomProgress.value} / ${roomProgress.required}`
+            : roomGoalCopy(roomProgress.objective, roomProgress.target)}</dd>
+          <dd className={`target-meter meter-${roomProgress?.objective.kind ?? "total-payout"}`} role="progressbar" aria-label={roomProgress === null ? "余额目标" : `${roomObjectiveLabel(roomProgress.objective)}目标`}
+            aria-valuemin={0} aria-valuemax={target} aria-valuenow={progress}
+            aria-valuetext={roomProgress === null ? `余额 ¥${visibleBankroll} / ¥${target}` : roomProgressCopy(roomProgress)}>
+            <RoomGoalInstrument objective={roomProgress?.objective ?? null} value={progress} target={target} />
+          </dd>
         </div>
-        <div className="room-counter">
+        <div className="room-counter room-counter-bet">
           <dt className="sr-only">下注</dt>
           <dd data-counter="bet">下注 ¥{getCurrentBet(state)}</dd>
         </div>
       </dl>
-      {activeRoom(state) !== null && <section className="room-progress" aria-label="客房进度">
-        <strong>{activeRoom(state)!.name} · 3 转挑战</strong>
-        <p>当段赔付 ¥{roundMoney(state.shiftPayout - (settlementPresentation === null ? 0 : (state.spinHistory.at(-1)?.totalPayout ?? 0) - settlementPresentation.visiblePayoutTarget))} / ¥{activeRoom(state)!.target} · 专注上限 {activeRoom(state)!.focusCap}</p>
-        <p>只看本段赔付，不看旧余额；免费转的奖励也计入。</p>
+      {room !== null && roomProgress !== null && <section className="room-progress" aria-label="客房进度">
+        <strong className="sr-only">{room.name} · {getPaidSpinLimit(state)} 次付费转</strong>
+        <p>{roomProgressCopy(roomProgress)} · 干预点上限 {room.focusCap}</p>
+        <HelpButton title="本房目标"><p>{roomProgressCopy(roomProgress)}</p><p>{roomProgress.objective.kind === "scoring-spins" ? "每转单独判断，不要求连续；" : "旧余额不抵目标；"}免费转也计入。全部转完再判定通关。</p><p>{room.hint}</p></HelpButton>
+        <div className="room-turn-ticks" aria-label={`已用 ${state.baseSpinsInShift}/${getPaidSpinLimit(state)} 次付费转`}>
+          {Array.from({ length: getPaidSpinLimit(state) }, (_, index) => <i key={index} data-used={index < state.baseSpinsInShift} aria-hidden="true" />)}
+        </div>
       </section>}
       <div className="hud-resources">
-        {blockBlanks > 0 && <span>本班空白 {blockBlanks}<HelpButton title="本班临时空白"><HelpFacts cost="三重祝福本班首次触发时，向最长轮加入 1 个；本班不再追加。" effect="降低本班后续中奖概率；付费转抽到时可给空白电容充能。" limit="下一班／下一段自动清除，不是永久改轮。原有永久空白不会一起消失。" /></HelpButton></span>}
-        <span>专注 {state.interventionPoints}/{state.maxInterventionPoints}<HelpButton title="专注"><HelpFacts cost="每次重转、锁轮或祈祷花 1 点。" effect="给你改变结果的操作机会，本身不增加中奖概率。"
+        <span>干预点 {state.interventionPoints}/{state.maxInterventionPoints}<HelpButton title="干预点"><HelpFacts cost="每次重转、锁轮或祈祷花 1 点。" effect="用来改变盘面的点数，旧版叫“专注”。留着不会自动提高中奖率。"
           limit="普通每班 2 点，维修间 3 点；新班重置，不累计。每转最多干预一次，客房另有上限。" current={"剩余 " + state.interventionPoints + " 点；本段上限 " + state.maxInterventionPoints + "。"} /></HelpButton></span>
-        <span>小费 {state.tips}<HelpButton title="小费"><HelpFacts cost="重抽升级 1 枚；维修裂纹 1 枚；精修 L1 → L2 部件 3 枚。" effect="合同完成或放弃升级可得 1 枚；精修能定向强化现有核心，不占班末三选一。"
+        <span>小费 {state.tips}<HelpButton title="小费"><HelpFacts cost="重抽升级 1 枚；维修裂纹 1 枚；还愿点烛 1 枚；精修 L1 → L2 部件 3 枚。" effect="合同完成或放弃升级可得 1 枚；重抽至少换入一个不同选项，精修定向强化核心。"
           limit="精修只在每段首转前；维修裂纹需要维修间且处于班末。小费不是下注金。" current={"持有 " + state.tips + " 枚。"} /></HelpButton></span>
+        <HudSupplement compact={compact} badge={<span className="hud-status-badges">
+            {foodBuffs.length > 0 && `餐 +${Math.round(foodBuffs.reduce((sum, buff) => sum + buff.additivePayout, 0) * 100)}%`}
+            {blockBlanks > 0 && ` · 空白 ${blockBlanks}`}
+          </span>}>
+          <div className="hud-status-content">
+        {blockBlanks > 0 && <span>本班空白 {blockBlanks}<HelpButton title="本班临时空白"><HelpFacts cost="三重祝福本班首次触发时，向最长轮加入 1 个；本班不再追加。" effect="降低本班后续中奖概率；付费转抽到时可给空白电容充能。" limit="下一班／下一段自动清除，不是永久改轮。原有永久空白不会一起消失。" /></HelpButton></span>}
         <span>躁动 {state.agitation}<HelpButton title="躁动"><HelpFacts cost="无需主动花费；零赔付的一转自动 +1 层。" effect="下次有奖时，每层额外支付 0.5 倍下注，再清空。"
           limit="最多 5 层；不是踹击或祈祷消耗的资源。" /></HelpButton></span>
-        <span>裂纹 {state.reels.reduce((n, strip) => n + strip.filter((symbol) => symbol === "crack").length, 0)}<HelpButton title="裂纹"><HelpFacts cost="永久占据转轮位置，稀释正常图案。" effect="结算时每个可见裂纹让一个非免疫部件本转失效；从最右槽向左选，空槽不挡伤。"
-          limit="废料磁铁、保修欺诈免疫裂纹；其他部件下一转重新判定。这里显示的是三轮里永久裂纹总数，不是本转失效数。"
+        <span>裂纹 {state.reels.reduce((n, strip) => n + strip.filter((symbol) => symbol === "crack").length, 0)}<HelpButton title="裂纹"><HelpFacts cost="坏符号会一直留在转轮里，直到被清理；不直接扣钱。" effect="盘面每出现1个裂纹，让1个可受损部件本转停工。先影响最右边的部件，空槽不能挡伤。"
+          limit="磁铁、保修欺诈、减震飞轮免疫裂纹；飞轮还抵消 1 / 2 个裂纹停工。其他部件下一转重新判定。这里是永久裂纹总数，不是本转失效数。"
           current="可用磁铁的裂纹三连消除、修枝剪，或维修间班末花 1 小费移除一轮最多 2 个。" /></HelpButton></span>
-        {(state.service === "chapel" || state.omen > 0) && <span>恶兆 {state.omen}<HelpButton title="恶兆"><HelpFacts cost="无需花费；祈祷目标未中线或什一税箱会增加。" effect="有恶兆收集器时，首次幸运7线按层数 × 0.5 / 1 倍下注兑现，然后清空。"
-          limit="没有收集器，恶兆不会自己加钱；祈祷即使中了其他符号，只要目标没中线仍获得恶兆。跨班保留。" /></HelpButton></span>}
+        {(state.service === "chapel" || state.omen > 0) && <span>恶兆 {state.omen}<HelpButton title="恶兆"><HelpFacts cost="祈祷目标没中线时攒1层；什一税箱也能增加。" effect="收集器等幸运7中奖，每层付 0.5 / 1 倍下注；还愿烛台花 1 小费存入最多 3 层，正常工作时每层付 2 / 4 倍下注，不必中奖。"
+          limit="恶兆本身不加钱；已存入烛台的部分不能再被收集器领取。未兑现的可跨班保留。" /></HelpButton></span>}
       </div>
       <section className="food-buff-status" aria-label="食物加成">
         <strong>食物加成 {foodBuffs.length} 层</strong><HelpButton title="食物加成"><HelpFacts cost="每次实际转动扣一次剩余次数，免费转也扣。" effect="买餐立即 +50% 持续 3 转；盘面吃到食物后，再给之后 3 转 +25%。多层百分比相加。"
@@ -175,6 +199,14 @@ export function Hud({
           </div>
         )}
       </details>
+        </HudSupplement>
+      </div>
     </section>
   );
+}
+
+function HudSupplement({ compact, badge, children }: { readonly compact: boolean; readonly badge: ReactNode; readonly children: ReactNode }): React.JSX.Element {
+  return compact
+    ? <HelpButton title="状态与加成" className="console-status-key" trigger={<><span>状态</span>{badge}</>}>{children}</HelpButton>
+    : <details className="hud-supplement"><summary><span>状态与加成</span>{badge}</summary>{children}</details>;
 }

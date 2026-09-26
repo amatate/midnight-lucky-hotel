@@ -940,7 +940,9 @@ describe("presentation recovery UI", () => {
     });
     render(createElement(GameScreen, { seed: 707, initialState: state }));
 
+    fireEvent.click(screen.getByRole("button", { name: /^状态/ }));
     expect(screen.getByText("食物加成 0 层")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "关闭说明" }));
     await act(async () => vi.advanceTimersByTimeAsync(120));
     const cells = screen.getAllByTestId("cell");
     expect(cells.filter((cell) => cell.getAttribute("data-highlighted") === "true").map((cell) => cell.getAttribute("data-cell"))).toEqual([
@@ -954,6 +956,7 @@ describe("presentation recovery UI", () => {
       null, "true", null
     ]);
     expect(screen.getByText(/第2轮食物已消耗：这份食物提供 1 层 \+25%，接下来 3 次转动有效；多份食物的层数可叠加/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /^状态/ }));
     expect(screen.getByText("食物加成 1 层")).toBeVisible();
     expect(screen.getByLabelText("第 1 层 +25%，剩余 3/3 次转动")).toBeVisible();
   });
@@ -1091,10 +1094,10 @@ describe("presentation recovery UI", () => {
 
   it("an explicit initial state bypasses saved recovery", () => {
     localStorage.setItem(RUN_STORAGE_KEY, JSON.stringify({ ...createRun(82), bankroll: 12 }));
-    render(createElement(GameScreen, { seed: 83, initialState: { ...createRun(83), bankroll: 77 } }));
+    render(createElement(GameScreen, { seed: 83, initialState: { ...createRun(83), phase: "READY_TO_SPIN", service: "repair", bankroll: 77 } }));
 
     expect(screen.queryByRole("dialog", { name: "恢复上次进度" })).not.toBeInTheDocument();
-    expect(screen.getByText("余额 ¥77")).toBeVisible();
+    expect(document.querySelector(".bankroll-visual")).toHaveTextContent(/^余额 ¥77$/);
   });
 
   it("saves successful commands but not rejected commands", () => {
@@ -1175,7 +1178,9 @@ describe("presentation recovery UI", () => {
     vi.useFakeTimers();
     render(createElement(GameScreen, { seed: 210, initialState: spinningState(210) }));
 
+    fireEvent.click(screen.getByRole("button", { name: "菜单" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "减少闪烁" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭说明" }));
     await act(async () => vi.advanceTimersByTimeAsync(159));
     expect(screen.getByText("转轮旋转中")).toBeVisible();
     await act(async () => vi.advanceTimersByTimeAsync(1));
@@ -1200,6 +1205,7 @@ describe("presentation recovery UI", () => {
     const { container } = render(createElement(GameScreen, { seed: 204, initialState: spinningState(204) }));
 
     expect(container.querySelector(".game-screen.reduce-motion")).toHaveAttribute("data-reduced-motion", "true");
+    fireEvent.click(screen.getByRole("button", { name: "菜单" }));
     expect(screen.getByRole("checkbox", { name: "减少闪烁" })).not.toBeChecked();
   });
 

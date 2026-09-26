@@ -6,6 +6,7 @@ export type GameCommand =
   | { readonly type: "SET_BET_MODE"; readonly mode: BetMode }
   | { readonly type: "BUY_FOOD"; readonly reelIndex: ReelIndex }
   | { readonly type: "UPGRADE_PART"; readonly slot: number }
+  | { readonly type: "LIGHT_CANDLE" }
   | { readonly type: "ENTER_ROOM" }
   | { readonly type: "OPEN_WORKSHOP" }
   | { readonly type: "PRAY"; readonly symbol: BaseSymbolId }

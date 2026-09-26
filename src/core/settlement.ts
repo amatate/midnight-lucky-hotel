@@ -14,6 +14,7 @@ import type {
   Grid,
   LineWin,
   PartInstance,
+  PartCounters,
   PartId,
   ReelDraw,
   ReelIndex,
@@ -128,7 +129,7 @@ interface WorkingState {
   effectCount: number;
   overloaded: boolean;
   freeSpinQueue: number;
-  counters: { blankCharge: number; cherryWinsThisShift: number };
+  counters: { -readonly [K in keyof PartCounters]: PartCounters[K] };
   shiftFlags: ShiftFlags;
   omen: number;
   fruitRuntimes: Map<number, FruitRuntime>;
@@ -630,7 +631,7 @@ function applyEffect(
       break;
     case "INCREMENT_COUNTER": {
       const amount = Number.isFinite(effect.amount) ? Math.trunc(effect.amount) : 0;
-      working.counters[effect.counter] += amount;
+      working.counters[effect.counter] = Math.max(0, (working.counters[effect.counter] ?? 0) + amount);
       break;
     }
     case "CHANGE_OMEN": {
@@ -883,13 +884,14 @@ export function resolveSpin(
   ];
 
   const crackCount = countVisible(working.grid, "crack");
+  const protectedCracks = state.partSlots.find((part) => part?.id === "shock-absorber")?.level ?? 0;
   const occupiedSlots = state.partSlots
     .map((part, slot) => ({ part, slot }))
     .filter((entry): entry is { part: PartInstance; slot: number } => entry.part !== null)
     // Damage converters must be able to start without sacrificial filler parts.
-    .filter(({ part }) => part.id !== "scrap-magnet" && part.id !== "warranty-fraud")
+    .filter(({ part }) => part.id !== "scrap-magnet" && part.id !== "warranty-fraud" && part.id !== "shock-absorber")
     .sort((left, right) => right.slot - left.slot);
-  for (const { slot } of occupiedSlots.slice(0, crackCount)) {
+  for (const { slot } of occupiedSlots.slice(0, Math.max(0, crackCount - protectedCracks))) {
     disablePart(state, currentBet, working, registrations, slot);
   }
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { downloadText, money } from "@/app/archive-copy";
 import { ArchiveViewer } from "@/app/components/ArchiveViewer";
-import { describeUpgrade } from "@/content/player-copy";
+import { describeUpgrade } from "@/app/player-copy";
 import { GameGuide } from "@/app/components/GameGuide";
 import { FeedbackButton } from "@/app/components/FeedbackButton";
 import { UPGRADES, UPGRADE_IDS } from "@/content/upgrades";
@@ -12,6 +12,7 @@ import {
   startArchivedRun, validSeed, writeLibrary, type ArchiveLibrary, type RunArchive
 } from "@/persistence/archives";
 import { LEGACY_RUN_STORAGE_KEY, RUN_STORAGE_KEY } from "@/persistence/storage";
+import "@/app/frontdesk-scene.css";
 
 interface FrontDeskProps {
   readonly library: ArchiveLibrary | null;
@@ -66,34 +67,45 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
     try { localStorage.setItem(key, checked ? "1" : "0"); update(checked); setNotice("设置已保存。"); }
     catch { setNotice("设置保存失败，请检查浏览器存储权限。"); }
   };
+  const menu = <nav className="frontdesk-tabs" aria-label="主菜单">{(Object.keys(SECTION_LABELS) as (keyof typeof SECTION_LABELS)[]).map((key) =>
+    <button type="button" aria-current={section === key ? "page" : undefined} onClick={() => { setSection(key); setNotice(""); }} key={key}>
+      <span className={"lobby-menu-mark lobby-menu-mark-" + key} aria-hidden="true" />{SECTION_LABELS[key]}
+    </button>)}</nav>;
 
   if (selected !== null) return <ArchiveViewer record={selected} onClose={() => setSelected(null)} />;
   return (
-    <section className="frontdesk" aria-label="酒店前台">
-      <header className="frontdesk-heading"><div><p className="hotel-sign">MIDNIGHT LUCK / ROOM 1313</p><h1>午夜好运酒店</h1><p className="frontdesk-tagline">今夜，把运气改造成你的作品。</p></div><span className="frontdesk-key">1313</span></header>
-      <nav className="frontdesk-tabs" aria-label="主菜单">{(Object.keys(SECTION_LABELS) as (keyof typeof SECTION_LABELS)[]).map((key) =>
-        <button type="button" aria-current={section === key ? "page" : undefined} onClick={() => { setSection(key); setNotice(""); }} key={key}>{SECTION_LABELS[key]}</button>)}</nav>
+    <section className="frontdesk frontdesk-scene" data-section={section} data-reduce-motion={reduceMotion || undefined} aria-label="酒店前台">
+      <header className="frontdesk-heading"><div><p className="hotel-sign">MIDNIGHT LUCKY HOTEL</p><h1>午夜好运酒店</h1><p className="frontdesk-tagline">今夜，把运气改造成你的作品。</p></div><span className="frontdesk-key" aria-hidden="true">1313</span></header>
+      {section !== "lobby" && menu}
       {error !== null && <p className="archive-warning" role="alert">{error}</p>}
       <p className="frontdesk-notice" role="status">{notice}</p>
 
-      {section === "lobby" && <>
-        <section className="frontdesk-hero archive-card"><p className="eyebrow">YOUR ROOM IS WAITING</p><h2>{active === null ? "开始你的第一夜" : "你的机器还在等你"}</h2>
-          {active !== null ? <><p>{active.name}</p><strong className="frontdesk-balance">{money(active.snapshot.bankroll)}</strong>
-            <p>种子 {active.snapshot.initialSeed} · {active.snapshot.afterHoursLevel > 0 ? "加班第 " + active.snapshot.afterHoursLevel + " 段" : "第 " + active.snapshot.shift + " 班"} · 已转 {active.snapshot.nextSpinOrdinal - 1} 次</p>
+      {section === "lobby" && <div className="lobby-arrival">
+        <div className="lobby-vista" aria-hidden="true"><span className="lobby-door-sign">ROOM <b>1313</b></span></div>
+        <div className="lobby-playdesk">
+        <section className="frontdesk-hero"><p className="eyebrow">{active === null ? "THE NIGHT IS YOURS" : "YOUR ROOM IS WAITING"}</p><h2>{active === null ? "好运，等待开场" : "接着玩，机器还热着"}</h2>
+          {active !== null ? <><div className="lobby-current-run"><span>{active.snapshot.afterHoursLevel > 0 ? "加班第 " + active.snapshot.afterHoursLevel + " 段" : "第 " + active.snapshot.shift + " 班"} · 已转 {active.snapshot.nextSpinOrdinal - 1} 次</span><strong className="frontdesk-balance">{money(active.snapshot.bankroll)}</strong></div>
             {active.rulesVersion !== RULES_VERSION && <p className="archive-notice">旧局原档案只读保留，不自动套用新规则。支持迁移时可按新版续玩：保留钱包和构筑，旧成绩不重算，新日志从此处开始核验。</p>}
             {library !== null && canMigrateArchive(active) && <button className="primary-button" type="button" onClick={() => {
               if (perform(() => migrateArchive(library, active), "已创建新版续玩分支，原档案保留。")) onPlay();
             }}>按新版续玩（保留旧局）</button>}
-            <div className="frontdesk-actions"><button className="primary-button" type="button" disabled={active.rulesVersion !== RULES_VERSION} onClick={onPlay}>继续游戏</button><button type="button" onClick={() => setSelected(active)}>查看本局日志</button><button type="button" onClick={() => void copySeed(active.snapshot.initialSeed)}>复制当前种子</button></div>
-          </> : <p>改造转轮、选择部件，在五个夜班内从 ¥100 赚到 ¥200。成型后可以继续加班。</p>}
+            <button className="primary-button lobby-enter-button" type="button" disabled={active.rulesVersion !== RULES_VERSION} onClick={onPlay}>继续游戏<span aria-hidden="true">↗</span></button>
+            <details className="lobby-run-details"><summary>本局档案 · 种子 {active.snapshot.initialSeed}</summary><p>{active.name}</p><div className="frontdesk-actions"><button type="button" onClick={() => setSelected(active)}>查看本局日志</button><button type="button" onClick={() => void copySeed(active.snapshot.initialSeed)}>复制当前种子</button></div></details>
+          </> : <p className="lobby-premise">¥100 入场。转动、改造，让好运站在你这边。</p>}
         </section>
-        <form className="archive-card new-run-form" onSubmit={(event) => { event.preventDefault(); if (seed.trim() === "" || !validSeed(Number(seed))) { setNotice("种子必须是 0 到 4294967295 之间的整数。"); return; } begin(Number(seed)); }}>
-          <h2>新的夜班</h2><label>游戏种子<input inputMode="numeric" value={seed} onChange={(event) => setSeed(event.target.value)} /></label>
-          <div className="frontdesk-actions"><button type="button" onClick={() => setSeed(String(crypto.getRandomValues(new Uint32Array(1))[0]))}>随机种子</button><button type="button" disabled={library === null || seed.trim() === ""} onClick={() => toggleSeed(Number(seed))}>{library?.favoriteSeeds.includes(Number(seed)) ? "取消收藏种子" : "收藏种子"}</button><button className="primary-button" type="submit" disabled={library === null}>开始新局</button></div>
-          <p className="fine-print">旧局自动留在历史中。种子决定随机序列，但选择也会改变后续结果；同版本、同起点、同操作才可复现。</p>
+        <form className={"new-run-form" + (active !== null ? " has-current-run" : "")} onSubmit={(event) => { event.preventDefault(); if (seed.trim() === "" || !validSeed(Number(seed))) { setNotice("种子必须是 0 到 4294967295 之间的整数。"); return; } begin(Number(seed)); }}>
+          <button className={active === null ? "primary-button lobby-enter-button" : "lobby-new-night"} type="submit" disabled={library === null}>开始新局{active === null && <span aria-hidden="true">↗</span>}</button>
+          {active === null && <p className="lobby-goal">五班内赚到 ¥200 · 每班 3 转，班后选升级</p>}
+          <details className="lobby-seed-options"><summary>自选种子与收藏</summary>
+            <label>游戏种子<input inputMode="numeric" value={seed} onChange={(event) => setSeed(event.target.value)} /></label>
+            <div className="frontdesk-actions"><button type="button" onClick={() => setSeed(String(crypto.getRandomValues(new Uint32Array(1))[0]))}>随机种子</button><button type="button" disabled={library === null || seed.trim() === ""} onClick={() => toggleSeed(Number(seed))}>{library?.favoriteSeeds.includes(Number(seed)) ? "取消收藏种子" : "收藏种子"}</button></div>
+            <p className="fine-print">旧局自动留在历史中。种子决定随机序列，但选择也会改变后续结果；同版本、同起点、同操作才可复现。</p>
+            {(library?.favoriteSeeds.length ?? 0) > 0 && <div className="lobby-favorite-seeds"><h3>收藏的种子</h3><div className="seed-list">{library!.favoriteSeeds.map((value) => <button type="button" key={value} onClick={() => setSeed(String(value))}>{value}</button>)}</div></div>}
+          </details>
         </form>
-        {(library?.favoriteSeeds.length ?? 0) > 0 && <section className="archive-card"><h2>收藏的种子</h2><div className="seed-list">{library!.favoriteSeeds.map((value) => <button type="button" key={value} onClick={() => setSeed(String(value))}>{value}</button>)}</div></section>}
-      </>}
+        </div>
+      </div>}
+      {section === "lobby" && menu}
 
       {section === "history" && <>
         <div className="frontdesk-actions"><h2>历史与存档</h2><label className="file-import">导入复盘包<input aria-label="导入复盘包" type="file" accept=".json,application/json" disabled={library === null} onChange={async (event) => {

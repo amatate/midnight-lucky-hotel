@@ -36,7 +36,7 @@ describe("PartsBar", () => {
     const part = within(dialog).getByRole("group", { name: "果酱罐部件详情" });
     expect(within(part).getByText(/每条樱桃中奖线都会充能/)).toBeInTheDocument();
     expect(within(part).getByText(/L1 → L2/).closest("p")).toHaveTextContent("0.5 × 当前下注提高为 1 × 当前下注");
-    expect(within(part).getByText(/本班已有 2 条樱桃中奖线/).closest("p")).toHaveTextContent("下一条额外赔付 ¥10");
+    expect(within(part).getByText(/本班已有 2 条樱桃中奖线/).closest("p")).toHaveTextContent("下一条额外奖金 ¥10");
     expect(within(part).getByText(/当前状态：等待触发/)).toBeInTheDocument();
     expect(panel).not.toHaveTextContent(/shift-scaling|fruit|cherry/);
     expect(panel).not.toHaveTextContent(/果酱罐贡献/);
@@ -64,5 +64,32 @@ describe("PartsBar", () => {
     const dialog = screen.getByRole("dialog", { name: "过载马达 · L2" });
     expect(dialog).toHaveTextContent("本转状态：因可见裂纹失效");
     expect(within(dialog).getByText(/L1 → L2/).closest("p")).toHaveTextContent("0.5 × 当前下注");
+  });
+
+  it("reveals total part contribution only when its payout is presented", () => {
+    const state: RunState = {
+      ...createRun(93),
+      phase: "RESOLVING_EFFECTS",
+      partSlots: [{ id: "votive-candle", level: 2 }, null, null, null, null],
+      attribution: { ...createRun(93).attribution, part: 140 },
+      pendingEvents: [
+        { sequence: 1, type: "PART_TRIGGERED", partId: "votive-candle", level: 2 },
+        { sequence: 2, type: "PAYOUT_ADDED", source: "part", partId: "votive-candle", preMultiplierAmount: 120, appliedMultiplier: 1, amount: 120 },
+        { sequence: 3, type: "PAYOUT_COMPLETE", total: 120 }
+      ]
+    };
+    const before = structuredClone(state);
+    const { rerender } = render(<PartsBar state={state} presentedThroughSequence={null} />);
+    expect(screen.getByText("本局全部部件贡献 ¥20")).toBeVisible();
+
+    rerender(<PartsBar state={state} presentedThroughSequence={1} />);
+    expect(screen.getByText("本局全部部件贡献 ¥20")).toBeVisible();
+
+    rerender(<PartsBar state={state} presentedThroughSequence={2} />);
+    expect(screen.getByText("本局全部部件贡献 ¥140")).toBeVisible();
+
+    rerender(<PartsBar state={state} />);
+    expect(screen.getByText("本局全部部件贡献 ¥140")).toBeVisible();
+    expect(state).toEqual(before);
   });
 });

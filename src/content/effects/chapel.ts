@@ -1,7 +1,17 @@
 import type { Effect, LineWin, PartId, PartInstance, ResolveContext, ResolveSignal } from "@/core/types";
 import { readAuthorizedChapelPart } from "@/core/settlement";
 
-const CHAPEL_PART_IDS = new Set<PartId>(["omen-collector", "triple-blessing", "midnight-bell", "martyr-coin"]);
+const CHAPEL_PART_IDS = new Set<PartId>(["votive-candle", "omen-collector", "triple-blessing", "midnight-bell", "martyr-coin"]);
+
+function votiveCandle(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
+  const charge = context.state.counters.votiveCharge ?? 0;
+  if (part.id !== "votive-candle" || signal.type !== "GRID_ACCEPTED" || charge <= 0
+    || !readAuthorizedChapelPart(context)?.claimTrigger("votive-candle")) return [];
+  return [
+    { type: "INCREMENT_COUNTER", counter: "votiveCharge", amount: -charge },
+    { type: "ADD_PAYOUT", source: "part", amount: charge * (part.level === 1 ? 2 : 4) * context.currentBet }
+  ];
+}
 
 function repeatedPayout(amount: number, count: number): readonly Effect[] {
   return Array.from({ length: count }, (): Effect => ({ type: "ADD_PAYOUT", amount, source: "part" }));
@@ -82,6 +92,7 @@ function lineWinKey(win: LineWin): string {
 
 function reactOnePart(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
   return [
+    ...votiveCandle(part, context, signal),
     ...omenCollector(part, context, signal),
     ...tripleBlessing(part, context, signal),
     ...midnightBell(part, context, signal),

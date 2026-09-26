@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SymbolFace } from "@/app/components/SymbolFace";
 import { PAYLINES } from "@/core/paylines";
+import type { BoardInterventionController } from "@/app/useBoardIntervention";
 import type { Grid, LineWin, ReelIndex, RowIndex, RunState, SymbolId } from "@/core/types";
 import type { ReelMotionPlan } from "@/presentation/reel-timeline";
 
@@ -14,6 +15,8 @@ export interface SlotMachineProps {
   readonly changedCells?: readonly { reel: ReelIndex; row: RowIndex }[];
   readonly highlightedReels?: readonly ReelIndex[];
   readonly shakePx?: number;
+  readonly intervention?: BoardInterventionController;
+  readonly foodSelection?: { readonly reel: ReelIndex; readonly onSelect: (reel: ReelIndex) => void } | undefined;
 }
 
 interface MotionState {
@@ -102,7 +105,9 @@ export function SlotMachine({
   highlightedLineIds = [],
   changedCells = [],
   highlightedReels = [],
-  shakePx = 0
+  shakePx = 0,
+  intervention,
+  foodSelection
 }: SlotMachineProps): React.JSX.Element {
   const safeShakePx = Math.max(0, Math.min(6, Number.isFinite(shakePx) ? shakePx : 0));
   const explicitReplay = displayGrid !== null && displayGrid !== undefined;
@@ -167,6 +172,8 @@ export function SlotMachine({
     : new Set<ReelIndex>();
   const cycleComplete = activePlan !== null && activePlan.spinningReels.every((reel) => currentCycleReveals.has(reel));
   const highlighted = highlightedCells(highlightedLineIds);
+  const board = state.phase === "AWAITING_INTERVENTION" && !explicitReplay ? intervention : undefined;
+  const atRisk = highlightedCells(board?.preview?.atRiskLineIds ?? []);
   const changed = new Set(changedCells.map(({ reel, row }) => cellKey(reel, row)));
   const visibleGrid = immediateGrid ?? stableGrid;
   const targetGrid = state.pendingSpin?.draw.grid ?? visibleGrid;
@@ -178,6 +185,7 @@ export function SlotMachine({
       aria-label="老虎机转轮"
       data-motion-kind={activePlan?.kind ?? (pausedSpinning ? "paused" : "none")}
       data-coin-source="true"
+      data-board-preview={board?.preview?.grid != null ? "kick" : undefined}
       style={{ "--cabinet-shake": `${safeShakePx}px` } as React.CSSProperties}
     >
       {REEL_INDICES.map((reel) => {
@@ -188,7 +196,7 @@ export function SlotMachine({
           : isMoving
             ? isRevealed ? "settled" : "moving"
             : activePlan?.kind === "repair-lock" ? "locked" : "static";
-        const grid = explicitReplay
+        const actualGrid = explicitReplay
           ? visibleGrid
           : isRevealed
             ? targetGrid
@@ -197,6 +205,13 @@ export function SlotMachine({
                 : activePlan === null
                   ? visibleGrid
                   : stableGrid;
+        // Never feed a speculative board into stableGrid or the reel-motion timeline.
+        const grid = board?.preview?.grid ?? actualGrid;
+        const selected = board?.selectedReel === reel || foodSelection?.reel === reel;
+        const affected = board?.preview?.affectedReels.includes(reel) === true;
+        const boardAction = board?.preview == null ? undefined : affected
+          ? board.preview.grid === null ? "change" : "preview"
+          : "keep";
         const isReelHighlighted = highlightedReels.includes(reel);
 
         return (
@@ -205,6 +220,8 @@ export function SlotMachine({
             data-testid="reel"
             data-reel-state={reelState}
             data-reel-highlighted={isReelHighlighted ? "true" : undefined}
+            data-intervention-action={boardAction}
+            data-intervention-selected={selected ? "true" : undefined}
             aria-label={`第${reel + 1}轮`}
             key={reel}
           >
@@ -222,9 +239,10 @@ export function SlotMachine({
                   const key = cellKey(reel, typedRow);
                   const isHighlighted = highlighted.has(key);
                   const isChanged = changed.has(key);
+                  const isPreviewChanged = board?.preview?.grid != null && symbol !== actualGrid[reel][typedRow];
                   return (
                     <div
-                      className={`symbol symbol-${symbol}${isHighlighted ? " is-line-highlighted" : ""}${isChanged ? " is-symbol-changed" : ""}`}
+                      className={`symbol symbol-${symbol}${isHighlighted ? " is-line-highlighted" : ""}${isChanged ? " is-symbol-changed" : ""}${atRisk.has(key) ? " is-intervention-risk" : ""}${isPreviewChanged ? " is-preview-changed" : ""}`}
                       data-testid="cell"
                       data-cell={key}
                       data-highlighted={isHighlighted ? "true" : undefined}
@@ -235,6 +253,12 @@ export function SlotMachine({
                     </div>
                   );
                 })}
+            {board?.selectableReels.includes(reel) && <button
+              type="button" className="reel-select-overlay" aria-label={`选择第${reel + 1}轮`}
+              aria-pressed={selected} disabled={!board.enabled} onClick={() => board.selectReel(reel)}
+            ><span>{boardAction === "keep" ? "保持" : boardAction === "preview" ? "预览" : selected ? "已选" : `第${reel + 1}轮`}</span></button>}
+            {foodSelection !== undefined && <button type="button" className="reel-select-overlay" aria-label={`送餐至第${reel + 1}轮`}
+              aria-pressed={selected} onClick={() => foodSelection.onSelect(reel)}><span>{selected ? "送餐目标" : "选择"}</span></button>}
           </div>
         );
       })}

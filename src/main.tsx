@@ -4,6 +4,9 @@ import { App } from "@/app/App";
 import "@/app/styles.css";
 import "@/app/help.css";
 import "@/app/playtest.css";
+import "@/app/art-deco.css";
+import "@/app/cabinet-builds.css";
+import "@/app/mobile-console.css";
 import { registerSW } from "virtual:pwa-register";
 import { gameUpdates } from "@/app/update-policy";
 

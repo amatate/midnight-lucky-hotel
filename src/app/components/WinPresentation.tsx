@@ -1,7 +1,8 @@
 import { SYMBOL_LABELS } from "@/app/labels";
 import { AnimatedMoney } from "@/app/components/AnimatedMoney";
+import { HelpButton } from "@/app/components/HelpWindow";
 import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
-import { SERVICE_PRESENTATIONS } from "@/content/player-copy";
+import { SERVICE_PRESENTATIONS } from "@/app/player-copy";
 import { UPGRADES } from "@/content/upgrades";
 import { eventLabel } from "@/app/archive-copy";
 import type { GameEvent } from "@/core/events";
@@ -68,7 +69,7 @@ export function settlementEventLabel(state: RunState, event: GameEvent | null): 
     case "FOOD_CONSUMED": return `第${event.reel + 1}轮食物已消耗：这份食物提供 1 层 +25%，接下来 3 次转动有效；多份食物的层数可叠加`;
     case "PAYOUT_ADDED": return `${PAYOUT_SOURCE_LABELS[event.source]}追加赔付 +¥${event.amount}`;
     case "SYMBOL_CHANGED": return `第${event.reel + 1}轮第${event.row + 1}格：${SYMBOL_LABELS[event.from]} → ${SYMBOL_LABELS[event.to]}`;
-    case "RESOURCE_CHANGED": return `${event.resource === "tips" ? "小费" : event.resource === "focus" ? "专注" : event.resource === "omen" ? "恶兆" : event.resource === "agitation" ? "躁动" : "免费转动"} ${event.delta >= 0 ? "+" : ""}${event.delta}`;
+    case "RESOURCE_CHANGED": return `${event.resource === "tips" ? "小费" : event.resource === "focus" ? "干预点" : event.resource === "omen" ? "恶兆" : event.resource === "agitation" ? "躁动" : "免费转动"} ${event.delta >= 0 ? "+" : ""}${event.delta}`;
     case "SERVICE_USED": return `${SERVICE_PRESENTATIONS[event.serviceId].name}行动，花费 ¥${event.cost}`;
     case "CONTRACT_PROGRESS": return `合同进度 ${event.progress}${event.completed ? "，已经完成" : ""}`;
     case "SPIN_COMMITTED": return `本转已确认，最终赔付 ¥${event.finalPayout}`;
@@ -81,6 +82,7 @@ export function settlementEventLabel(state: RunState, event: GameEvent | null): 
 }
 
 export interface WinPresentationProps {
+  readonly compact?: boolean;
   readonly state: RunState;
   readonly presentation: SettlementPresentationState;
   readonly reducedMotion: boolean;
@@ -98,7 +100,7 @@ function stagedEventLabel(
   return settlementEventLabel(state, event);
 }
 
-export function WinPresentation({ state, presentation, reducedMotion }: WinPresentationProps): React.JSX.Element {
+export function WinPresentation({ state, presentation, reducedMotion, compact = false }: WinPresentationProps): React.JSX.Element {
   const plan = feedbackPlan(presentation.summary.tier, reducedMotion);
   const lineCount = presentation.summary.lines.length;
   const partCount = presentation.summary.partTriggers.length;
@@ -151,6 +153,7 @@ export function WinPresentation({ state, presentation, reducedMotion }: WinPrese
         </span>
       </div>
       <p className="cause-summary">{lineCount} 条中奖线 · {partCount} 次部件触发 · 因果链 {presentation.summary.chainLength}</p>
+      {compact && <HelpButton title="当前结算" trigger="说明" className="console-event-help"><p>{eventLabel}</p>{explanationLabels.map((label, index) => <p key={index}>{label}</p>)}<p>已入账 ¥{presentation.visiblePayoutTarget}；完整记录可在结算后的账本中查看。</p></HelpButton>}
       <div className={`event-card${explanationLabels.length > 0 ? " explanation-frame" : ""}`}>{
         presentation.summary.tier === "none"
           ? `空手而归 / 本转支出 ¥${state.pendingSpin?.wager ?? 0}`
@@ -164,8 +167,8 @@ export function WinPresentation({ state, presentation, reducedMotion }: WinPrese
       }</div>
       {!presentation.done && (
         <div className="presentation-actions">
-          <button type="button" onClick={presentation.speedUp}>加速演出</button>
-          <button className="primary-button" type="button" onClick={presentation.skip}>直接结算</button>
+          <button className={compact ? "primary-button" : undefined} type="button" onClick={presentation.speedUp}>加速演出</button>
+          <button className={compact ? undefined : "primary-button"} type="button" onClick={presentation.skip}>直接结算</button>
         </div>
       )}
     </section>

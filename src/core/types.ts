@@ -74,6 +74,9 @@ export interface CommandError {
 }
 
 export type PartId =
+  | "harvest-vat"
+  | "votive-candle"
+  | "shock-absorber"
   | "cherry-press"
   | "salad-dressing"
   | "lemon-infection"
@@ -148,7 +151,7 @@ export interface SpinReceipt {
   readonly shift: number;
   readonly afterHoursLevel: number;
   readonly isFree: boolean;
-  readonly baseSpinIndex: 1 | 2 | 3 | null;
+  readonly baseSpinIndex: BaseSpinIndex | null;
   readonly bankrollBefore: Money;
   readonly wager: Money;
   readonly finalGrid: Grid;
@@ -165,6 +168,9 @@ export interface PendingSpin {
 }
 
 export type UpgradeId =
+  | "harvest-vat"
+  | "votive-candle"
+  | "shock-absorber"
   | "cherry-press"
   | "salad-dressing"
   | "lemon-crate"
@@ -193,7 +199,14 @@ export type UpgradeId =
   | "statistics-terminal";
 
 export type ContractId = "combination" | "discipline" | "rescue";
-export type CounterId = "blankCharge" | "cherryWinsThisShift";
+export type CounterId = "blankCharge" | "cherryWinsThisShift" | "harvestCharge" | "votiveCharge";
+/** Optional new counters keep historical snapshots byte-for-byte readable. */
+export interface PartCounters {
+  readonly blankCharge: number;
+  readonly cherryWinsThisShift: number;
+  readonly harvestCharge?: number;
+  readonly votiveCharge?: number;
+}
 export type ExpenseSource = "wagers" | "kitchen" | "chapel" | "repair";
 export type CandidateRole = "synergy" | "pivot" | "wildcard";
 export type UpgradeKind = "reel-mod" | "part" | "tool";
@@ -336,10 +349,24 @@ export interface ShiftSnapshot {
   readonly totalPayout: Money;
 }
 
-export type RoomTier = 1 | 2 | 3;
+export type BaseSpinIndex = 1 | 2 | 3 | 4 | 5;
+export type PaidSpinLimit = 3 | 4 | 5;
+export type RoomTier = 1 | 2 | 3 | 4 | 5 | 6;
+export type RoomObjective =
+  | { readonly kind: "total-payout" }
+  | { readonly kind: "best-spin" }
+  | { readonly kind: "scoring-spins"; readonly count: number };
 export interface HotelProgress {
   readonly cleared: 0 | RoomTier;
-  readonly challenge: { readonly tier: RoomTier; readonly status: "playing" | "cleared" | "failed"; readonly target?: Money } | null;
+  readonly challenge: {
+    readonly tier: RoomTier;
+    readonly status: "playing" | "cleared" | "failed";
+    /** Captured rules preserve the meaning of a historical room result. */
+    readonly target?: Money;
+    readonly paidSpins?: PaidSpinLimit;
+    readonly objective?: RoomObjective;
+    readonly progress?: number;
+  } | null;
 }
 
 export interface RunState {
@@ -371,7 +398,7 @@ export interface RunState {
   readonly tips: number;
   readonly agitation: number;
   readonly omen: number;
-  readonly counters: Readonly<Record<CounterId, number>>;
+  readonly counters: PartCounters;
   readonly shiftFlags: ShiftFlags;
   readonly partSlots: readonly [
     PartInstance | null,

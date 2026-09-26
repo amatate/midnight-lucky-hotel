@@ -44,7 +44,7 @@ test("hotel recovery: migrate, buy one upgrade, reload and retry on mobile", asy
   await page.getByRole("dialog", { name: "恢复上次进度" }).getByRole("button", { name: "继续游戏" }).click();
   await expect(page.getByText(/本次整备已处理/)).toBeVisible();
   await page.getByRole("button", { name: "重试景观房", exact: true }).click();
-  await expect(page.getByRole("region", { name: "客房进度" })).toContainText("当段赔付 ¥0 / ¥1200");
+  await expect(page.getByRole("region", { name: "客房进度" })).toContainText("本段奖金 ¥0 / ¥1200");
   await expect(page.locator('[data-counter="bet"]')).toContainText("¥50");
   await page.getByRole("button", { name: "完整日志", exact: true }).click();
   await page.getByRole("button", { name: "核验记录一致性" }).click();

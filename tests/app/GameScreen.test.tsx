@@ -75,20 +75,23 @@ describe("GameScreen", () => {
     expect(screen.queryByText(/INVALID_PHASE|REMOVE_CRACKS is invalid during SHIFT_COMPLETE/)).not.toBeInTheDocument();
   });
 
-  it("presents one current decision beneath a single physical cabinet with room-number counters", () => {
+  it("shows service selection first, then one physical cabinet with room-number counters", async () => {
     render(<GameScreen seed={39} />);
 
     const decisions = screen.getAllByRole("region", { name: "当前决策" });
     expect(decisions).toHaveLength(1);
     expect(within(decisions[0]!).getByRole("group", { name: "选择服务" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "午夜好运老虎机" })).not.toBeInTheDocument();
+    await chooseFirstService();
 
     const cabinet = screen.getByRole("region", { name: "午夜好运老虎机" });
     const counters = within(cabinet).getByRole("group", { name: "酒店房号计数窗" });
-    expect(within(counters).getByText("余额 ¥100").closest("dd")).toHaveAttribute("data-counter", "bankroll");
+    expect(counters.querySelector("[data-counter='bankroll'] .bankroll-value")).toHaveTextContent(/^¥100$/);
     expect(within(counters).getByText("目标 ¥200")).toHaveAttribute("data-counter", "target");
     expect(within(counters).getByText("下注 ¥10")).toHaveAttribute("data-counter", "bet");
-    expect(within(cabinet).getByRole("button", { name: "拉动老虎机" })).toBeDisabled();
+    expect(within(cabinet).getByRole("button", { name: "拉动老虎机" })).toBeEnabled();
     expect(screen.queryByText("功能原型")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "菜单" }));
     expect(screen.getByText("减弱动态与闪烁")).toBeVisible();
   });
 
@@ -131,8 +134,9 @@ describe("GameScreen", () => {
     expect(within(chooser).getAllByText("行动")).toHaveLength(3);
     expect(within(chooser).getAllByText("协同")).toHaveLength(3);
     expect(within(chooser).getAllByText("代价／风险")).toHaveLength(3);
-    expect(within(chooser).getByText(/标准下注的 75%/)).toHaveTextContent("之后 3 次转动的适用赔付 +25%");
-    expect(within(chooser).getByText(/确定性地让选定转轮/)).toHaveTextContent("占用本转唯一一次干预");
+    expect(within(chooser).getByText(/标准下注的75%/)).toHaveTextContent("之后3转 +25%");
+    expect(within(chooser).getByText(/让一列按预览前进1格/)).toHaveTextContent("不花钱或干预点");
+    expect(within(chooser).getByText(/踹击用掉本转的干预机会/)).toHaveTextContent("1个永久裂纹");
     expect(container).not.toHaveTextContent(/reel-growth|bankroll-cost|intervention/);
   });
 
@@ -149,6 +153,7 @@ describe("GameScreen", () => {
     expect(screen.getAllByTestId("reel")).toHaveLength(3);
     expect(screen.getAllByTestId("cell")).toHaveLength(9);
     expect(screen.getAllByTestId("part-slot")).toHaveLength(5);
+    fireEvent.click(screen.getByRole("button", { name: /^状态/ }));
     expect(screen.getByText("会计工具")).toBeVisible();
     expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
   });
@@ -164,6 +169,7 @@ describe("GameScreen", () => {
     }} />);
 
     expect(screen.getByRole("button", { name: "拉动老虎机" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /准备 \/ 调注/ }));
     expect(screen.getByText("余额 ¥15 不足以支付当前激进下注 ¥20；可切换到保守下注 ¥5。")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "保守" }));
@@ -189,7 +195,7 @@ describe("GameScreen", () => {
     await user.click(lever);
 
     expect(screen.getByText("转轮旋转中")).toBeVisible();
-    expect(screen.getByText("余额 ¥0")).toBeVisible();
+    expect(document.querySelector(".bankroll-visual")).toHaveTextContent(/^余额 ¥0$/);
   });
 
   it("keeps a below-minimum paid pull legal so the accepted loss transition can run", async () => {
@@ -219,13 +225,13 @@ describe("GameScreen", () => {
       partSlots: [{ id: "safety-fuse", level: 1 }, null, null, null, null]
     }} />);
 
-    expect(screen.getByText("安全保险丝 · L1")).toBeVisible();
+    expect(screen.getByRole("button", { name: /安全保险丝 · L1/ })).toBeVisible();
     const lever = screen.getByRole("button", { name: "拉动老虎机" });
     expect(lever).toBeEnabled();
     await user.click(lever);
 
-    expect(screen.getByText("余额 ¥24.99")).toBeVisible();
-    expect(screen.queryByText("安全保险丝 · L1")).not.toBeInTheDocument();
+    expect(document.querySelector(".bankroll-visual")).toHaveTextContent(/^余额 ¥24.99$/);
+    expect(screen.queryByRole("button", { name: /安全保险丝 · L1/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/INSUFFICIENT_FUNDS|bankroll is below/)).not.toBeInTheDocument();
   });
 
@@ -235,7 +241,7 @@ describe("GameScreen", () => {
     await chooseFirstService();
 
     fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
-    expect(screen.getByText("余额 ¥90")).toBeVisible();
+    expect(document.querySelector(".bankroll-visual")).toHaveTextContent(/^余额 ¥90$/);
     expect(screen.getByText("转轮旋转中")).toBeVisible();
     expect(screen.queryByRole("button", { name: "停轮" })).not.toBeInTheDocument();
 
@@ -249,7 +255,8 @@ describe("GameScreen", () => {
     let history = JSON.parse(localStorage.getItem(RUN_STORAGE_KEY)!).commandHistory as readonly GameCommand[];
     expect(history.filter((command) => command.type === "REELS_STOPPED")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "重转第1轮" }));
+    fireEvent.click(screen.getByRole("button", { name: "选择第1轮" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认重转第1轮" }));
     expect(screen.getByText("转轮旋转中")).toBeVisible();
     await act(async () => vi.advanceTimersByTimeAsync(619));
     expect(screen.getByText("转轮旋转中")).toBeVisible();
@@ -264,7 +271,7 @@ describe("GameScreen", () => {
     await act(async () => vi.advanceTimersByTimeAsync(1));
     expect(screen.getByText("结算演出")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "直接结算" }));
-    expect(screen.getByText("第 1 班 · 1/3")).toBeVisible();
+    expect(screen.getByText("第 1 班 · 剩余 2 转")).toBeVisible();
   });
 
   it("wires the shared reel plan so a base result appears one authoritative reel at a time", async () => {
@@ -358,7 +365,7 @@ describe("GameScreen", () => {
     fireEvent.pointerMove(lever, { clientY: 108.4, pointerId: 2 });
     fireEvent.pointerUp(lever, { clientY: 108.4, pointerId: 2 });
     expect(screen.getByText("转轮旋转中")).toBeVisible();
-    expect(screen.getByText("余额 ¥90")).toBeVisible();
+    expect(document.querySelector(".bankroll-visual")).toHaveTextContent(/^余额 ¥90$/);
   });
 
   it("keeps the lever mounted and disabled through its impact while the reels start", async () => {
@@ -387,7 +394,7 @@ describe("GameScreen", () => {
     await completeSpin();
     await completeSpin();
 
-    expect(screen.getByText("第 1 班 · 3/3")).toBeVisible();
+    expect(screen.getByText("第 1 班 · 剩余 0 转")).toBeVisible();
     expect(screen.getAllByTestId("upgrade-card")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "放弃升级" })).toBeVisible();
   });
@@ -422,12 +429,12 @@ describe("GameScreen", () => {
     }} />);
 
     const decision = screen.getByRole("region", { name: "当前决策" });
-    const picker = within(decision).getByRole("group", { name: "选择升级" });
-    const receipt = within(decision).getByRole("status", { name: "班次小票" });
-    expect(receipt.nextElementSibling).toBe(picker);
+    expect(within(decision).getByRole("group", { name: "选择升级" })).toBeVisible();
     expect(within(decision).getAllByTestId("upgrade-card")).toHaveLength(3);
     expect(screen.queryByRole("region", { name: "午夜好运老虎机" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "老虎机转轮" })).not.toBeInTheDocument();
+    fireEvent.click(within(decision).getByRole("button", { name: "查看本班收支" }));
+    expect(within(screen.getByRole("dialog", { name: "本班小票" })).getByRole("status", { name: "班次小票" })).toBeVisible();
   });
 
   it("reveals numeric estimates only at their purchased tool levels", () => {
@@ -475,7 +482,9 @@ describe("GameScreen", () => {
       partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null]
     }} />);
 
-    const acquired = screen.getByRole("region", { name: "已获得升级" });
+    fireEvent.click(screen.getByRole("button", { name: "菜单" }));
+    const acquired = screen.getByText(/已获得升级 ·/).closest("details")!;
+    fireEvent.click(within(acquired).getByText(/已获得升级 ·/));
     expect(within(acquired).getByText("计算器")).toBeVisible();
     expect(within(acquired).getByText("果酱罐")).toBeVisible();
   });
@@ -543,7 +552,7 @@ describe("GameScreen", () => {
     await user.click(screen.getByRole("button", { name: `获取${name}` }));
 
     expect(screen.getByText("准备拉动")).toBeVisible();
-    expect(screen.getByText("第 2 班 · 0/3")).toBeVisible();
+    expect(screen.getByText("第 2 班 · 剩余 3 转")).toBeVisible();
     expect(screen.queryByText(/INVALID_/)).not.toBeInTheDocument();
   });
 
@@ -563,8 +572,11 @@ describe("GameScreen", () => {
     await user.click(screen.getByRole("button", { name: "获取过载马达" }));
 
     expect(screen.getByText("准备拉动")).toBeVisible();
-    expect(screen.getByText("过载马达 · L1")).toBeVisible();
-    expect(within(screen.getByRole("region", { name: "已获得升级" })).getByText("过载马达")).toBeVisible();
+    expect(screen.getByRole("button", { name: /过载马达 · L1/ })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "菜单" }));
+    const acquired = screen.getByText(/已获得升级 ·/).closest("details")!;
+    fireEvent.click(within(acquired).getByText(/已获得升级 ·/));
+    expect(within(acquired).getByText("过载马达")).toBeVisible();
     expect(screen.queryByText("午夜钟声")).not.toBeInTheDocument();
   });
 

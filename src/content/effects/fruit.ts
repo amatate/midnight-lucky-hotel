@@ -11,7 +11,19 @@ import type {
 } from "@/core/types";
 import { PAYLINES } from "@/core/paylines";
 
-const FRUIT_PART_IDS = new Set<PartId>(["lemon-infection", "jam-jar", "fruit-salad", "leftovers", "cherry-press", "salad-dressing"]);
+const FRUIT_PART_IDS = new Set<PartId>(["harvest-vat", "lemon-infection", "jam-jar", "fruit-salad", "leftovers", "cherry-press", "salad-dressing"]);
+
+function harvestVatEffects(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
+  if (part.id !== "harvest-vat" || context.state.pendingSpin?.isFree) return [];
+  const fruitLine = signal.type === "LINE_AWARDED" && ["cherry", "lemon"].includes(signal.win.symbol);
+  const salad = signal.type === "EFFECT_APPLIED" && signal.effect.type === "ADD_PATTERN_PAYOUT";
+  if ((!fruitLine && !salad) || !context.fruitPart?.claimTrigger("harvest-vat")) return [];
+  const charge = context.state.counters.harvestCharge ?? 0;
+  return charge < 2 ? [{ type: "INCREMENT_COUNTER", counter: "harvestCharge", amount: 1 }] : [
+    { type: "INCREMENT_COUNTER", counter: "harvestCharge", amount: -charge },
+    { type: "ADD_PAYOUT", source: "part", amount: (part.level === 1 ? 12 : 24) * context.currentBet }
+  ];
+}
 
 function isFruitPart(part: PartInstance): boolean {
   return FRUIT_PART_IDS.has(part.id);
@@ -112,6 +124,7 @@ function reactOneFruitPart(
   signal: ResolveSignal
 ): readonly Effect[] {
   return [
+    ...harvestVatEffects(part, context, signal),
     ...cherryPressEffects(part, context, signal),
     ...saladDressingEffects(part, context, signal),
     ...infectionEffects(part, context, signal),

@@ -91,7 +91,7 @@ export const SERVICE_PRESENTATIONS = {
   kitchen: {
     name: "深夜厨房",
     identity: "主动消费的水果路线：先买食物，再把短期加成滚成连续小奖。",
-    action: "每班第一次基础转动前可支付本关标准下注的 75%（初始 ¥7.5），立即获得接下来 3 次转动的适用赔付 +50%；同时向选定轮加入食物，抽中后再获得之后 3 次转动的适用赔付 +25%。",
+    action: "每班任选一转开始前，可支付本关标准下注的 75%（初始 ¥7.5），立即获得接下来 3 次转动的适用赔付 +50%；同时向选定轮加入食物，抽中后再获得之后 3 次转动的适用赔付 +25%。每班限一次。",
     synergies: "剩菜打包（把食物送回最短轮）＋果酱罐（樱桃连线逐步加价）",
     risk: "餐费立即扣除，不随保守／激进档切换；免费转也消耗加成次数，空转不会返还餐费。食物会加长转轮；过载保护与保险丝救援不享受加成。"
   },
@@ -112,6 +112,24 @@ export const SERVICE_PRESENTATIONS = {
 } as const satisfies Readonly<Record<ServiceId, ServicePresentation>>;
 
 const UPGRADE_COPY = {
+  "harvest-vat": {
+    effect: "有樱桃线、柠檬线或水果沙拉中奖的付费转，存 1 格果酿；第 3 格立即开桶，额外支付 12 × 当前下注并清零。",
+    levelTwoEffect: "L2：开桶额外支付 24 × 当前下注。",
+    synergy: "稳定水果构筑负责存酿；可等即将开桶时买餐，放大这一转。",
+    risk: "每个付费转最多存 1 格，免费转不存也不开桶；跨班保留。占一个槽，前两次只积累；替换果桶会丢失存酿。", targetHint: null
+  },
+  "votive-candle": {
+    effect: "转动前花 1 小费点烛，存入最多 3 层恶兆；下一次烛台正常工作时，每层额外支付 2 × 当前下注，不需要幸运7中奖。",
+    levelTwoEffect: "L2：每层额外支付 4 × 当前下注。",
+    synergy: "祈祷失败积累恶兆；点烛可择机兑现，也能搭配食物，不占干预。",
+    risk: "小费和恶兆立即扣除，收集器不能重复兑现这部分恶兆；失效时存量保留等待下一转。跨班保留，替换烛台会丢失存量。", targetHint: null
+  },
+  "shock-absorber": {
+    effect: "每转抵消 1 个可见裂纹造成的停工，并按 1 个可见实体裂纹支付 2 × 当前下注；自己免疫裂纹。",
+    levelTwoEffect: "L2：抵消 2 个裂纹，按最多 2 个实体裂纹各付 3 × 当前下注。",
+    synergy: "少量裂纹变收入，还能保护电容或马达；留给磁铁回收，或用维修间清理。",
+    risk: "不移除裂纹，多于保护额度的裂纹仍会让其他部件停工；占一个槽，减少停工也可能减少骗保机会。", targetHint: null
+  },
   "cherry-press": {
     effect: "每转第一条樱桃中奖线触发：盘面字面樱桃从第 3 颗起，每颗额外支付 0.5 × 下注，最多计 6 颗。",
     levelTwoEffect: "L2：每颗额外支付 1 × 下注，仍最多计 6 颗。", synergy: "樱桃去核器提高密度，果酱罐继续累积连线奖金。",
@@ -266,7 +284,7 @@ const UPGRADE_COPY = {
     effect: "余额低于最低下注时自动消耗，补入 1 次最低下注，至少 ¥20。",
     levelTwoEffect: "L2：补入 2 次最低下注，至少 ¥40。",
     synergy: "殉道者硬币会主动压低余额，维修间帮助稳定到触发线之前。",
-    risk: "一次性消耗品；只有严格低于最低下注才触发。保住下注机会，不保证中奖或凑足客房三转备付金。",
+    risk: "一次性消耗品；只有严格低于最低下注才触发。保住下注机会，不保证中奖或凑足客房要求的全部下注备付金。",
     targetHint: null
   },
   calculator: {
@@ -293,6 +311,9 @@ const UPGRADE_COPY = {
 } as const satisfies Readonly<Record<UpgradeId, UpgradeCopy>>;
 
 const UPGRADE_DECISION_COPY = {
+  "harvest-vat": { decisionEffect: "水果中奖存酿，第 3 次额外 +12×下注", triggerCondition: "只计付费转，每转存 1 格；跨班保留", immediateCost: null },
+  "votive-candle": { decisionEffect: "花小费把最多 3 恶兆换成下一转奖金", triggerCondition: "主动点烛，每层 +2×下注，不必中奖", immediateCost: "点烛花 1 小费，消耗存入的恶兆" },
+  "shock-absorber": { decisionEffect: "挡住 1 个裂纹停工，并获得 2×下注", triggerCondition: "需可见裂纹；自己免疫", immediateCost: null },
   "cherry-press": { decisionEffect: "樱桃中奖时，从第 3 颗樱桃起每颗 +0.5×下注", triggerCondition: "每转首次樱桃线，最多计 6 颗；百搭不计数", immediateCost: null },
   "salad-dressing": { decisionEffect: "每条水果沙拉再加 50% 奖金", triggerCondition: "需要水果沙拉触发", immediateCost: null },
   "lemon-crate": { decisionEffect: "选两轮，各加入 2 个柠檬", triggerCondition: null, immediateCost: "两轮永久变长" },
@@ -421,6 +442,14 @@ function equippedImpact(state: RunState, part: PartInstance): string {
   const bet = getCurrentBet(state);
   const status = latestPartStatus(state, part.id);
   switch (part.id) {
+    case "harvest-vat":
+      return state.phase === "RESOLVING_EFFECTS" ? `存酿进度结算后更新。${status}`
+        : `果酿 ${state.counters.harvestCharge ?? 0}/3；再有 ${3 - (state.counters.harvestCharge ?? 0)} 个付费转水果中奖即可开桶，加 ¥${money((part.level === 1 ? 12 : 24) * bet)}（未计食物）。${status}`;
+    case "votive-candle":
+      return state.phase === "RESOLVING_EFFECTS" ? `烛台存量结算后更新。${status}`
+        : `烛台已存 ${state.counters.votiveCharge ?? 0} 层；每层可兑 ¥${money((part.level === 1 ? 2 : 4) * bet)}（未计食物）。尚有恶兆 ${state.omen}，小费 ${state.tips}。${status}`;
+    case "shock-absorber":
+      return `最多挡住 ${part.level} 个裂纹停工；按最多 ${part.level} 个实体裂纹各付 ¥${money((part.level === 1 ? 2 : 3) * bet)}。不消除裂纹。${status}`;
     case "jam-jar": {
       const lines = state.counters.cherryWinsThisShift;
       const payout = Math.min(6, lines) * (part.level === 1 ? 0.5 : 1) * bet;

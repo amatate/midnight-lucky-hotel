@@ -117,7 +117,7 @@ async function completePaidSpin(
   }
 
   await expect(decision).toHaveAttribute("data-phase", "AWAITING_INTERVENTION");
-  await expect(decision.getByRole("button", { name: /^重转第\d轮$/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /^选择第\d轮$/ }).first()).toBeVisible();
   await decision.getByRole("button", { name: "收下这把" }).click();
 
   await expect(decision).toHaveAttribute("data-phase", "RESOLVING_EFFECTS");

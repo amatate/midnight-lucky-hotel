@@ -1,0 +1,295 @@
+{
+  "fingerprint": "rules-b692b1c641f44aad",
+  "variant": false,
+  "samples": 12,
+  "method": "Synthetic equipped checkpoints, all six actual room goals, real commands; no upgrades or retries. 20B starting wallet, chapel 3 omen, 3 tips. Meal/offering deducted; new candle costs a tip. New variant includes later meal timing. No inferred whole-run win rate or equal acquisition cost.",
+  "rows": [
+    {
+      "id": "fruit-start",
+      "rooms": [
+        {
+          "tier": 1,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": -1.1
+        },
+        {
+          "tier": 2,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": -1.1
+        },
+        {
+          "tier": 3,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": -1.1
+        },
+        {
+          "tier": 4,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": -0.21
+        },
+        {
+          "tier": 5,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": -0.21
+        },
+        {
+          "tier": 6,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": -0.35
+        }
+      ]
+    },
+    {
+      "id": "fruit-growing",
+      "rooms": [
+        {
+          "tier": 1,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 6.58
+        },
+        {
+          "tier": 2,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 6.58
+        },
+        {
+          "tier": 3,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 6.58
+        },
+        {
+          "tier": 4,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 8.91
+        },
+        {
+          "tier": 5,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 8.91
+        },
+        {
+          "tier": 6,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 11.27
+        }
+      ]
+    },
+    {
+      "id": "fruit-mature",
+      "rooms": [
+        {
+          "tier": 1,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 38.98
+        },
+        {
+          "tier": 2,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 38.98
+        },
+        {
+          "tier": 3,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 38.98
+        },
+        {
+          "tier": 4,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 48.09
+        },
+        {
+          "tier": 5,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 48.09
+        },
+        {
+          "tier": 6,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 57.55
+        }
+      ]
+    },
+    {
+      "id": "chapel-growing",
+      "rooms": [
+        {
+          "tier": 1,
+          "passed": 11,
+          "completed": 12,
+          "meanNetB": 28.67
+        },
+        {
+          "tier": 2,
+          "passed": 10,
+          "completed": 12,
+          "meanNetB": 28.67
+        },
+        {
+          "tier": 3,
+          "passed": 4,
+          "completed": 12,
+          "meanNetB": 28.67
+        },
+        {
+          "tier": 4,
+          "passed": 6,
+          "completed": 12,
+          "meanNetB": 37
+        },
+        {
+          "tier": 5,
+          "passed": 7,
+          "completed": 12,
+          "meanNetB": 37
+        },
+        {
+          "tier": 6,
+          "passed": 1,
+          "completed": 12,
+          "meanNetB": 48.42
+        }
+      ]
+    },
+    {
+      "id": "chapel-mature",
+      "rooms": [
+        {
+          "tier": 1,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 171.25
+        },
+        {
+          "tier": 2,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 171.25
+        },
+        {
+          "tier": 3,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 171.25
+        },
+        {
+          "tier": 4,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 220.13
+        },
+        {
+          "tier": 5,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 220.13
+        },
+        {
+          "tier": 6,
+          "passed": 12,
+          "completed": 12,
+          "meanNetB": 271.63
+        }
+      ]
+    },
+    {
+      "id": "fault-growing",
+      "rooms": [
+        {
+          "tier": 1,
+          "passed": 1,
+          "completed": 12,
+          "meanNetB": 4.98
+        },
+        {
+          "tier": 2,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 4.98
+        },
+        {
+          "tier": 3,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 4.98
+        },
+        {
+          "tier": 4,
+          "passed": 1,
+          "completed": 12,
+          "meanNetB": 6.9
+        },
+        {
+          "tier": 5,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 6.9
+        },
+        {
+          "tier": 6,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 8.54
+        }
+      ]
+    },
+    {
+      "id": "fault-mature",
+      "rooms": [
+        {
+          "tier": 1,
+          "passed": 3,
+          "completed": 12,
+          "meanNetB": 10.15
+        },
+        {
+          "tier": 2,
+          "passed": 1,
+          "completed": 12,
+          "meanNetB": 10.15
+        },
+        {
+          "tier": 3,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 10.15
+        },
+        {
+          "tier": 4,
+          "passed": 1,
+          "completed": 12,
+          "meanNetB": 12.48
+        },
+        {
+          "tier": 5,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 12.48
+        },
+        {
+          "tier": 6,
+          "passed": 0,
+          "completed": 12,
+          "meanNetB": 15
+        }
+      ]
+    }
+  ]
+}

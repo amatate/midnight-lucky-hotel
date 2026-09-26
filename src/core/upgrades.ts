@@ -174,7 +174,11 @@ function replacePart(state: RunState, id: PartId, replaceSlot: number): Dispatch
   const partSlots = state.partSlots.map((part, slot) =>
     slot === replaceSlot ? { id, level: 1 as const } : part
   ) as unknown as RunState["partSlots"];
-  return { ...state, partSlots };
+  const removed = state.partSlots[replaceSlot]?.id;
+  const counters = { ...state.counters,
+    ...(removed === "harvest-vat" ? { harvestCharge: 0 } : {}),
+    ...(removed === "votive-candle" ? { votiveCharge: 0 } : {}) };
+  return { ...state, partSlots, counters };
 }
 
 function acquireTool(state: RunState, id: UpgradeId): DispatchResult | RunState {

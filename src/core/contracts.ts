@@ -1,4 +1,5 @@
 import { BASE_PAYTABLE } from "@/content/base-machine";
+import { getPaidSpinLimit } from "@/content/hotel";
 import { getSafetyFuseRescuePayout } from "@/content/effects/neutral";
 import type { GameEvent } from "@/core/events";
 import { evaluateBaseWins, PAYLINES } from "@/core/paylines";
@@ -44,7 +45,7 @@ const MAX_EXACT_RESCUE_TRANSITIONS = 1_000_000;
 const MAX_EXACT_REPAIR_TRANSITIONS = 100_000;
 
 function remainingBaseSpins(state: RunState): number {
-  return Math.max(0, 3 - state.baseSpinsInShift);
+  return Math.max(0, getPaidSpinLimit(state) - state.baseSpinsInShift);
 }
 
 function hasPlayableFuturePull(state: RunState): boolean {

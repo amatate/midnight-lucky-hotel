@@ -94,11 +94,11 @@ describe("fixed hotel challenges and compatible archives", () => {
     expect(dispatchCommand(state, { type: "SET_BET_MODE", mode: "aggressive" }).ok).toBe(false);
     expect(dispatchCommand(state, { type: "CONTINUE" }).ok).toBe(false);
     state = pull(pull(pull(state)));
-    expect(state.hotel?.challenge).toEqual({ tier: 1, status: "failed" });
+    expect(state.hotel?.challenge).toMatchObject({ tier: 1, status: "failed" });
     expect(state.shiftPayout).toBe(337.5); // Big balance does not buy a pass.
     expect(state.currentCandidates).toBeNull();
     const retry = send(state, { type: "ENTER_ROOM" });
-    expect(retry.hotel?.challenge).toEqual({ tier: 1, status: "playing" });
+    expect(retry.hotel?.challenge).toMatchObject({ tier: 1, status: "playing" });
     expect(retry.shiftPayout).toBe(0);
     const free = send(state, { type: "CONTINUE" });
     expect(free.hotel?.challenge).toBeNull();
@@ -129,7 +129,7 @@ describe("fixed hotel challenges and compatible archives", () => {
       expect(dispatchCommand(session.record.snapshot, { type: "ENTER_ROOM" }).ok).toBe(false);
       log({ type: "DECLINE_UPGRADE" });
     }
-    expect(dispatchCommand(session.record.snapshot, { type: "ENTER_ROOM" }).ok).toBe(false);
+    expect(dispatchCommand(session.record.snapshot, { type: "ENTER_ROOM" }).ok).toBe(true);
     log({ type: "CONTINUE" });
     expect(session.record.snapshot.hotel).toEqual({ cleared: 3, challenge: null });
     const imported = importArchive(readLibrary(), exportArchive(session.record));

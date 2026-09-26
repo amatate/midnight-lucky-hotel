@@ -17,7 +17,7 @@
 .help-facts dt { color: #cfad70; font-size: 12px; letter-spacing: .1em; margin-bottom: 3px; }
 .help-facts dd { margin: 0; }
 .help-footnote { flex-shrink: 0; margin: 18px 0 0; font-size: 12px; color: #b7a48c; }
-.help-content .part-detail { margin: 14px 0 0; padding: 0; background: transparent; border: 0; }
+.help-content .part-detail { margin: 14px 0 0; padding: 0; background: transparent; color: #f2e3c0; border: 0; }
 .help-content .part-detail-title { display: none; }
 .game-guide { line-height: 1.7; }
 .game-guide > p { color: #cdbda5; }

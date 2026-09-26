@@ -9,6 +9,7 @@ import type {
 } from "@/core/types";
 
 const VIOLENT_PART_IDS = new Set<PartId>([
+  "shock-absorber",
   "scrap-magnet",
   "loose-spring",
   "blank-capacitor",
@@ -111,11 +112,20 @@ function overloadMotor(part: PartInstance, context: ResolveContext, signal: Reso
 
 function reactOnePart(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
   return [
+    ...shockAbsorber(part, context, signal),
     ...scrapMagnet(part, context, signal),
     ...blankCapacitor(part, context, signal),
     ...warrantyFraud(part, context, signal),
     ...overloadMotor(part, context, signal)
   ];
+}
+
+function shockAbsorber(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
+  if (part.id !== "shock-absorber" || signal.type !== "GRID_ACCEPTED") return [];
+  const authorized = readAuthorizedViolentPart(context);
+  const count = Math.min(part.level, authorized?.visiblePhysicalCount("crack") ?? 0);
+  if (count === 0 || !authorized?.claimTrigger("shock-absorber")) return [];
+  return [{ type: "ADD_PAYOUT", source: "part", amount: count * (part.level === 1 ? 2 : 3) * context.currentBet }];
 }
 
 /** Returns violent-route effects for the exact settlement-owned part registration in context. */

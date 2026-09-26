@@ -37,10 +37,10 @@ describe("UpgradePicker", () => {
     expect(within(jamJar).queryByText(/协同/)).not.toBeInTheDocument();
     await user.click(within(jamJar).getByRole("button", { name: "效果与代价" }));
     const dialog = screen.getByRole("dialog", { name: "果酱罐升级说明" });
-    await user.click(within(dialog).getByText("攻略详情"));
-    const strategy = within(dialog).getByText("攻略详情").closest("details")!;
+    await user.click(within(dialog).getByText("搭配建议与完整规则"));
+    const strategy = within(dialog).getByText("搭配建议与完整规则").closest("details")!;
     expect(strategy).toHaveTextContent("此前樱桃中奖线数（最多计 6 层）× 0.5 × 当前下注");
-    expect(within(strategy).getByText(/协同/).closest("p")).toBeVisible();
+    expect(within(strategy).getByText(/适合搭配/).closest("p")).toBeVisible();
     expect(within(strategy).getByText(/代价／风险/).closest("p")).toBeVisible();
     expect(container).not.toHaveTextContent(/reel-growth|reel-control|shift-scaling/);
   });

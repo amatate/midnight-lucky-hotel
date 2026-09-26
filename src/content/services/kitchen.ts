@@ -23,9 +23,6 @@ export function buyFood(state: RunState, reel: ReelIndex): DispatchResult {
   if (state.pendingSpin !== null) {
     return rejected(state, "INVALID_PHASE", "BUY_FOOD requires no pending spin");
   }
-  if (state.baseSpinsInShift !== 0) {
-    return rejected(state, "RESOURCE_EXHAUSTED", "food is only available before the first base spin");
-  }
   if (state.service !== "kitchen") {
     return rejected(state, "INVALID_TARGET", "kitchen service is not equipped");
   }

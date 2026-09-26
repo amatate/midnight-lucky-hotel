@@ -20,7 +20,7 @@ it("shows local net profit, all lifetime expenses, old result target and exact n
   expect(screen.getByText(/自由加班下一转：¥31.25/)).toBeVisible();
   expect(screen.queryByText(/最终余额/)).not.toBeInTheDocument();
   expect(screen.getByText(/本段奖金 ¥1185 \/ ¥2000/)).toBeVisible();
-  expect(screen.getByText(/新版目标 ¥1200/)).toBeVisible();
+  expect(screen.getByText(/新版目标：本段奖金合计 ¥1200/)).toBeVisible();
   fireEvent.click(screen.getByText("整局累计账本（从开局至今）"));
   expect(screen.getByText(/献祭／奉献 −¥516/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "查看金币整备 · ¥100" }));

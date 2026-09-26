@@ -1,4 +1,5 @@
-import { canOpenWorkshop, getWorkshopCost, HOTEL_ROOMS, nextRoomTier } from "@/content/hotel";
+import { canOpenWorkshop, getRoomProgress, getWorkshopCost, HOTEL_ROOMS, HOTEL_ROOM_TIERS, nextRoomTier } from "@/content/hotel";
+import { roomGoalCopy, roomProgressCopy } from "@/app/room-copy";
 import type { GameCommand } from "@/core/commands";
 import type { RunState } from "@/core/types";
 
@@ -6,10 +7,12 @@ export function RoomResult({ state }: { readonly state: RunState }): React.JSX.E
   const challenge = state.hotel?.challenge;
   if (challenge == null || challenge.status === "playing") return null;
   const room = HOTEL_ROOMS[challenge.tier];
+  const progress = getRoomProgress(state)!;
   return <section className="room-challenge-card" aria-label="客房挑战结果">
     <h3>{room.name} · {challenge.status === "cleared" ? "挑战成功" : "未达标"}</h3>
-    <p>本段奖金 ¥{state.shiftPayout} / ¥{challenge.target ?? room.target} · 已通关 {state.hotel?.cleared}/3 间</p>
-    {challenge.target !== undefined && challenge.target !== room.target && <p>以上是旧规则成绩；下次挑战使用新版目标 ¥{room.target}，不追溯修改上次结果。</p>}
+    <p>{roomProgressCopy(progress)} · 已通关 {state.hotel?.cleared}/{HOTEL_ROOM_TIERS.length} 间</p>
+    {progress.objective.kind !== "total-payout" && <p>本段奖金共 ¥{state.shiftPayout}，已计入余额；通关看上方房间目标。</p>}
+    {challenge.target !== undefined && challenge.target !== room.target && <p>以上是旧规则成绩；下次挑战使用新版目标：{roomGoalCopy(room.objective, room.target)}，不追溯修改上次结果。</p>}
     <p>{challenge.status === "cleared"
       ? state.currentCandidates !== null && state.workshop?.status !== "shopping" ? "获得一次免费升级，处理后可选择下一步。" : "本房免费升级已处理，可选择下一步。"
       : "挑战未通过，不等于亏钱。已得奖金保留；没有免费通关奖励，但可用金币整备补强，再原房重试。"}</p>
@@ -37,20 +40,23 @@ export function RoomChoices({ state, onCommand }: {
   return <section className="room-challenge-card" aria-label="升房挑战">
     <p className="eyebrow">下一晚，由你决定</p>
     <h3>自由加班，或升房挑战</h3>
-    <p>自由加班每完成一段，下段下注 ×1.25；房间挑战与重试不增加这个等级。升房用固定下注挑战本段奖金，旧余额不抵目标。</p>
-    <ol className="room-itinerary">{([1, 2, 3] as const).map((tier) => {
+    <p>自由加班每完成一段，下段下注 ×1.25；房间挑战与重试不增加这个等级。升房用固定下注挑战不同目标，旧余额不抵目标。</p>
+    <ol className="room-itinerary">{HOTEL_ROOM_TIERS.map((tier) => {
       const item = HOTEL_ROOMS[tier];
       return <li key={tier} data-current={tier === next ? "true" : undefined}>
         <strong>{item.name}{(state.hotel?.cleared ?? 0) >= tier ? " · 已通关" : ""}</strong>
-        <span>下注 ¥{item.bet} · 赔付目标 ¥{item.target} · 专注上限 {item.focusCap}</span>
+        <span>{item.paidSpins} 次付费转 · 每转 ¥{item.bet} · 干预点上限 {item.focusCap}</span>
+        <span>{roomGoalCopy(item.objective, item.target)}{item.objective.kind === "scoring-spins" ? "，不要求连续" : ""}</span>
+        {tier === next && <span>{item.hint}</span>}
       </li>;
     })}</ol>
-    <p>每房 3 次付费转，连带免费转的赔付也计入目标。目标不扣款，没有门票；入房需备好 3 次下注，餐费另算。</p>
-    {room === null ? <p>三间客房已全部通关！可以继续自由加班或结账留档。</p> : <>
-      <button className="primary-button" type="button" disabled={state.bankroll < room.bet * 3} onClick={() => onCommand({ type: "ENTER_ROOM" })}>
+    <p>免费转也计入所有客房目标，但不占付费转名额。全部转完再判定通关，提前达标也不会截断本段。目标不扣款，没有门票；入房需备好本房全部下注，餐费另算。</p>
+    {room === null ? <p>{HOTEL_ROOM_TIERS.length} 间客房已全部通关！可以继续自由加班或结账留档。</p> : <>
+      <p>下一房备付金 ¥{room.bet * room.paidSpins}（{room.paidSpins} 次 × ¥{room.bet}）。</p>
+      <button className="primary-button" type="button" disabled={state.bankroll < room.bet * room.paidSpins} onClick={() => onCommand({ type: "ENTER_ROOM" })}>
         {state.hotel?.challenge?.status === "failed" ? "重试" : "升房挑战 · "}{room.name}
       </button>
-      {state.bankroll < room.bet * 3 && <p role="status">需要至少 ¥{room.bet * 3} 备付金，当前不足。</p>}
+      {state.bankroll < room.bet * room.paidSpins && <p role="status">需要至少 ¥{room.bet * room.paidSpins} 备付金，当前不足。</p>}
     </>}
   </section>;
 }

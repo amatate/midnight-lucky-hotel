@@ -1,4 +1,5 @@
 import { MAX_RECEIPT_AWARDS, MAX_SPIN_HISTORY, isSpinReceipt } from "@/core/receipts";
+import { getPaidSpinLimit, MAX_ROOM_TIER } from "@/content/hotel";
 import type { PendingSpin, ReceiptAward, RunState, SpinReceipt } from "@/core/types";
 import {
   ATTRIBUTION,
@@ -12,6 +13,8 @@ import {
   isEnum,
   isGameEventV2,
   isPlainRecord,
+  isPaidSpinLimit,
+  isRoomObjective,
   isReelDraw,
   isReels,
   isSafeInteger,
@@ -109,17 +112,22 @@ export function decodeRunStateV2(value: unknown): RunState | null {
   }
   if (Object.hasOwn(value, "hotel")) {
     const hotel = value.hotel;
-    if (!hasShape(hotel, ["cleared", "challenge"]) || !isSafeInteger(hotel.cleared, 0, 3)) return null;
+    if (!hasShape(hotel, ["cleared", "challenge"]) || !isSafeInteger(hotel.cleared, 0, MAX_ROOM_TIER)) return null;
     if (hotel.challenge !== null) {
       const challenge = hotel.challenge;
-      if (!hasShape(challenge, ["tier", "status"], ["target"]) || !isSafeInteger(challenge.tier, 1, 3)
+      if (!hasShape(challenge, ["tier", "status"], ["target", "paidSpins", "objective", "progress"]) || !isSafeInteger(challenge.tier, 1, MAX_ROOM_TIER)
         || (Object.hasOwn(challenge, "target") && !isBoundedMoney(challenge.target))
+        || (Object.hasOwn(challenge, "paidSpins") && !isPaidSpinLimit(challenge.paidSpins))
+        || (Object.hasOwn(challenge, "objective") && !isRoomObjective(challenge.objective))
+        || (Object.hasOwn(challenge, "progress") && (!isBoundedMoney(challenge.progress)
+          || isPlainRecord(challenge.objective) && challenge.objective.kind === "scoring-spins" && !isSafeInteger(challenge.progress, 0)))
         || !["playing", "cleared", "failed"].includes(String(challenge.status))
         || value.shift !== 5 || !isSafeInteger(value.afterHoursLevel, 1) || value.exitUnlocked !== true) return null;
       if (challenge.status === "cleared" ? challenge.tier !== hotel.cleared : challenge.tier !== hotel.cleared + 1) return null;
       if (challenge.status === "playing") {
         if (!["READY_TO_SPIN", "SPINNING", "AWAITING_INTERVENTION", "RESOLVING_EFFECTS", "RUN_LOST"].includes(String(value.phase))) return null;
-      } else if (!["AFTER_HOURS", "RUN_WON"].includes(String(value.phase)) || value.baseSpinsInShift !== 3) return null;
+      } else if (!["AFTER_HOURS", "RUN_WON"].includes(String(value.phase))
+        || value.baseSpinsInShift !== getPaidSpinLimit(value as unknown as RunState)) return null;
     }
   }
   if (!validateCommonSnapshot(value, isPendingSpinV2, isGameEventV2)

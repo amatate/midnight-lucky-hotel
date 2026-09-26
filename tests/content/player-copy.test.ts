@@ -13,6 +13,9 @@ import type { PartId, PartInstance, RunState, ServiceId, UpgradeId } from "@/cor
 const PART_IDS = UPGRADE_IDS.filter((id): id is PartId => UPGRADES[id].kind === "part");
 
 const DECISION_COPY: Readonly<Record<UpgradeId, readonly [string, string | null, string | null]>> = {
+  "harvest-vat": ["水果中奖存酿，第 3 次额外 +12×下注", "只计付费转，每转存 1 格；跨班保留", null],
+  "votive-candle": ["花小费把最多 3 恶兆换成下一转奖金", "主动点烛，每层 +2×下注，不必中奖", "点烛花 1 小费，消耗存入的恶兆"],
+  "shock-absorber": ["挡住 1 个裂纹停工，并获得 2×下注", "需可见裂纹；自己免疫", null],
   "cherry-press": ["樱桃中奖时，从第 3 颗樱桃起每颗 +0.5×下注", "每转首次樱桃线，最多计 6 颗；百搭不计数", null],
   "salad-dressing": ["每条水果沙拉再加 50% 奖金", "需要水果沙拉触发", null],
   "lemon-crate": ["选两轮，各加入 2 个柠檬", null, "两轮永久变长"],
@@ -42,6 +45,9 @@ const DECISION_COPY: Readonly<Record<UpgradeId, readonly [string, string | null,
 };
 
 const STATIC_FACTS: Readonly<Record<UpgradeId, readonly string[]>> = {
+  "harvest-vat": ["付费转", "第 3 格", "12 × 当前下注", "清零"],
+  "votive-candle": ["1 小费", "最多 3 层恶兆", "2 × 当前下注", "不需要幸运7"],
+  "shock-absorber": ["抵消 1 个", "2 × 当前下注", "免疫裂纹"],
   "cherry-press": ["第一条樱桃中奖线", "第 3 颗起", "0.5 × 下注", "最多计 6 颗"],
   "salad-dressing": ["每条水果沙拉", "50%", "分别享受食物加成"],
   "lemon-crate": ["两个不同转轮", "各永久加入 2 个柠檬"],
@@ -71,6 +77,9 @@ const STATIC_FACTS: Readonly<Record<UpgradeId, readonly string[]>> = {
 };
 
 const LEVEL_TWO_FACTS: Readonly<Record<PartId, readonly string[]>> = {
+  "harvest-vat": ["24 × 当前下注"],
+  "votive-candle": ["4 × 当前下注"],
+  "shock-absorber": ["抵消 2 个", "3 × 当前下注"],
   "cherry-press": ["1 × 下注"],
   "salad-dressing": ["100%"],
   "lemon-infection": ["2 个", "收成提高为 5 × 下注"],
@@ -135,9 +144,9 @@ describe("player-facing content", () => {
     expect(SERVICE_PRESENTATIONS.security.action).toContain("永久裂纹");
   });
 
-  it("gives all 26 upgrades complete factual copy and every part a numerical L2 delta", () => {
-    expect(UPGRADE_IDS).toHaveLength(26);
-    expect(PART_IDS).toHaveLength(16);
+  it("gives all 29 upgrades complete factual copy and every part a numerical L2 delta", () => {
+    expect(UPGRADE_IDS).toHaveLength(29);
+    expect(PART_IDS).toHaveLength(19);
     const state = upgradeState();
 
     for (const id of UPGRADE_IDS) {
