@@ -8,6 +8,7 @@ export type GameCommand =
   | { readonly type: "UPGRADE_PART"; readonly slot: number }
   | { readonly type: "LIGHT_CANDLE" }
   | { readonly type: "ENTER_ROOM" }
+  | { readonly type: "NEXT_ROOM_ROUND" }
   | { readonly type: "OPEN_WORKSHOP" }
   | { readonly type: "PRAY"; readonly symbol: BaseSymbolId }
   | { readonly type: "ENABLE_MARTYR" }

@@ -7,6 +7,7 @@ export interface HotelRoom {
   readonly target: number;
   readonly focusCap: number;
   readonly paidSpins: PaidSpinLimit;
+  readonly rounds?: 3;
   readonly objective: RoomObjective;
   readonly hint: string;
 }
@@ -14,7 +15,7 @@ export interface HotelRoom {
 export const HOTEL_ROOM_TIERS = [1, 2, 3, 4, 5, 6] as const;
 export const MAX_ROOM_TIER = 6;
 export const HOTEL_ROOMS: Readonly<Record<RoomTier, HotelRoom>> = {
-  1: { name: "花园房", bet: 25, target: 450, focusCap: 3, paidSpins: 3, objective: { kind: "total-payout" }, hint: "把第一套构筑跑起来，三转奖金合计达标。" },
+  1: { name: "花园房", bet: 25, target: 1000, focusCap: 3, paidSpins: 3, rounds: 3, objective: { kind: "total-payout" }, hint: "三回合累计奖金；前两回合后各强化一次，把新部件带进下一回合。" },
   2: { name: "景观房", bet: 50, target: 1200, focusCap: 3, paidSpins: 3, objective: { kind: "total-payout" }, hint: "给核心部件升到 L2，食物能放大已成形的收益。" },
   3: { name: "顶层套房", bet: 100, target: 3600, focusCap: 2, paidSpins: 3, objective: { kind: "total-payout" }, hint: "干预点更紧张：把机会留给最值得挽救的一转。" },
   4: { name: "留声机房", bet: 125, target: 2500, focusCap: 3, paidSpins: 4, objective: { kind: "best-spin" }, hint: "追求一次爆发。集中叠加部件、食物和连线，比平均赚一点更有用。" },
@@ -38,12 +39,19 @@ export function getPaidSpinLimit(state: Pick<RunState, "hotel">): PaidSpinLimit 
   return challenge == null ? 3 : challenge.paidSpins ?? HOTEL_ROOMS[challenge.tier].paidSpins;
 }
 
+export function isRoomIntermission(state: Pick<RunState, "hotel" | "phase">): boolean {
+  const challenge = state.hotel?.challenge;
+  return state.phase === "AFTER_HOURS" && challenge?.status === "playing"
+    && challenge.rounds !== undefined && challenge.rounds.current < challenge.rounds.total;
+}
+
 export interface RoomProgress {
   readonly objective: RoomObjective;
   readonly value: number;
   readonly required: number;
   readonly target: number;
   readonly cleared: boolean;
+  readonly rounds?: number;
 }
 
 /** Pure projection: retries have distinct block ordinals, not additional mutable counters.
@@ -55,7 +63,8 @@ export function getRoomProgress(state: RunState, visibleSpinPayout?: number): Ro
   if (challenge == null) return null;
   const room = HOTEL_ROOMS[challenge.tier];
   const objective = challenge.objective ?? room.objective;
-  const target = challenge.target ?? room.target;
+  // Older Garden saves with no captured target were always a single 450-point block.
+  const target = challenge.target ?? (challenge.tier === 1 && challenge.rounds === undefined ? 450 : room.target);
   const last = state.spinHistory.at(-1);
   const hideUnpresented = state.phase === "RESOLVING_EFFECTS" && visibleSpinPayout !== undefined;
   const amounts = state.spinHistory
@@ -64,9 +73,10 @@ export function getRoomProgress(state: RunState, visibleSpinPayout?: number): Ro
   const value = challenge.status !== "playing" && challenge.progress !== undefined ? challenge.progress
     : objective.kind === "best-spin" ? Math.max(0, ...amounts)
       : objective.kind === "scoring-spins" ? amounts.filter((amount) => amount >= target).length
-        : Math.max(0, state.shiftPayout - (hideUnpresented ? (last?.totalPayout ?? 0) - visibleSpinPayout : 0));
+        : Math.max(0, (challenge.rounds?.payout ?? 0) + state.shiftPayout - (hideUnpresented ? (last?.totalPayout ?? 0) - visibleSpinPayout : 0));
   const required = objective.kind === "scoring-spins" ? objective.count : target;
-  return { objective, value, required, target, cleared: value >= required };
+  return { objective, value, required, target, cleared: value >= required,
+    ...(challenge.rounds === undefined ? {} : { rounds: challenge.rounds.total }) };
 }
 
 export function canOpenWorkshop(state: RunState): boolean {

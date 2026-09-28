@@ -14,6 +14,7 @@ export function roomGoalCopy(objective: RoomObjective, target: number, format = 
 }
 
 export function roomProgressCopy(progress: RoomProgress, format = amount): string {
+  if (progress.rounds !== undefined) return `本房累计奖金 ${format(progress.value)} / ${format(progress.target)}`;
   if (progress.objective.kind === "scoring-spins") return `达标转数 ${progress.value} / ${progress.required}（每转 ≥ ${format(progress.target)}）`;
   return `${roomObjectiveLabel(progress.objective)} ${format(progress.value)} / ${format(progress.target)}`;
 }

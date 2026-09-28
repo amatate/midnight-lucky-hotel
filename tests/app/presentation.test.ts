@@ -940,7 +940,8 @@ describe("presentation recovery UI", () => {
     });
     render(createElement(GameScreen, { seed: 707, initialState: state }));
 
-    fireEvent.click(screen.getByRole("button", { name: /^状态/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^机台状态/ }));
+    fireEvent.click(screen.getByText("状态与加成"));
     expect(screen.getByText("食物加成 0 层")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "关闭说明" }));
     await act(async () => vi.advanceTimersByTimeAsync(120));
@@ -956,7 +957,8 @@ describe("presentation recovery UI", () => {
       null, "true", null
     ]);
     expect(screen.getByText(/第2轮食物已消耗：这份食物提供 1 层 \+25%，接下来 3 次转动有效；多份食物的层数可叠加/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: /^状态/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^机台状态/ }));
+    fireEvent.click(screen.getByText("状态与加成"));
     expect(screen.getByText("食物加成 1 层")).toBeVisible();
     expect(screen.getByLabelText("第 1 层 +25%，剩余 3/3 次转动")).toBeVisible();
   });

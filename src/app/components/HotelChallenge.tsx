@@ -1,7 +1,26 @@
-import { canOpenWorkshop, getRoomProgress, getWorkshopCost, HOTEL_ROOMS, HOTEL_ROOM_TIERS, nextRoomTier } from "@/content/hotel";
+import { canOpenWorkshop, getRoomProgress, getWorkshopCost, HOTEL_ROOMS, HOTEL_ROOM_TIERS, isRoomIntermission, nextRoomTier } from "@/content/hotel";
 import { roomGoalCopy, roomProgressCopy } from "@/app/room-copy";
 import type { GameCommand } from "@/core/commands";
 import type { RunState } from "@/core/types";
+
+export function RoomIntermission({ state, onCommand }: {
+  readonly state: RunState; readonly onCommand: (command: GameCommand) => void;
+}): React.JSX.Element | null {
+  if (!isRoomIntermission(state)) return null;
+  const rounds = state.hotel!.challenge!.rounds!;
+  return <section className="room-rest-stop" aria-label="客房回合休息">
+    <p className="tray-kicker">花园房 · 回合 {rounds.current} / {rounds.total}</p>
+    <h2>稍作整备，再来三转</h2>
+    <p>本回合 +¥{state.shiftPayout} · {roomProgressCopy(getRoomProgress(state)!)}</p>
+    <p>还剩 {rounds.total - rounds.current} 回合。下一回合恢复干预点与服务次数；部件、改轮和剩余餐效保留。</p>
+    {state.currentCandidates !== null
+      ? <p>选一项免费强化，确认后直接进入第 {rounds.current + 1} 回合。</p>
+      : <><p>这处休息点的免费强化已在本局领取，重试不重复赠送。</p>
+        <button className="primary-button" type="button" onClick={() => onCommand({ type: "NEXT_ROOM_ROUND" })}>
+          {state.bankroll < HOTEL_ROOMS[1].bet ? "余额不足 · 结束本局" : `继续第 ${rounds.current + 1} 回合`}
+        </button></>}
+  </section>;
+}
 
 export function RoomResult({ state }: { readonly state: RunState }): React.JSX.Element | null {
   const challenge = state.hotel?.challenge;
@@ -34,7 +53,7 @@ export function WorkshopChoice({ state, onCommand }: {
 export function RoomChoices({ state, onCommand }: {
   readonly state: RunState; readonly onCommand: (command: GameCommand) => void;
 }): React.JSX.Element | null {
-  if (!state.exitUnlocked || state.shift !== 5 || state.currentCandidates !== null || !["SHIFT_COMPLETE", "AFTER_HOURS"].includes(state.phase)) return null;
+  if (!state.exitUnlocked || state.shift !== 5 || state.currentCandidates !== null || isRoomIntermission(state) || !["SHIFT_COMPLETE", "AFTER_HOURS"].includes(state.phase)) return null;
   const next = nextRoomTier(state);
   const room = next === null ? null : HOTEL_ROOMS[next];
   return <section className="room-challenge-card" aria-label="升房挑战">
@@ -45,14 +64,14 @@ export function RoomChoices({ state, onCommand }: {
       const item = HOTEL_ROOMS[tier];
       return <li key={tier} data-current={tier === next ? "true" : undefined}>
         <strong>{item.name}{(state.hotel?.cleared ?? 0) >= tier ? " · 已通关" : ""}</strong>
-        <span>{item.paidSpins} 次付费转 · 每转 ¥{item.bet} · 干预点上限 {item.focusCap}</span>
-        <span>{roomGoalCopy(item.objective, item.target)}{item.objective.kind === "scoring-spins" ? "，不要求连续" : ""}</span>
+        <span>{item.rounds ? `${item.rounds} 回合 × ` : ""}{item.paidSpins} 次付费转 · 每转 ¥{item.bet} · 干预点上限 {item.focusCap}</span>
+        <span>{item.rounds ? `本房累计奖金 ¥${item.target}` : roomGoalCopy(item.objective, item.target)}{item.objective.kind === "scoring-spins" ? "，不要求连续" : ""}</span>
         {tier === next && <span>{item.hint}</span>}
       </li>;
     })}</ol>
-    <p>免费转也计入所有客房目标，但不占付费转名额。全部转完再判定通关，提前达标也不会截断本段。目标不扣款，没有门票；入房需备好本房全部下注，餐费另算。</p>
+    <p>免费转也计入目标，不占付费转名额。全部回合转完再判通关。入房只检查首回合备付金，不收门票，餐费另算。花园房前两个休息点各送一次强化，同一局重试不重复赠送。</p>
     {room === null ? <p>{HOTEL_ROOM_TIERS.length} 间客房已全部通关！可以继续自由加班或结账留档。</p> : <>
-      <p>下一房备付金 ¥{room.bet * room.paidSpins}（{room.paidSpins} 次 × ¥{room.bet}）。</p>
+      <p>{room.rounds ? "首回合" : "下一房"}备付金 ¥{room.bet * room.paidSpins}（{room.paidSpins} 次 × ¥{room.bet}）。</p>
       <button className="primary-button" type="button" disabled={state.bankroll < room.bet * room.paidSpins} onClick={() => onCommand({ type: "ENTER_ROOM" })}>
         {state.hotel?.challenge?.status === "failed" ? "重试" : "升房挑战 · "}{room.name}
       </button>

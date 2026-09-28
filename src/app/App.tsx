@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FrontDesk } from "@/app/components/FrontDesk";
 import { UpdateNotice } from "@/app/components/UpdateNotice";
 import { initializeLibrary, validSeed, type ArchiveLibrary } from "@/persistence/archives";
+import { useLanguage } from "@/i18n/language";
 
 const DEFAULT_SEED = 20_260_812;
 
@@ -15,6 +16,7 @@ export function parseSeed(search: string): number {
 }
 
 export function App({ seed }: { readonly seed?: number } = {}): React.JSX.Element {
+  const language = useLanguage();
   const resolvedSeed = seed !== undefined && Number.isFinite(seed) && Number.isInteger(seed)
     ? seed
     : parseSeed(globalThis.location?.search ?? "");
@@ -29,7 +31,7 @@ export function App({ seed }: { readonly seed?: number } = {}): React.JSX.Elemen
     setPlaying(false);
   };
   return (
-    <main className={playing ? "app-shell" : "app-shell frontdesk-shell"}>
+    <main lang={language === "en" ? "en" : "zh-CN"} className={playing ? "app-shell" : "app-shell frontdesk-shell"}>
       <UpdateNotice playing={playing} />
       {playing ? <GameScreen seed={resolvedSeed} onHome={home} /> : <FrontDesk
         library={loaded.library} error={loaded.error} defaultSeed={resolvedSeed}

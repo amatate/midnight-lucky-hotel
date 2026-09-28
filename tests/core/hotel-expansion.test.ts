@@ -140,8 +140,11 @@ describe("six-room hotel objectives", () => {
     };
     for (const tier of HOTEL_ROOM_TIERS) {
       log({ type: "ENTER_ROOM" });
+      for (let current = 1; current <= (HOTEL_ROOMS[tier].rounds ?? 1); current++) {
       for (let spin = 0; spin < HOTEL_ROOMS[tier].paidSpins; spin++) {
         for (const type of ["SPIN", "REELS_STOPPED", "ACCEPT_OUTCOME", "PRESENTATION_COMPLETE"] as const) log({ type });
+      }
+      if (current < (HOTEL_ROOMS[tier].rounds ?? 1)) log({ type: "DECLINE_UPGRADE" });
       }
       expect(session.record.snapshot.hotel?.cleared).toBe(tier);
       expect(dispatchCommand(session.record.snapshot, { type: "ENTER_ROOM" }).ok).toBe(false);

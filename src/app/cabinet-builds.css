@@ -114,8 +114,8 @@
   .preparation-deck .service-fixture { column-gap: 3px; }
 }
 @media (min-width: 960px) {
-  .game-page[data-cabinet-visible="true"] { grid-template-columns: minmax(360px, 560px) minmax(240px, 1fr); gap: 12px 28px; }
-  .game-page[data-cabinet-visible="true"] .cabinet-shell:not([data-room-tier="house"]) { padding-top: 102px; --cabinet-rail: 22px; }
+  .game-page[data-cabinet-visible="true"]:not(.fixed-console) { grid-template-columns: minmax(360px, 560px) minmax(240px, 1fr); gap: 12px 28px; }
+  .game-page[data-cabinet-visible="true"]:not(.fixed-console) .cabinet-shell:not([data-room-tier="house"]) { padding-top: 102px; --cabinet-rail: 22px; }
   .room-crown-art { height: 82px; }
   .cabinet-shell:not([data-room-tier="house"]) > .cabinet-marquee { top: 78px; }
   .game-page[data-cabinet-visible="true"] > .game-utilities { grid-row: 3; }

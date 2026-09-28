@@ -358,6 +358,8 @@ export type RoomObjective =
   | { readonly kind: "scoring-spins"; readonly count: number };
 export interface HotelProgress {
   readonly cleared: 0 | RoomTier;
+  /** First two Garden rest stops grant a reward once per run, including retries. */
+  readonly gardenRewardsGranted?: 0 | 1 | 2;
   readonly challenge: {
     readonly tier: RoomTier;
     readonly status: "playing" | "cleared" | "failed";
@@ -366,6 +368,8 @@ export interface HotelProgress {
     readonly paidSpins?: PaidSpinLimit;
     readonly objective?: RoomObjective;
     readonly progress?: number;
+    /** Absent on legacy one-block challenges. Payout contains completed earlier rounds only. */
+    readonly rounds?: { readonly current: 1 | 2 | 3; readonly total: 3; readonly payout: Money };
   } | null;
 }
 

@@ -95,9 +95,9 @@ export function Hud({
           <dt className="sr-only">目标</dt>
           <dd data-counter="target">{roomProgress === null ? `目标 ¥${state.checkoutTarget}` : compact
             ? roomProgress.objective.kind === "scoring-spins" ? `达标 ${roomProgress.value} / ${roomProgress.required} 转`
-              : `${roomProgress.objective.kind === "best-spin" ? "峰值" : "本段"} ¥${roomProgress.value} / ${roomProgress.required}`
+              : `${roomProgress.objective.kind === "best-spin" ? "峰值" : roomProgress.rounds ? "累计" : "本段"} ¥${roomProgress.value} / ${roomProgress.required}`
             : roomGoalCopy(roomProgress.objective, roomProgress.target)}</dd>
-          <dd className={`target-meter meter-${roomProgress?.objective.kind ?? "total-payout"}`} role="progressbar" aria-label={roomProgress === null ? "余额目标" : `${roomObjectiveLabel(roomProgress.objective)}目标`}
+          <dd className={`target-meter meter-${roomProgress?.objective.kind ?? "total-payout"}`} role="progressbar" aria-label={roomProgress === null ? "余额目标" : roomProgress.rounds ? "本房累计奖金目标" : `${roomObjectiveLabel(roomProgress.objective)}目标`}
             aria-valuemin={0} aria-valuemax={target} aria-valuenow={progress}
             aria-valuetext={roomProgress === null ? `余额 ¥${visibleBankroll} / ¥${target}` : roomProgressCopy(roomProgress)}>
             <RoomGoalInstrument objective={roomProgress?.objective ?? null} value={progress} target={target} />
@@ -109,19 +109,21 @@ export function Hud({
         </div>
       </dl>
       {room !== null && roomProgress !== null && <section className="room-progress" aria-label="客房进度">
-        <strong className="sr-only">{room.name} · {getPaidSpinLimit(state)} 次付费转</strong>
+        <strong className="sr-only">{room.name}{roomProgress.rounds ? ` · 第 ${state.hotel!.challenge!.rounds!.current}/${roomProgress.rounds} 回合` : ""} · {getPaidSpinLimit(state)} 次付费转</strong>
         <p>{roomProgressCopy(roomProgress)} · 干预点上限 {room.focusCap}</p>
-        <HelpButton title="本房目标"><p>{roomProgressCopy(roomProgress)}</p><p>{roomProgress.objective.kind === "scoring-spins" ? "每转单独判断，不要求连续；" : "旧余额不抵目标；"}免费转也计入。全部转完再判定通关。</p><p>{room.hint}</p></HelpButton>
+        <HelpButton title="本房目标"><p>{roomProgressCopy(roomProgress)}</p><p>{roomProgress.objective.kind === "scoring-spins" ? "每转单独判断，不要求连续；" : "旧余额不抵目标；"}免费转也计入。全部回合转完再判定通关。</p><p>{state.hotel?.challenge?.tier === 1 && !roomProgress.rounds ? "这是旧版三转挑战；本段结束后再入住才使用新规则。" : room.hint}</p></HelpButton>
         <div className="room-turn-ticks" aria-label={`已用 ${state.baseSpinsInShift}/${getPaidSpinLimit(state)} 次付费转`}>
           {Array.from({ length: getPaidSpinLimit(state) }, (_, index) => <i key={index} data-used={index < state.baseSpinsInShift} aria-hidden="true" />)}
         </div>
       </section>}
+      <HudResourceTray compact={compact} label={`干预 ${state.interventionPoints}/${state.maxInterventionPoints} · 小费 ${state.tips}`}
+        hint={foodBuffs.length ? `餐效 +${Math.round(foodBuffs.reduce((sum, buff) => sum + buff.additivePayout, 0) * 100)}% ›` : "查看状态 ›"}>
       <div className="hud-resources">
         <span>干预点 {state.interventionPoints}/{state.maxInterventionPoints}<HelpButton title="干预点"><HelpFacts cost="每次重转、锁轮或祈祷花 1 点。" effect="用来改变盘面的点数，旧版叫“专注”。留着不会自动提高中奖率。"
           limit="普通每班 2 点，维修间 3 点；新班重置，不累计。每转最多干预一次，客房另有上限。" current={"剩余 " + state.interventionPoints + " 点；本段上限 " + state.maxInterventionPoints + "。"} /></HelpButton></span>
         <span>小费 {state.tips}<HelpButton title="小费"><HelpFacts cost="重抽升级 1 枚；维修裂纹 1 枚；还愿点烛 1 枚；精修 L1 → L2 部件 3 枚。" effect="合同完成或放弃升级可得 1 枚；重抽至少换入一个不同选项，精修定向强化核心。"
           limit="精修只在每段首转前；维修裂纹需要维修间且处于班末。小费不是下注金。" current={"持有 " + state.tips + " 枚。"} /></HelpButton></span>
-        <HudSupplement compact={compact} badge={<span className="hud-status-badges">
+        <HudSupplement compact={false} badge={<span className="hud-status-badges">
             {foodBuffs.length > 0 && `餐 +${Math.round(foodBuffs.reduce((sum, buff) => sum + buff.additivePayout, 0) * 100)}%`}
             {blockBlanks > 0 && ` · 空白 ${blockBlanks}`}
           </span>}>
@@ -201,8 +203,16 @@ export function Hud({
       </details>
         </HudSupplement>
       </div>
+      </HudResourceTray>
     </section>
   );
+}
+
+function HudResourceTray({ compact, label, hint, children }: {
+  readonly compact: boolean; readonly label: string; readonly hint: string; readonly children: ReactNode;
+}): React.JSX.Element {
+  return compact ? <HelpButton title="机台状态" label={`机台状态：${label}，${hint}`} className="console-resource-key" trigger={<>{label}<small>{hint}</small></>}>
+    {children}</HelpButton> : <>{children}</>;
 }
 
 function HudSupplement({ compact, badge, children }: { readonly compact: boolean; readonly badge: ReactNode; readonly children: ReactNode }): React.JSX.Element {

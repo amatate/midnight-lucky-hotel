@@ -1,5 +1,6 @@
 import { BASE_REELS } from "@/content/base-machine";
-import { activeRoom, canOpenWorkshop, getPaidSpinLimit, getRoomProgress, getWorkshopCost, HOTEL_ROOMS, nextRoomTier } from "@/content/hotel";
+import { activeRoom, canOpenWorkshop, getPaidSpinLimit, getRoomProgress, getWorkshopCost, HOTEL_ROOMS, isRoomIntermission, nextRoomTier } from "@/content/hotel";
+import { advanceRoomRound, resetForAfterHoursBlock } from "@/core/blocks";
 import { BASE_PAYTABLE } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
 import { enableMartyr, pray } from "@/content/services/chapel";
@@ -10,13 +11,13 @@ import { generateCandidates } from "@/core/candidates";
 import { generateContract, updateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
-import { getCurrentBet, getFreeAfterHoursLevel, getMinimumBet, roundMoney } from "@/core/progression";
+import { getCurrentBet, getMinimumBet, roundMoney } from "@/core/progression";
 import { evaluateBaseWins } from "@/core/paylines";
 import { nextInt } from "@/core/random";
 import { appendSpinReceipt, finalizeSpinReceipt, type SpinReceiptBuildInput } from "@/core/receipts";
 import { advanceReel, drawReels, normalizeDrawIdentity } from "@/core/reels";
 import { resolveSpin } from "@/core/settlement";
-import type { BaseSpinIndex, ReelIndex, ReelSet, RngState, RoomTier, RunPhase, RunState, ServiceId, SettlementResult } from "@/core/types";
+import type { BaseSpinIndex, ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId, SettlementResult } from "@/core/types";
 import { applyUpgrade, declineUpgrade } from "@/core/upgrades";
 
 const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security"];
@@ -387,18 +388,22 @@ function presentationComplete(
         ? "RUN_LOST"
         : "READY_TO_SPIN";
   const room = activeRoom(transitionState);
-  const roomFinished = completedPaidBlock && room !== null;
+  const challenge = transitionState.hotel?.challenge;
+  const roundRest = completedPaidBlock && room !== null && challenge?.rounds !== undefined
+    && challenge.rounds.current < challenge.rounds.total;
+  const restReward = roundRest && challenge!.rounds!.current > (transitionState.hotel?.gardenRewardsGranted ?? 0);
+  const roomFinished = completedPaidBlock && room !== null && !roundRest;
   const roomProgress = getRoomProgress(transitionState);
   const roomCleared = roomFinished && roomProgress?.cleared === true;
-  const challenge = transitionState.hotel?.challenge;
   const hotel = roomFinished && challenge != null
-    ? { cleared: roomCleared ? challenge.tier : (transitionState.hotel?.cleared ?? 0),
+    ? { ...transitionState.hotel, cleared: roomCleared ? challenge.tier : (transitionState.hotel?.cleared ?? 0),
         challenge: { ...challenge, status: roomCleared ? "cleared" as const : "failed" as const,
           target: roomProgress!.target, objective: roomProgress!.objective,
           paidSpins: getPaidSpinLimit(transitionState), progress: roomProgress!.value } }
-    : transitionState.hotel;
+    : restReward ? { ...transitionState.hotel!, gardenRewardsGranted: challenge!.rounds!.current as 1 | 2 }
+      : transitionState.hotel;
   const boundaryOffersUpgrade = (nextPhase === "CHOOSING_UPGRADE" || nextPhase === "AFTER_HOURS")
-    && (!roomFinished || roomCleared);
+    && (roundRest ? restReward : !roomFinished || roomCleared);
   const candidateResult = boundaryOffersUpgrade
     ? generateCandidates({ ...transitionState, baseSpinsInShift })
     : null;
@@ -416,10 +421,15 @@ function presentationComplete(
   const hasSnapshot = snapshot !== null && transitionState.shiftHistory.at(-1)?.shift === snapshot.shift &&
     (transitionState.shiftHistory.at(-1)?.afterHoursLevel ?? 0) === (snapshot.afterHoursLevel ?? 0);
   const drafts: GameEventDraft[] = [];
+  if (completedPaidBlock && challenge?.rounds !== undefined) drafts.push({
+    type: "ROOM_ROUND_COMPLETED", round: challenge.rounds.current, payout: transitionState.shiftPayout,
+    totalPayout: roomProgress!.value, reward: restReward
+  });
   if (roomFinished && challenge != null) drafts.push({
-    type: "ROOM_COMPLETED", tier: challenge.tier, payout: transitionState.shiftPayout,
+    type: "ROOM_COMPLETED", tier: challenge.tier, payout: roundMoney((challenge.rounds?.payout ?? 0) + transitionState.shiftPayout),
     target: roomProgress!.target, cleared: roomCleared, paidSpins: getPaidSpinLimit(transitionState),
-    objective: roomProgress!.objective, progress: roomProgress!.value
+    objective: roomProgress!.objective, progress: roomProgress!.value,
+    ...(challenge.rounds === undefined ? {} : { rounds: challenge.rounds.total })
   });
   if (contractChanged && contract !== null) {
     drafts.push({ type: "CONTRACT_PROGRESS", contractId: contract.id, progress: contract.progress, completed: contract.completed });
@@ -470,6 +480,7 @@ function rerollCandidates(state: RunState, command: Extract<GameCommand, { type:
 }
 
 function cashOut(state: RunState, command: Extract<GameCommand, { type: "CASH_OUT" }>): DispatchResult {
+  if (isRoomIntermission(state)) return rejected(state, "INVALID_PHASE", "客房尚未结束，请先完成剩余回合；可随时保存返回前台。");
   const boundary = state.phase === "CHOOSING_UPGRADE" || state.phase === "SHIFT_COMPLETE" || state.phase === "AFTER_HOURS";
   if (!boundary) return invalidPhase(state, command);
   if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
@@ -478,48 +489,9 @@ function cashOut(state: RunState, command: Extract<GameCommand, { type: "CASH_OU
     ...(state.workshop?.status === "shopping" ? { workshop: { ...state.workshop, status: "finished" as const } } : {}) });
 }
 
-function resetForAfterHoursBlock(state: RunState, level: number, roomTier?: RoomTier): RunState {
-  const baseMaximum = state.service === "repair" ? 3 : 2;
-  const room = roomTier === undefined ? null : HOTEL_ROOMS[roomTier];
-  const nextMaximum = Math.min(baseMaximum + state.nextShiftFocusBonus, roomTier === undefined ? Infinity : HOTEL_ROOMS[roomTier].focusCap);
-  const reset: RunState = {
-    ...state,
-    phase: "READY_TO_SPIN",
-    afterHoursLevel: level,
-    blockReelAdditions: [[], [], []],
-    freeAfterHoursLevel: getFreeAfterHoursLevel(state) + (roomTier === undefined ? 1 : 0),
-    blockStartBankroll: state.bankroll,
-    workshop: null,
-    hotel: { cleared: state.hotel?.cleared ?? 0, challenge: roomTier === undefined || room === null ? null
-      : { tier: roomTier, status: "playing", target: room.target, paidSpins: room.paidSpins, objective: room.objective } },
-    baseSpinsInShift: 0,
-    shiftWager: 0,
-    shiftPayout: 0,
-    interventionPoints: nextMaximum,
-    maxInterventionPoints: nextMaximum,
-    nextShiftFocusBonus: 0,
-    interventionUsedThisSpin: false,
-    temporaryReelAdditions: [[], [], []],
-    pendingPrayer: null,
-    pendingSpin: null,
-    currentCandidates: null,
-    counters: { ...state.counters, cherryWinsThisShift: 0 },
-    shiftFlags: {
-      foodBought: false,
-      prayerUsed: false,
-      kickUsed: false,
-      repairLockUsed: false,
-      martyrEnabled: false,
-      warrantyPaid: false,
-      returnedFoodCount: 0
-    }
-  };
-  const generated = generateContract(reset);
-  return { ...reset, contract: generated.contract, rng: generated.rng };
-}
-
 function enterRoom(state: RunState, command: Extract<GameCommand, { type: "ENTER_ROOM" }>): DispatchResult {
   if (state.phase !== "SHIFT_COMPLETE" && state.phase !== "AFTER_HOURS") return invalidPhase(state, command);
+  if (isRoomIntermission(state)) return rejected(state, "INVALID_PHASE", "先完成本房剩余回合");
   if (!state.exitUnlocked || state.shift !== 5 || state.currentCandidates !== null) {
     return rejected(state, "INVALID_TARGET", "先完成五班并处理当前升级，才能升房");
   }
@@ -530,7 +502,8 @@ function enterRoom(state: RunState, command: Extract<GameCommand, { type: "ENTER
   const next = resetForAfterHoursBlock(state, state.afterHoursLevel + 1, tier);
   const focus = next.maxInterventionPoints;
   return accepted(state, command, sequenceEvents(state, [{
-    type: "ROOM_ENTERED", tier, bet: room.bet, target: room.target, focus, paidSpins: room.paidSpins, objective: room.objective
+    type: "ROOM_ENTERED", tier, bet: room.bet, target: room.target, focus, paidSpins: room.paidSpins, objective: room.objective,
+    ...(room.rounds === undefined ? {} : { rounds: room.rounds })
   }]), {
     ...next, interventionPoints: focus, maxInterventionPoints: focus
   });
@@ -575,6 +548,7 @@ function openWorkshop(state: RunState, command: Extract<GameCommand, { type: "OP
 }
 
 function continueRun(state: RunState, command: Extract<GameCommand, { type: "CONTINUE" }>): DispatchResult {
+  if (isRoomIntermission(state)) return rejected(state, "INVALID_PHASE", "本房尚未结束，请继续下一回合");
   if (state.phase === "SHIFT_COMPLETE") {
     if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
     const next = resetForAfterHoursBlock(state, 1);
@@ -588,6 +562,14 @@ function continueRun(state: RunState, command: Extract<GameCommand, { type: "CON
     return accepted(state, command, [], next);
   }
   return invalidPhase(state, command);
+}
+
+function nextRoomRound(state: RunState, command: Extract<GameCommand, { type: "NEXT_ROOM_ROUND" }>): DispatchResult {
+  if (!isRoomIntermission(state) || state.currentCandidates !== null) return invalidPhase(state, command);
+  const next = advanceRoomRound(state);
+  const drafts: GameEventDraft[] = [{ type: "ROOM_ROUND_STARTED", round: next.hotel!.challenge!.rounds!.current }];
+  if (next.phase === "RUN_LOST") drafts.push({ type: "RUN_ENDED", outcome: "lost" });
+  return accepted(state, command, sequenceEvents(state, drafts), next);
 }
 
 export function dispatchCommand(state: RunState, command: GameCommand): DispatchResult {
@@ -604,6 +586,8 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return lightCandle(state, command);
     case "ENTER_ROOM":
       return enterRoom(state, command);
+    case "NEXT_ROOM_ROUND":
+      return nextRoomRound(state, command);
     case "OPEN_WORKSHOP":
       return openWorkshop(state, command);
     case "PRAY":

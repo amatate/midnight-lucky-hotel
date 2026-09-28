@@ -3,6 +3,8 @@ import { commandLabel, downloadText, entryBlock, eventLabel, FIELD_LABELS, money
 import { UPGRADES } from "@/content/upgrades";
 import { exportArchive, RULES_VERSION, verifyArchive, type RunArchive } from "@/persistence/archives";
 import { LedgerDrawer } from "@/app/components/LedgerDrawer";
+import { translate } from "@/i18n/translate";
+import { getLanguage } from "@/i18n/language";
 
 export function ArchiveViewer({ record, onClose }: { readonly record: RunArchive; readonly onClose: () => void }): React.JSX.Element {
   const [query, setQuery] = useState("");
@@ -13,7 +15,8 @@ export function ArchiveViewer({ record, onClose }: { readonly record: RunArchive
   const entries = record.entries.toReversed().filter((entry) =>
     (actor === "all" || (actor === "failed" ? !entry.ok : entry.actor === actor))
     && (block === "all" || entryBlock(entry) === block)
-    && (commandLabel(entry.command) + entry.events.map(eventLabel).join(" ") + readableValue(entry.changes)).toLowerCase().includes(query.toLowerCase()));
+    && [commandLabel(entry.command), ...entry.events.map(eventLabel), readableValue(entry.changes)]
+      .flatMap((text) => [text, translate(text)]).join(" ").toLowerCase().includes(query.toLowerCase()));
   const pageCount = Math.max(1, Math.ceil(entries.length / 30));
   const currentPage = Math.min(page, pageCount - 1);
   const state = record.snapshot;
@@ -22,7 +25,7 @@ export function ArchiveViewer({ record, onClose }: { readonly record: RunArchive
       <header className="frontdesk-heading"><div><p className="eyebrow">NIGHT AUDIT / GAME ARCHIVE</p><h1>游戏档案</h1></div>
         <button type="button" onClick={onClose}>返回</button></header>
       <section className="archive-card">
-        <h2>{record.name}</h2>
+        <h2 translate="no">{record.name}</h2>
         <p>种子 {state.initialSeed} · 余额 {money(state.bankroll)} · 共 {state.nextSpinOrdinal - 1} 转</p>
         <p>{state.afterHoursLevel > 0 ? "加班第 " + state.afterHoursLevel + " 段" : "第 " + state.shift + " 班"} · {record.entries.length} 条日志</p>
         <p className="fine-print">规则 {record.rulesVersion}{record.rulesVersion !== RULES_VERSION ? " · 与当前版本不同，只读" : ""}</p>
@@ -54,11 +57,11 @@ export function ArchiveViewer({ record, onClose }: { readonly record: RunArchive
               <strong>{commandLabel(entry.command)}</strong><span className={entry.ok ? "log-success" : "log-failure"}>{entry.ok ? "已执行" : "未执行"}</span>
               {entry.changes.bankroll !== undefined && <span>{money(Number(entry.changes.bankroll.before))} → {money(Number(entry.changes.bankroll.after))}</span>}
             </summary>
-            <p className="fine-print">{new Date(entry.at).toLocaleString("zh-CN")}</p>
+            <p className="fine-print">{new Date(entry.at).toLocaleString(getLanguage() === "en" ? "en-US" : "zh-CN")}</p>
             {entry.error !== null && <p role="note">拒绝原因：{entry.error.code} · {entry.error.message}</p>}
             <ol>{entry.events.map((event, index) => <li key={index}>{eventLabel(event)}</li>)}</ol>
             {Object.entries(entry.changes).map(([field, change]) => <details key={field} className="log-change">
-              <summary>{FIELD_LABELS[field] ?? field}变化</summary><div className="log-before-after"><div><b>之前</b><pre>{readableValue(change.before)}</pre></div><div><b>之后</b><pre>{readableValue(change.after)}</pre></div></div>
+              <summary>{FIELD_LABELS[field] ?? field}变化</summary><div className="log-before-after"><div><b>之前</b><pre>{translate(readableValue(change.before))}</pre></div><div><b>之后</b><pre>{translate(readableValue(change.after))}</pre></div></div>
             </details>)}
             <details><summary>原始调试数据（指令／事件／变化）</summary><pre>{JSON.stringify(entry, null, 2)}</pre></details>
           </details>

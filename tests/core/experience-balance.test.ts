@@ -68,8 +68,12 @@ describe("bounded experience balance", () => {
     expect(result.state.shiftFlags.warrantyPaid).toBe(true);
     expect(result.payout).toBe(30);
   });
-  it("discloses strictly increasing room targets and keeps room stakes fixed", () => {
-    expect(([1, 2, 3] as const).map((tier) => HOTEL_ROOMS[tier].target / HOTEL_ROOMS[tier].bet)).toEqual([18, 24, 36]);
+  it("compares total-payout pressure per available wager, not per spin across different room lengths", () => {
+    const pressure = ([1, 2, 3] as const).map((tier) => {
+      const room = HOTEL_ROOMS[tier];
+      return room.target / (room.bet * room.paidSpins * (room.rounds ?? 1));
+    });
+    expect(pressure).toEqual([1000 / 225, 8, 12]);
     expect(getCurrentBet(ready({ betMode: "aggressive", hotel: { cleared: 1, challenge: { tier: 2, status: "playing" } } }))).toBe(50);
   });
 });

@@ -44,7 +44,7 @@ const CROWNS: Readonly<Record<RoomTier, { box: string; outline: string }>> = {
 export function RoomCrown({ tier }: { readonly tier: RoomTier }): React.JSX.Element {
   const clip = useId();
   const art = CROWNS[tier];
-  return <svg className="room-crown-art" viewBox={art.box} preserveAspectRatio="none" aria-hidden="true" focusable="false" data-room-crown={tier}>
+  return <svg className="room-crown-art" viewBox={art.box} preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false" data-room-crown={tier}>
     <defs><clipPath id={clip}><polygon points={art.outline} /></clipPath></defs>
     <image href={`${import.meta.env.BASE_URL}art/room-crowns-v1.png`} width="1536" height="1024" clipPath={`url(#${clip})`} />
   </svg>;

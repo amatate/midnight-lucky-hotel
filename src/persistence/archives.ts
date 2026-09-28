@@ -15,6 +15,7 @@ export const MAX_ARCHIVE_BYTES = 10_000_000;
 const FORMAT = "midnight-lucky-hotel.archive";
 const PRE_ROOM_EXPANSION_RULES = "rules-54eb1749df08ea12";
 const PRE_BUILD_DIVERSITY_RULES = "rules-b692b1c641f44aad";
+const PRE_GARDEN_ROUNDS_RULES = "rules-56d5bd9d4b54c3c4";
 const LOG_FIELDS = [
   "hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "expenses", "blockReelAdditions",
   "phase", "shift", "afterHoursLevel", "baseSpinsInShift", "bankroll", "shiftWager", "shiftPayout",
@@ -209,13 +210,13 @@ export function restoreArchive(library: ArchiveLibrary, source: RunArchive): Arc
 /** Explicit opt-in checkpoint migration, never a replay of old commands under new rules. */
 export function canMigrateArchive(source: RunArchive): boolean {
   const state = source.snapshot;
-  if (!["rules-76b3ccda2416e7f9", "rules-705e0a792a2c3847", PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES].includes(source.rulesVersion)
+  if (!["rules-76b3ccda2416e7f9", "rules-705e0a792a2c3847", PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES, PRE_GARDEN_ROUNDS_RULES].includes(source.rulesVersion)
     || source.rulesVersion === RULES_VERSION || state.hotel === undefined) return false;
   // New parts do not occur in prior snapshots; preserve in-flight draws and
   // settled awards. Only future choices use the expanded pool and food window.
-  if ([PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES].includes(source.rulesVersion)
+  if ([PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES, PRE_GARDEN_ROUNDS_RULES].includes(source.rulesVersion)
     && ["READY_TO_SPIN", "SPINNING", "AWAITING_INTERVENTION", "RESOLVING_EFFECTS"].includes(state.phase)) {
-    return source.rulesVersion === PRE_BUILD_DIVERSITY_RULES ||
+    return [PRE_BUILD_DIVERSITY_RULES, PRE_GARDEN_ROUNDS_RULES].includes(source.rulesVersion) ||
       state.hotel.cleared <= 3 && (state.hotel.challenge === null || state.hotel.challenge.tier <= 3);
   }
   return state.pendingSpin === null && state.freeSpinQueue === 0 && (["AFTER_HOURS", "SHIFT_COMPLETE", "CHOOSING_UPGRADE"].includes(state.phase)
@@ -235,7 +236,7 @@ export function migrateArchive(library: ArchiveLibrary, source: RunArchive): Arc
   }
   const completed = source.entries.flatMap((entry) => entry.events).findLast((event) => event.type === "ROOM_COMPLETED");
   const challenge = source.snapshot.hotel?.challenge;
-  const previousRules = [PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES].includes(source.rulesVersion);
+  const previousRules = [PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES, PRE_GARDEN_ROUNDS_RULES].includes(source.rulesVersion);
   const snapshot: RunState = { ...source.snapshot,
     ...(!previousRules ? {
       freeAfterHoursLevel: getFreeAfterHoursLevel(source.snapshot), workshop: null,

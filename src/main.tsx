@@ -9,6 +9,10 @@ import "@/app/cabinet-builds.css";
 import "@/app/mobile-console.css";
 import { registerSW } from "virtual:pwa-register";
 import { gameUpdates } from "@/app/update-policy";
+import { initialLanguage, setLanguage } from "@/i18n/language";
+import "@/app/language.css";
+
+setLanguage(initialLanguage(), false);
 
 const updateSW = registerSW({
   immediate: true,

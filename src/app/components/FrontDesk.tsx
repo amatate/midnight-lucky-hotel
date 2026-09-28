@@ -5,6 +5,7 @@ import { describeUpgrade } from "@/app/player-copy";
 import { GameGuide } from "@/app/components/GameGuide";
 import { FeedbackButton } from "@/app/components/FeedbackButton";
 import { UPGRADES, UPGRADE_IDS } from "@/content/upgrades";
+import { HOTEL_ROOMS } from "@/content/hotel";
 import { createRun } from "@/core/run";
 import type { UpgradeId } from "@/core/types";
 import {
@@ -13,6 +14,9 @@ import {
 } from "@/persistence/archives";
 import { LEGACY_RUN_STORAGE_KEY, RUN_STORAGE_KEY } from "@/persistence/storage";
 import "@/app/frontdesk-scene.css";
+import { LanguageSelector } from "@/app/components/LanguageSelector";
+import { translate } from "@/i18n/translate";
+import { getLanguage } from "@/i18n/language";
 
 interface FrontDeskProps {
   readonly library: ArchiveLibrary | null;
@@ -76,6 +80,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
   return (
     <section className="frontdesk frontdesk-scene" data-section={section} data-reduce-motion={reduceMotion || undefined} aria-label="酒店前台">
       <header className="frontdesk-heading"><div><p className="hotel-sign">MIDNIGHT LUCKY HOTEL</p><h1>午夜好运酒店</h1><p className="frontdesk-tagline">今夜，把运气改造成你的作品。</p></div><span className="frontdesk-key" aria-hidden="true">1313</span></header>
+      <LanguageSelector />
       {section !== "lobby" && menu}
       {error !== null && <p className="archive-warning" role="alert">{error}</p>}
       <p className="frontdesk-notice" role="status">{notice}</p>
@@ -84,13 +89,15 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
         <div className="lobby-vista" aria-hidden="true"><span className="lobby-door-sign">ROOM <b>1313</b></span></div>
         <div className="lobby-playdesk">
         <section className="frontdesk-hero"><p className="eyebrow">{active === null ? "THE NIGHT IS YOURS" : "YOUR ROOM IS WAITING"}</p><h2>{active === null ? "好运，等待开场" : "接着玩，机器还热着"}</h2>
-          {active !== null ? <><div className="lobby-current-run"><span>{active.snapshot.afterHoursLevel > 0 ? "加班第 " + active.snapshot.afterHoursLevel + " 段" : "第 " + active.snapshot.shift + " 班"} · 已转 {active.snapshot.nextSpinOrdinal - 1} 次</span><strong className="frontdesk-balance">{money(active.snapshot.bankroll)}</strong></div>
+          {active !== null ? <><div className="lobby-current-run"><span>{active.snapshot.hotel?.challenge != null
+            ? HOTEL_ROOMS[active.snapshot.hotel.challenge.tier].name + (active.snapshot.hotel.challenge.rounds ? ` · 回合 ${active.snapshot.hotel.challenge.rounds.current}/3` : "")
+            : active.snapshot.afterHoursLevel > 0 ? "加班第 " + active.snapshot.afterHoursLevel + " 段" : "第 " + active.snapshot.shift + " 班"} · 已转 {active.snapshot.nextSpinOrdinal - 1} 次</span><strong className="frontdesk-balance">{money(active.snapshot.bankroll)}</strong></div>
             {active.rulesVersion !== RULES_VERSION && <p className="archive-notice">旧局原档案只读保留，不自动套用新规则。支持迁移时可按新版续玩：保留钱包和构筑，旧成绩不重算，新日志从此处开始核验。</p>}
             {library !== null && canMigrateArchive(active) && <button className="primary-button" type="button" onClick={() => {
               if (perform(() => migrateArchive(library, active), "已创建新版续玩分支，原档案保留。")) onPlay();
             }}>按新版续玩（保留旧局）</button>}
             <button className="primary-button lobby-enter-button" type="button" disabled={active.rulesVersion !== RULES_VERSION} onClick={onPlay}>继续游戏<span aria-hidden="true">↗</span></button>
-            <details className="lobby-run-details"><summary>本局档案 · 种子 {active.snapshot.initialSeed}</summary><p>{active.name}</p><div className="frontdesk-actions"><button type="button" onClick={() => setSelected(active)}>查看本局日志</button><button type="button" onClick={() => void copySeed(active.snapshot.initialSeed)}>复制当前种子</button></div></details>
+            <details className="lobby-run-details"><summary>本局档案 · 种子 {active.snapshot.initialSeed}</summary><p translate="no">{active.name}</p><div className="frontdesk-actions"><button type="button" onClick={() => setSelected(active)}>查看本局日志</button><button type="button" onClick={() => void copySeed(active.snapshot.initialSeed)}>复制当前种子</button></div></details>
           </> : <p className="lobby-premise">¥100 入场。转动、改造，让好运站在你这边。</p>}
         </section>
         <form className={"new-run-form" + (active !== null ? " has-current-run" : "")} onSubmit={(event) => { event.preventDefault(); if (seed.trim() === "" || !validSeed(Number(seed))) { setNotice("种子必须是 0 到 4294967295 之间的整数。"); return; } begin(Number(seed)); }}>
@@ -119,8 +126,8 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
         <label className="inline-check"><input type="checkbox" checked={onlyFavorites} onChange={(event) => setOnlyFavorites(event.target.checked)} />只看收藏的局</label>
         {library?.runs.length === 0 && <p className="archive-empty">还没有历史记录，开始新局后会自动建立档案。</p>}
         {library?.runs.toReversed().filter((run) => !onlyFavorites || run.favorite).map((run) => <article className="archive-card" key={run.id}>
-          <p className="eyebrow">{run.id === library.activeId ? "当前局" : run.origin === "backup" ? "手动备份" : "历史档案"} · {new Date(run.updatedAt).toLocaleString("zh-CN")}</p>
-          <h3>{run.name}</h3><p>{money(run.snapshot.bankroll)} · 种子 {run.snapshot.initialSeed} · {run.snapshot.nextSpinOrdinal - 1} 转 · {run.entries.length} 条日志</p>
+          <p className="eyebrow">{run.id === library.activeId ? "当前局" : run.origin === "backup" ? "手动备份" : "历史档案"} · {new Date(run.updatedAt).toLocaleString(getLanguage() === "en" ? "en-US" : "zh-CN")}</p>
+          <h3 translate="no">{run.name}</h3><p>{money(run.snapshot.bankroll)} · 种子 {run.snapshot.initialSeed} · {run.snapshot.nextSpinOrdinal - 1} 转 · {run.entries.length} 条日志</p>
           <div className="frontdesk-actions"><button type="button" onClick={() => setSelected(run)}>查看日志</button><button type="button" onClick={() => downloadText("night-" + run.snapshot.initialSeed + "-" + run.id + ".json", exportArchive(run))}>导出</button>
             <button type="button" aria-pressed={run.favorite} onClick={() => perform(() => writeLibrary({ ...library, runs: library.runs.map((item) => item.id === run.id ? { ...item, favorite: !item.favorite } : item) }), "收藏已更新。")}>{run.favorite ? "取消收藏本局" : "收藏本局"}</button>
             <button type="button" onClick={() => { setSeed(String(run.snapshot.initialSeed)); setSection("lobby"); }}>使用此种子</button>
@@ -136,7 +143,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
         <h2>收藏图鉴</h2><p>已获得 {library?.discovered.length ?? 0} / {UPGRADE_IDS.length} 项。图鉴不影响掉落，也不提供局外数值加成。</p>
         <div className="archive-filters"><label>搜索部件<input value={search} onChange={(event) => setSearch(event.target.value)} /></label><label>路线<select value={route} onChange={(event) => setRoute(event.target.value)}><option value="all">全部路线</option><option value="fruit">水果自助餐</option><option value="chapel">小教堂</option><option value="violent">故障利用</option><option value="neutral">稳定维修</option><option value="information">会计工具</option></select></label></div>
         <label className="inline-check"><input type="checkbox" checked={favoritePartsOnly} onChange={(event) => setFavoritePartsOnly(event.target.checked)} />只看收藏的部件</label>
-        <div className="collection-grid">{UPGRADE_IDS.filter((id) => (!favoritePartsOnly || library?.favoriteUpgrades.includes(id)) && (route === "all" || UPGRADES[id].route === route) && UPGRADES[id].name.includes(search)).map((id) => {
+        <div className="collection-grid">{UPGRADE_IDS.filter((id) => (!favoritePartsOnly || library?.favoriteUpgrades.includes(id)) && (route === "all" || UPGRADES[id].route === route) && (UPGRADES[id].name.toLowerCase().includes(search.toLowerCase()) || translate(UPGRADES[id].name).toLowerCase().includes(search.toLowerCase()))).map((id) => {
           const copy = describeUpgrade(active?.snapshot ?? createRun(defaultSeed), id);
           return <article className="archive-card collection-item" key={id}><p className="eyebrow">{copy.routeLabel} · {copy.kindLabel} · {library?.discovered.includes(id) ? "已获得" : "尚未获得"}</p><h3>{copy.name}</h3><p>{copy.decisionEffect}</p>
             {copy.triggerCondition !== null && <p>触发条件：{copy.triggerCondition}</p>}<details><summary>效果、搭配与代价</summary><p>{copy.effect}</p>{copy.levelTwoEffect !== null && <p>{copy.levelTwoEffect}</p>}<p>搭配：{copy.synergy}</p><p>代价：{copy.risk}</p></details>

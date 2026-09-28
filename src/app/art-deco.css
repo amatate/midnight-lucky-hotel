@@ -384,13 +384,13 @@ button:focus-visible, summary:focus-visible, select:focus-visible, input:focus-v
   body { background-image: linear-gradient(90deg, #030a08e6, #08120cd6 50%, #030a08e6), url("/art/hotel-lobby-v1.png"); background-size: cover; background-position: center; background-attachment: fixed; }
   .app-shell { width: min(calc(100% - 48px), 1120px); margin-block: 16px; min-height: calc(100dvh - 32px); border: 0; }
   .game-page { min-height: calc(100dvh - 32px); padding: 16px 24px; gap: 12px 40px; }
-  .game-page[data-cabinet-visible="true"] { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); grid-template-rows: auto auto auto auto auto 1fr; align-items: start; }
+  .game-page[data-cabinet-visible="true"]:not(.fixed-console) { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); grid-template-rows: auto auto auto auto auto 1fr; align-items: start; }
   .hotel-header, .shift-plaque, .game-page > .archive-warning { grid-column: 1 / -1; }
   .hotel-header { padding-bottom: 4px; }
   .hotel-header h1 { font-size: 1.65rem; }
   .deco-room-mark { flex-basis: 126px; height: 54px; }
   .deco-room-mark span { bottom: 2px; font-size: 1rem; }
-  .game-page[data-cabinet-visible="true"] .cabinet-shell { --cabinet-rail: 26px; grid-column: 1; grid-row: 3 / span 4; display: grid; grid-template-columns: minmax(0, 1fr) 58px; gap: 10px 6px; padding-top: 65px; padding-bottom: 44px; }
+  .game-page[data-cabinet-visible="true"]:not(.fixed-console) .cabinet-shell { --cabinet-rail: 26px; grid-column: 1; grid-row: 3 / span 4; display: grid; grid-template-columns: minmax(0, 1fr) 58px; gap: 10px 6px; padding-top: 65px; padding-bottom: 44px; }
   .cabinet-shell::before { border-image-width: 65px var(--cabinet-rail) 44px; }
   .cabinet-marquee { top: 26px; font-size: 1rem; }
   .cabinet-shell > .hud, .spin-payout-plaque, .cabinet-shell > .parts-panel, .cabinet-shell > .acquired-upgrades { grid-column: 1 / -1; }

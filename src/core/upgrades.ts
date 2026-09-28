@@ -1,5 +1,7 @@
 import { copyBaseSymbol, isBaseSymbol, pruneOneSymbol } from "@/content/effects/neutral";
 import { UPGRADES } from "@/content/upgrades";
+import { isRoomIntermission } from "@/content/hotel";
+import { advanceRoomRound } from "@/core/blocks";
 import { generateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
@@ -217,15 +219,20 @@ function completeUpgrade(
     ? [{ sequence: original.pendingEvents.length + 1, type: "RESOURCE_CHANGED", resource: "tips", delta: 1 } as const]
     : [];
   if (isAfterHours) {
+    const upgraded: RunState = { ...acquired, currentCandidates: null,
+      acquiredUpgrades: didAcquire ? [...acquired.acquiredUpgrades, choice.id] : acquired.acquiredUpgrades };
+    const next = isRoomIntermission(original) ? advanceRoomRound(upgraded) : upgraded;
+    const events: GameEvent[] = [...tipEvent];
+    if (isRoomIntermission(original)) events.push({ sequence: original.pendingEvents.length + events.length + 1,
+      type: "ROOM_ROUND_STARTED", round: next.hotel!.challenge!.rounds!.current });
+    if (next.phase === "RUN_LOST") events.push({ sequence: original.pendingEvents.length + events.length + 1,
+      type: "RUN_ENDED", outcome: "lost" });
     return {
       ok: true,
-      events: tipEvent,
+      events,
       state: {
-        ...acquired,
-        phase: "AFTER_HOURS",
-        currentCandidates: null,
-        acquiredUpgrades: didAcquire ? [...acquired.acquiredUpgrades, choice.id] : acquired.acquiredUpgrades,
-        pendingEvents: [...original.pendingEvents, ...tipEvent],
+        ...next,
+        pendingEvents: [...original.pendingEvents, ...events],
         commandHistory: [...original.commandHistory, command]
       }
     };

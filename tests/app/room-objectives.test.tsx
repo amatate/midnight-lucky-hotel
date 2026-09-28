@@ -73,7 +73,7 @@ describe("room objective readouts", () => {
     expect(within(choices).getByRole("button", { name: "升房挑战 · 留声机房" })).toBeDisabled();
     expect(choices).toHaveTextContent("下一房备付金 ¥500（4 次 × ¥125）");
     expect(choices).toHaveTextContent("至少 3 转各得 ¥1200，不要求连续");
-    expect(choices).toHaveTextContent("全部转完再判定通关");
+    expect(choices).toHaveTextContent("全部回合转完再判通关");
   });
 
   it("preserves old recorded targets without changing historical results", () => {

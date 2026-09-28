@@ -20,7 +20,10 @@ const deployBase = process.env.DEPLOY_BASE_PATH ?? "/";
 
 export default defineConfig({
   base: deployBase,
-  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.26-mobile-pages") },
+  // These are local source modules, not dependencies. Prebundling them would
+  // create a second language store and make dev mode ignore the UI preference.
+  optimizeDeps: { exclude: ["@/i18n/jsx-runtime", "@/i18n/jsx-dev-runtime"] },
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.28-bilingual") },
   plugins: [
     {
       name: "restart-on-rule-change",
@@ -32,7 +35,17 @@ export default defineConfig({
         }
       }
     },
-    react(),
+    react({ jsxImportSource: "@/i18n" }),
+    {
+      name: "local-jsx-runtime-is-source",
+      enforce: "post",
+      config(config) {
+        // React's plugin explicitly includes its JSX runtime in optimizeDeps.
+        // Remove our source runtime from that list as well as excluding discovery.
+        if (config.optimizeDeps?.include) config.optimizeDeps.include = config.optimizeDeps.include
+          .filter((entry) => !entry.startsWith("@/i18n/"));
+      }
+    },
     VitePWA({
       registerType: "prompt",
       injectRegister: false,
@@ -48,10 +61,10 @@ export default defineConfig({
         "art/hotel-rooms-v1.png"
       ],
       manifest: {
-        name: "午夜好运酒店",
-        short_name: "好运酒店",
-        lang: "zh-CN",
-        description: "一拉一爆的午夜酒店老虎机 Roguelite",
+        name: "Midnight Lucky Hotel · 午夜好运酒店",
+        short_name: "Lucky Hotel",
+        lang: "en",
+        description: "A bilingual slot-machine roguelite. Build the reels. Make your own luck.",
         display: "standalone",
         orientation: "portrait",
         theme_color: "#0c1715",

@@ -30,6 +30,7 @@ export function commandLabel(command: GameCommand): string {
     case "BUY_FOOD": return "买食物 · 第 " + (command.reelIndex + 1) + " 轮";
     case "UPGRADE_PART": return "花 3 小费精修第 " + (command.slot + 1) + " 槽部件至 L2";
     case "ENTER_ROOM": return "入住下一间挑战客房／原房重试";
+    case "NEXT_ROOM_ROUND": return "继续客房下一回合";
     case "OPEN_WORKSHOP": return "查看本次金币整备（三选一，确认购买才扣费）";
     case "PRAY": return "祈祷 · " + SYMBOL_LABELS[command.symbol];
     case "ENABLE_MARTYR": return "启用殉道者硬币";
@@ -54,20 +55,25 @@ export function eventLabel(event: GameEvent): string {
   const formula = (value: { preMultiplierAmount: number; appliedMultiplier: number; amount: number }): string =>
     money(value.preMultiplierAmount) + " × " + value.appliedMultiplier + " = " + money(value.amount);
   switch (event.type) {
+    case "ROOM_ROUND_STARTED": return "花园房 · 开始第 " + event.round + " / 3 回合，干预点与服务次数恢复";
+    case "ROOM_ROUND_COMPLETED": return "花园房 · 第 " + event.round + " 回合结束：本回合 " + money(event.payout)
+      + "，本房累计 " + money(event.totalPayout) + (event.reward ? " · 获得一次免费强化" : "");
     case "WORKSHOP_PURCHASED": return "金币整备购买 · 花费 " + money(event.cost);
     case "MEAL_SERVED": return "餐点已送达：接下来 " + event.spins + " 转赔付 +" + event.additivePayout * 100 + "%（免费转也消耗次数）";
     case "PART_UPGRADED": return UPGRADES[event.partId].name + " 升至 L2 · 花费 " + event.cost + " 小费";
-    case "ROOM_ENTERED": return "入住" + HOTEL_ROOMS[event.tier].name + "：固定下注 " + money(event.bet) + " · " + (event.paidSpins ?? 3) + " 次付费转 · " + roomGoalCopy(event.objective ?? { kind: "total-payout" }, event.target, money) + " · 干预点 " + event.focus;
+    case "ROOM_ENTERED": return "入住" + HOTEL_ROOMS[event.tier].name + "：固定下注 " + money(event.bet) + " · "
+      + (event.rounds ? event.rounds + " 回合 × " : "") + (event.paidSpins ?? 3) + " 次付费转 · "
+      + (event.rounds ? "本房累计奖金 " + money(event.target) : roomGoalCopy(event.objective ?? { kind: "total-payout" }, event.target, money)) + " · 干预点 " + event.focus;
     case "ROOM_COMPLETED": {
       // Old events recorded a total-payout challenge; never reinterpret them via today's room table.
       const objective = event.objective ?? { kind: "total-payout" };
       const progress = { objective, value: event.progress ?? (objective.kind === "total-payout" ? event.payout : 0),
         required: objective.kind === "scoring-spins" ? objective.count : event.target,
-        target: event.target, cleared: event.cleared };
+        target: event.target, cleared: event.cleared, ...(event.rounds ? { rounds: event.rounds } : {}) };
       const score = objective.kind !== "total-payout" && event.progress === undefined
         ? "成绩未记录；目标：" + roomGoalCopy(objective, event.target, money) : roomProgressCopy(progress, money);
       return HOTEL_ROOMS[event.tier].name + (event.cleared ? "挑战成功" : "挑战未达标") + "：" + score
-        + " · " + (event.paidSpins ?? 3) + " 次付费转"
+        + " · " + (event.rounds ? event.rounds + " 回合 × " : "") + (event.paidSpins ?? 3) + " 次付费转"
         + (objective.kind === "total-payout" ? "" : " · 本段奖金合计 " + money(event.payout));
     }
     case "BET_PLACED": return "扣除下注 " + money(event.amount);

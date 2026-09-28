@@ -11,6 +11,7 @@
     "erasableSyntaxOnly": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "@/i18n",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,

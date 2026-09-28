@@ -41,6 +41,8 @@ export function RunSummary({ state, trajectory, onCommand, onRestartSameSeed, on
   const ended = state.phase === "RUN_LOST" || state.phase === "RUN_WON";
   const nextBet = getNextOvertimeBet(state);
   const block = summary.block;
+  const rounds = state.hotel?.challenge?.rounds;
+  const blockLabel = rounds ? `第 ${rounds.current} 回合` : "本段";
 
   return (
     <section className="run-summary" aria-label="本局总结">
@@ -48,14 +50,15 @@ export function RunSummary({ state, trajectory, onCommand, onRestartSameSeed, on
       <h2>{title}</h2>
       <RoomResult state={state} />
       <strong>{ended ? "最终余额" : "当前钱包"} {money(state.bankroll)}</strong>
-      {block !== null ? <section aria-label="本次挑战收支">
+      {block !== null ? <section aria-label={rounds ? "当前回合收支" : "本次挑战收支"}>
+        {rounds && <p>下方仅为第 {rounds.current} 回合收支；全房奖金见上方累计目标，钱包包含此前所有回合。</p>}
         <dl>
-          <div><dt>本段奖金</dt><dd>{money(block.payout)}</dd></div>
-          <div><dt>本段下注</dt><dd>−{money(block.wager)}</dd></div>
-          <div><dt>本段服务／献祭</dt><dd>−{money(block.otherCosts)}</dd></div>
-          <div><dt>本段净收益</dt><dd>{signedMoney(block.net)}</dd></div>
+          <div><dt>{blockLabel}奖金</dt><dd>{money(block.payout)}</dd></div>
+          <div><dt>{blockLabel}下注</dt><dd>−{money(block.wager)}</dd></div>
+          <div><dt>{blockLabel}服务／献祭</dt><dd>−{money(block.otherCosts)}</dd></div>
+          <div><dt>{blockLabel}净收益</dt><dd>{signedMoney(block.net)}</dd></div>
         </dl>
-        <p>本段钱包：{money(block.start)} → {money(block.end)}</p>
+        <p>{blockLabel}钱包：{money(block.start)} → {money(block.end)}</p>
         {block.afterBlockCosts > 0 && <p>结算后改造／整备另支出 {money(block.afterBlockCosts)}；当前钱包 {money(state.bankroll)}。</p>}
       </section> : <p>旧记录缺少完整的本段起止钱包，仅显示可核实的累计流水。</p>}
       <details><summary>整局累计账本（从开局至今）</summary>

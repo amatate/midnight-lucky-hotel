@@ -87,8 +87,9 @@ describe("third-stage meals and fruit branches", () => {
 });
 
 describe("fixed hotel challenges and compatible archives", () => {
-  it("discloses and locks stakes, ignores old wealth, and allows failed-room retry or free overtime", () => {
+  it("preserves the legacy one-round goal, locks stakes, and allows failed-room retry or free overtime", () => {
     let state = send(boundary({ bankroll: 1_000_000, nextShiftFocusBonus: 9 }), { type: "ENTER_ROOM" });
+    state = { ...state, hotel: { cleared: 0, challenge: { tier: 1, status: "playing", target: 450, paidSpins: 3, objective: { kind: "total-payout" } } } };
     expect(getCurrentBet(state)).toBe(25);
     expect(state.maxInterventionPoints).toBe(3);
     expect(dispatchCommand(state, { type: "SET_BET_MODE", mode: "aggressive" }).ok).toBe(false);
@@ -123,7 +124,10 @@ describe("fixed hotel challenges and compatible archives", () => {
       log({ type: "BUY_FOOD", reelIndex: 0 });
       expect(getCurrentBet(session.record.snapshot)).toBe(HOTEL_ROOMS[tier].bet);
       expect(session.record.snapshot.maxInterventionPoints).toBeLessThanOrEqual(HOTEL_ROOMS[tier].focusCap);
-      for (let spin = 0; spin < 3; spin++) for (const type of ["SPIN", "REELS_STOPPED", "ACCEPT_OUTCOME", "PRESENTATION_COMPLETE"] as const) log({ type });
+      for (let current = 1; current <= (HOTEL_ROOMS[tier].rounds ?? 1); current++) {
+        for (let spin = 0; spin < 3; spin++) for (const type of ["SPIN", "REELS_STOPPED", "ACCEPT_OUTCOME", "PRESENTATION_COMPLETE"] as const) log({ type });
+        if (current < (HOTEL_ROOMS[tier].rounds ?? 1)) log({ type: "DECLINE_UPGRADE" });
+      }
       expect(session.record.snapshot.hotel?.cleared).toBe(tier);
       expect(session.record.snapshot.currentCandidates).not.toBeNull();
       expect(dispatchCommand(session.record.snapshot, { type: "ENTER_ROOM" }).ok).toBe(false);
@@ -131,7 +135,7 @@ describe("fixed hotel challenges and compatible archives", () => {
     }
     expect(dispatchCommand(session.record.snapshot, { type: "ENTER_ROOM" }).ok).toBe(true);
     log({ type: "CONTINUE" });
-    expect(session.record.snapshot.hotel).toEqual({ cleared: 3, challenge: null });
+    expect(session.record.snapshot.hotel).toMatchObject({ cleared: 3, challenge: null });
     const imported = importArchive(readLibrary(), exportArchive(session.record));
     expect(verifyArchive(imported.runs.at(-1)!)).toContain("核验通过");
     expect(session.record.entries.filter((entry) => entry.events.some((event) => event.type === "ROOM_COMPLETED"))).toHaveLength(3);
@@ -144,7 +148,8 @@ describe("fixed hotel challenges and compatible archives", () => {
     expect(state.baseSpinsInShift).toBe(2);
     expect(state.hotel?.challenge?.status).toBe("playing");
     state = pull(state);
-    expect(state.hotel?.challenge?.status).toBe("cleared");
+    expect(state.hotel?.challenge).toMatchObject({ status: "playing", rounds: { current: 1 } });
+    expect(state.phase).toBe("AFTER_HOURS");
   });
 
   it("rejects early or unaffordable entry and ends a mid-room bankruptcy without inventing a pass", () => {

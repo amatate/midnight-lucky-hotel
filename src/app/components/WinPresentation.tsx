@@ -39,6 +39,8 @@ function totalTriggers(state: RunState, partId: Extract<GameEvent, { type: "PART
 export function settlementEventLabel(state: RunState, event: GameEvent | null): string {
   if (event === null) return "没有结算事件";
   switch (event.type) {
+    case "ROOM_ROUND_COMPLETED":
+    case "ROOM_ROUND_STARTED":
     case "WORKSHOP_PURCHASED":
     case "MEAL_SERVED":
     case "PART_UPGRADED":

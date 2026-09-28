@@ -244,6 +244,7 @@ export function isGameCommand(value: unknown): value is GameCommand {
     case "ENABLE_MARTYR":
     case "LIGHT_CANDLE":
     case "ENTER_ROOM":
+    case "NEXT_ROOM_ROUND":
     case "OPEN_WORKSHOP":
     case "SPIN":
     case "REELS_STOPPED":
@@ -276,6 +277,7 @@ export function isRoomObjective(value: unknown): value is RoomObjective {
 
 function hasRoomRuleFields(value: PlainRecord): boolean {
   return (!Object.hasOwn(value, "paidSpins") || isPaidSpinLimit(value.paidSpins))
+    && (!Object.hasOwn(value, "rounds") || value.tier === 1 && value.rounds === 3)
     && (!Object.hasOwn(value, "objective") || isRoomObjective(value.objective))
     && (!Object.hasOwn(value, "progress") || isBoundedMoney(value.progress)
       && (!isPlainRecord(value.objective) || value.objective.kind !== "scoring-spins" || isSafeInteger(value.progress, 0)));
@@ -305,15 +307,19 @@ function hasV2FormulaFields(value: PlainRecord): boolean {
 
 function commonEvent(value: PlainRecord, money: (candidate: unknown) => candidate is number): boolean | null {
   switch (value.type) {
+    case "ROOM_ROUND_STARTED": return eventBase(value, ["round"]) && isSafeInteger(value.round, 2, 3);
+    case "ROOM_ROUND_COMPLETED": return eventBase(value, ["round", "payout", "totalPayout", "reward"])
+      && isSafeInteger(value.round, 1, 3) && money(value.payout) && money(value.totalPayout)
+      && Number(value.totalPayout) >= Number(value.payout) && isBoolean(value.reward);
     case "WORKSHOP_PURCHASED": return eventBase(value, ["cost"]) && money(value.cost) && Number(value.cost) > 0;
     case "MEAL_SERVED": return eventBase(value, ["spins", "additivePayout"])
       && value.spins === 3 && value.additivePayout === 0.5;
     case "PART_UPGRADED": return eventBase(value, ["partId", "cost"])
       && isEnum(value.partId, PARTS) && value.cost === 3;
-    case "ROOM_ENTERED": return eventBase(value, ["tier", "bet", "target", "focus"], ["paidSpins", "objective"])
+    case "ROOM_ENTERED": return eventBase(value, ["tier", "bet", "target", "focus"], ["paidSpins", "objective", "rounds"])
       && isSafeInteger(value.tier, 1, MAX_ROOM_TIER) && money(value.bet) && money(value.target)
       && isSafeInteger(value.focus, 0, 3) && hasRoomRuleFields(value);
-    case "ROOM_COMPLETED": return eventBase(value, ["tier", "payout", "target", "cleared"], ["paidSpins", "objective", "progress"])
+    case "ROOM_COMPLETED": return eventBase(value, ["tier", "payout", "target", "cleared"], ["paidSpins", "objective", "progress", "rounds"])
       && isSafeInteger(value.tier, 1, MAX_ROOM_TIER) && money(value.payout) && money(value.target)
       && isBoolean(value.cleared) && hasRoomRuleFields(value);
     case "BET_PLACED": return eventBase(value, ["amount"]) && money(value.amount);

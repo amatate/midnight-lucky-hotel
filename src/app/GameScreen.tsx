@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LanguageSelector } from "@/app/components/LanguageSelector";
 import { ActionBar, selectedPaidBetIsUnaffordable } from "@/app/components/ActionBar";
 import { CoinBurst } from "@/app/components/CoinBurst";
 import { Hud } from "@/app/components/Hud";
 import { HelpButton, HelpPauseContext } from "@/app/components/HelpWindow";
 import { GameGuide } from "@/app/components/GameGuide";
-import { getPaidSpinLimit, HOTEL_ROOMS } from "@/content/hotel";
+import { getPaidSpinLimit, HOTEL_ROOMS, isRoomIntermission } from "@/content/hotel";
+import { RoomIntermission, RoomResult } from "@/app/components/HotelChallenge";
 import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { PartsBar } from "@/app/components/PartsBar";
 import { RoomBackdrop, RoomCrown } from "@/app/components/CabinetArtwork";
@@ -154,11 +156,13 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
     lastEstimate.current = null;
     game.restartNextSeed();
   };
+  const isRoomRest = isRoomIntermission(game.state);
+  const roomRounds = game.state.hotel?.challenge?.rounds;
   const isRunSummary = game.state.phase === "SHIFT_COMPLETE" || game.state.phase === "RUN_WON" ||
-    game.state.phase === "RUN_LOST" || (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates === null);
+    game.state.phase === "RUN_LOST" || (!isRoomRest && game.state.phase === "AFTER_HOURS" && game.state.currentCandidates === null);
   const isUpgradeScene = game.state.phase === "CHOOSING_UPGRADE" ||
     (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates !== null);
-  const showCabinet = !isUpgradeScene && !isRunSummary && game.state.phase !== "CHOOSING_SERVICE";
+  const showCabinet = !isRoomRest && !isUpgradeScene && !isRunSummary && game.state.phase !== "CHOOSING_SERVICE";
   const roomTier = game.state.hotel?.challenge?.tier;
 
   if (archiveOpen && game.archive !== null) {
@@ -189,8 +193,8 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
         </div>
       </header>
         <div className="shift-plaque">
-          <strong>{game.state.hotel?.challenge != null ? HOTEL_ROOMS[game.state.hotel.challenge.tier].name : game.state.afterHoursLevel > 0 ? `加班 ${game.state.afterHoursLevel}` : `第 ${game.state.shift} 班`} · 剩余 {Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift)} 转</strong>
-          <span>{game.state.phase === "AFTER_HOURS" && game.state.hotel?.challenge != null ? "客房结算" : PHASE_LABELS[game.state.phase]}</span>
+          <strong>{game.state.hotel?.challenge != null ? HOTEL_ROOMS[game.state.hotel.challenge.tier].name : game.state.afterHoursLevel > 0 ? `加班 ${game.state.afterHoursLevel}` : `第 ${game.state.shift} 班`}{roomRounds ? ` · 回合 ${roomRounds.current}/${roomRounds.total}` : ` · 剩余 ${Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift)} 转`}</strong>
+          <span className={showCabinet && !roomRounds ? "sr-only" : undefined}>{showCabinet && roomRounds ? `余 ${Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift)} 转` : isRoomRest ? "中途整备" : game.state.phase === "AFTER_HOURS" && roomTier !== undefined ? "客房结算" : PHASE_LABELS[game.state.phase]}</span>
         </div>
       {game.storageWarning !== null && <section className="archive-warning" role="alert"><p>{game.storageWarning}</p><p>自动推进已暂停。请先导出本局，避免关闭页面后丢失未保存进度。</p><button type="button" onClick={game.retrySave}>重试保存</button></section>}
 
@@ -302,12 +306,14 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
             </div>
           </div>
         )}
+        {isRoomRest && <RoomIntermission state={game.state} onCommand={game.send} />}
         {isUpgradeScene && (
           <>
+            {!isRoomRest && <RoomResult state={game.state} />}
             <ActionBar state={game.state} onCommand={game.send} />
             <HelpButton title="本班小票" trigger="查看本班收支" className="console-receipt-key"><ShiftReceipt state={game.state} /></HelpButton>
             <UpgradePicker compact state={game.state} onCommand={game.send} currentEstimate={estimate} />
-            {game.state.exitUnlocked && <button className="cash-out-button" type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账离开</button>}
+            {game.state.exitUnlocked && !isRoomRest && <button className="cash-out-button" type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账离开</button>}
           </>
         )}
         {isRunSummary && (
@@ -328,6 +334,7 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
 
       <HelpButton title="酒店菜单" trigger="菜单" className="console-menu-key" interactive>
       <footer className="game-utilities">
+        <LanguageSelector />
         {game.state.acquiredUpgrades.length > 0 && <details className="acquired-upgrades"><summary>已获得升级 · {game.state.acquiredUpgrades.length}</summary>
           <ul>{game.state.acquiredUpgrades.map((id, index) => <li key={`${id}-${index}`}>{UPGRADES[id].name}</li>)}</ul>
         </details>}

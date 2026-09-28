@@ -16,7 +16,9 @@ function signedMoney(value: number): string {
 export function ShiftReceipt({ state }: { readonly state: RunState }): React.JSX.Element | null {
   const snapshot = state.shiftHistory.at(-1);
   if (snapshot === undefined) return null;
-  const heading = (snapshot.afterHoursLevel ?? 0) > 0
+  const heading = state.hotel?.challenge?.rounds
+    ? `花园房 · 第 ${state.hotel.challenge.rounds.current} 回合收工`
+    : (snapshot.afterHoursLevel ?? 0) > 0
     ? `加班第 ${snapshot.afterHoursLevel} 段收工`
     : `第 ${snapshot.shift} 班收工`;
 

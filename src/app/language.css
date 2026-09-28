@@ -1,0 +1,17 @@
+.language-selector { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: 4px 0 12px; color: #dbc78b; }
+.language-selector button { min-height: 36px; padding: 5px 12px; border: 1px solid #75633b; background: #11241f; color: #dfd4b1; border-radius: 3px; font: inherit; cursor: pointer; }
+.language-selector button[aria-pressed="true"] { color: #fff0bc; border-color: #dcc27b; box-shadow: inset 0 -2px #dcc27b; }
+:lang(en) .frontdesk-heading h1 { font-family: "Barlow Condensed", Georgia, serif; font-size: clamp(30px, 7vw, 54px); letter-spacing: .02em; }
+:lang(en) .fixed-console { --cabinet-label-font: "Barlow Condensed", "Arial Narrow", sans-serif; }
+:lang(en) .fixed-console .console-resource-key { font: 600 13px "Barlow Condensed", sans-serif; }
+:lang(en) .fixed-console .part-socket-name { font: 600 12px/1.05 "Barlow Condensed", sans-serif; white-space: normal; }
+:lang(en) .fixed-console .part-readout { font-size: 11px; }
+:lang(en) .fixed-console .part-socket-button { grid-template-rows: minmax(18px, 1fr) minmax(24px, auto) 12px; }
+:lang(en) .fixed-console .console-fixtures button { font-family: "Barlow Condensed", sans-serif; }
+:lang(en) .fixed-console button { overflow-wrap: anywhere; }
+:lang(en) .help-window, :lang(en) .game-guide, :lang(en) .archive-card { overflow-wrap: break-word; line-height: 1.5; }
+:lang(en) .frontdesk-tabs button { font-size: clamp(13px, 3.5vw, 18px); }
+@media (max-width: 600px) {
+  :lang(en) .frontdesk-heading h1 { line-height: 1; }
+  :lang(en) .fixed-console .console-resource-key { font-size: 12px; }
+}

@@ -34,6 +34,7 @@ it("pauses automatic stopping while help is open, without changing archived stat
   vi.useFakeTimers();
   render(<GameScreen seed={8} initialState={ready()} />);
   fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
+  fireEvent.click(screen.getByRole("button", { name: /^机台状态/ }));
   fireEvent.click(screen.getByRole("button", { name: "了解干预点" }));
   const before = activeRecord(readLibrary())!;
   const storedBefore = localStorage.getItem("midnight-lucky-hotel.run.v2");
@@ -43,6 +44,10 @@ it("pauses automatic stopping while help is open, without changing archived stat
   expect(activeRecord(readLibrary())!.snapshot).toEqual(before.snapshot);
   expect(localStorage.getItem("midnight-lucky-hotel.run.v2")).toBe(storedBefore);
   expect(screen.getByRole("dialog", { name: "干预点" })).toHaveTextContent("每次重转、锁轮或祈祷花 1 点");
+  fireEvent.click(within(screen.getByRole("dialog", { name: "干预点" })).getByRole("button", { name: "关闭说明" }));
+  // Closing nested help must not resume until the outer status drawer also closes.
+  await act(async () => vi.advanceTimersByTimeAsync(2_000));
+  expect(activeRecord(readLibrary())!.snapshot.phase).toBe("SPINNING");
   fireEvent.click(screen.getByRole("button", { name: "关闭说明" }));
   await act(async () => vi.advanceTimersByTimeAsync(1_440));
   expect(activeRecord(readLibrary())!.snapshot.phase).toBe("AWAITING_INTERVENTION");
@@ -95,7 +100,7 @@ it("also pauses settlement completion and resumes once after closing help", asyn
   fireEvent.click(screen.getByRole("button", { name: "拉动老虎机" }));
   await act(async () => vi.advanceTimersByTimeAsync(1_440));
   fireEvent.click(screen.getByRole("button", { name: "收下这把" }));
-  fireEvent.click(screen.getByRole("button", { name: "了解干预点" }));
+  fireEvent.click(screen.getByRole("button", { name: /^机台状态/ }));
   const before = activeRecord(readLibrary())!.snapshot;
   expect(before.phase).toBe("RESOLVING_EFFECTS");
   await act(async () => vi.advanceTimersByTimeAsync(20_000));

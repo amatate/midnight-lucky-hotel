@@ -42,11 +42,13 @@ type PatternLineWinEvent = {
 } & FormulaFields;
 
 export type GameEvent =
+  | { readonly sequence: number; readonly type: "ROOM_ROUND_COMPLETED"; readonly round: number; readonly payout: number; readonly totalPayout: number; readonly reward: boolean }
+  | { readonly sequence: number; readonly type: "ROOM_ROUND_STARTED"; readonly round: number }
   | { readonly sequence: number; readonly type: "WORKSHOP_PURCHASED"; readonly cost: number }
   | { readonly sequence: number; readonly type: "MEAL_SERVED"; readonly spins: number; readonly additivePayout: number }
   | { readonly sequence: number; readonly type: "PART_UPGRADED"; readonly partId: PartId; readonly cost: number }
-  | { readonly sequence: number; readonly type: "ROOM_ENTERED"; readonly tier: RoomTier; readonly bet: number; readonly target: number; readonly focus: number; readonly paidSpins?: PaidSpinLimit; readonly objective?: RoomObjective }
-  | { readonly sequence: number; readonly type: "ROOM_COMPLETED"; readonly tier: RoomTier; readonly payout: number; readonly target: number; readonly cleared: boolean; readonly paidSpins?: PaidSpinLimit; readonly objective?: RoomObjective; readonly progress?: number }
+  | { readonly sequence: number; readonly type: "ROOM_ENTERED"; readonly tier: RoomTier; readonly bet: number; readonly target: number; readonly focus: number; readonly paidSpins?: PaidSpinLimit; readonly objective?: RoomObjective; readonly rounds?: 3 }
+  | { readonly sequence: number; readonly type: "ROOM_COMPLETED"; readonly tier: RoomTier; readonly payout: number; readonly target: number; readonly cleared: boolean; readonly paidSpins?: PaidSpinLimit; readonly objective?: RoomObjective; readonly progress?: number; readonly rounds?: 3 }
   | { readonly sequence: number; readonly type: "BET_PLACED"; readonly amount: number }
   | { readonly sequence: number; readonly type: "REELS_DRAWN"; readonly draw: ReelDraw }
   | {

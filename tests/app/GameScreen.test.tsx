@@ -153,7 +153,8 @@ describe("GameScreen", () => {
     expect(screen.getAllByTestId("reel")).toHaveLength(3);
     expect(screen.getAllByTestId("cell")).toHaveLength(9);
     expect(screen.getAllByTestId("part-slot")).toHaveLength(5);
-    fireEvent.click(screen.getByRole("button", { name: /^状态/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^机台状态/ }));
+    fireEvent.click(screen.getByText("状态与加成"));
     expect(screen.getByText("会计工具")).toBeVisible();
     expect(screen.queryByText(/RTP/)).not.toBeInTheDocument();
   });

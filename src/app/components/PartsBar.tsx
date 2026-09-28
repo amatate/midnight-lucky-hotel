@@ -3,6 +3,7 @@ import { CabinetPartArt } from "@/app/components/CabinetArtwork";
 import { PartReadout } from "@/app/components/PartReadout";
 import { describeEquippedPart } from "@/app/player-copy";
 import type { PartId, RunState } from "@/core/types";
+import { translate } from "@/i18n/translate";
 
 const PART_GLYPHS: Readonly<Record<PartId, string>> = {
   "harvest-vat": "M7 4h10l2 8-2 8H7l-2-8 2-8m-1 5h12M6 15h12M10 4v16m4-16v16",
@@ -99,7 +100,7 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
                   </>}>
                   <div className="part-detail" role="group" aria-label={presentation.name + "部件详情"}>
                     <p><strong>触发与效果：</strong>{presentation.effect}</p>
-                    <p><strong>L1 → L2：</strong>{presentation.levelTwoEffect?.replace(/^L2：/, "")}</p>
+                    <p><strong>L1 → L2：</strong>{translate(presentation.levelTwoEffect ?? "").replace(/^L2[：:]\s*/, "")}</p>
                     <p><strong>当前进度／状态：</strong>{presentation.currentImpact}</p>
                     <p><strong>代价／风险：</strong>{presentation.risk}</p>
                     <details><summary>搭配建议</summary><p>{presentation.synergy}</p></details>
