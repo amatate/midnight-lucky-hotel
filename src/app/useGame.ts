@@ -4,6 +4,7 @@ import type { GameEvent } from "@/core/events";
 import { createRun, dispatchCommand } from "@/core/run";
 import type { CommandError, RunState } from "@/core/types";
 import { loadRun, saveRun } from "@/persistence/storage";
+import { playCommandSound, playEventTone } from "@/presentation/audio";
 import {
   activeRecord, backupSession, openArchiveSession, persistSession, readLibrary, recordAction, startArchivedRun,
   type ArchiveSession, type RunArchive
@@ -114,6 +115,11 @@ export function useGame(seed: number, initialState?: RunState): GameController {
     setState(result.state);
     setEvents(result.events);
     setError(null);
+    // Audio observes successful commands only, never replayed saves or rejected actions.
+    if (actor === "player") playCommandSound(command);
+    const terminal = result.events.find((event) => event.type === "ROOM_COMPLETED")
+      ?? result.events.find((event) => event.type === "RUN_ENDED");
+    if (terminal) playEventTone(terminal);
   }, []);
 
   const send = useCallback((command: GameCommand) => dispatch(command, "player"), [dispatch]);

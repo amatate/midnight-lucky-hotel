@@ -5,7 +5,7 @@ import { safeMoney } from "@/core/money";
 import { PAYLINES } from "@/core/paylines";
 import { getCurrentBet } from "@/core/progression";
 import type { Grid, LineWin, PartId, ReceiptAward, ReelIndex, RowIndex, RunState, SpinReceipt } from "@/core/types";
-import { playEventTone, unlockAudio } from "@/presentation/audio";
+import { eventSound, playEventTone, unlockAudio } from "@/presentation/audio";
 import { feedbackPlan } from "@/presentation/feedback";
 import { vibrateSettlement } from "@/presentation/haptics";
 import { buildGridReplay, type GridReplay } from "@/presentation/replay";
@@ -360,7 +360,9 @@ export function useSettlementPresentation(options: SettlementPresentationOptions
     if (presentedSteps.current.has(feedbackKey)) return;
     presentedSteps.current.add(feedbackKey);
     const plan = feedbackPlan(cycle.summary.tier, reducedMotion);
-    playEventTone(view.currentEvent, view.eventIndex === 1 ? plan.tone : "none");
+    const soundEvent = eventSound(view.currentEvent) !== null ? view.currentEvent
+      : [...view.explanationEvents].reverse().find((event) => eventSound(event) !== null) ?? view.currentEvent;
+    playEventTone(soundEvent, soundEvent.type === "PAYOUT_COMPLETE" ? plan.tone : "none");
     vibrateSettlement(view.eventIndex === 1 ? plan.hapticPattern : eventHaptic(view.currentEvent));
   }, [cycle, key, paused, reducedMotion, view.currentEvent, view.done, view.eventIndex, view.key, view.stepIndex]);
 

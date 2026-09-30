@@ -1,0 +1,11 @@
+.audio-settings { padding-block: 12px; border-top: 1px solid #847347; color: #f2e3c0; }
+.audio-settings h3 { margin: 0 0 10px; font-size: 1.1rem; }
+.audio-settings .audio-fader { display: grid; gap: 2px; margin: 10px 0; color: #f2e3c0; }
+.audio-fader > span { display: flex; justify-content: space-between; gap: 12px; }
+.audio-fader output { font-variant-numeric: tabular-nums; }
+.audio-settings input[type="range"] { display: block; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 0; accent-color: #dcc17f; background: transparent; border: 0; box-shadow: none; }
+.audio-settings details { padding-block: 6px; }
+.audio-settings summary { min-height: 36px; cursor: pointer; }
+.audio-settings details label { display: grid; gap: 6px; color: inherit; }
+.audio-settings select { min-height: 44px; width: 100%; color: #f2e3c0; background: #10241c; }
+.audio-settings details button { min-height: 44px; margin-top: 8px; }

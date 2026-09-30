@@ -28,10 +28,15 @@ class TestAudioContext {
     return {
       connect: vi.fn(),
       gain: {
+        cancelScheduledValues: vi.fn(),
+        setTargetAtTime: vi.fn(),
         exponentialRampToValueAtTime: vi.fn(),
         setValueAtTime: vi.fn()
       }
     } as unknown as GainNode;
+  }
+  createDynamicsCompressor() {
+    return { threshold: { value: 0 }, knee: { value: 0 }, ratio: { value: 0 }, connect: vi.fn() };
   }
 }
 

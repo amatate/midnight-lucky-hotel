@@ -586,19 +586,21 @@ describe("useSettlementPresentation", () => {
       readonly destination = {} as AudioDestinationNode;
       readonly currentTime = 0;
       readonly state = "running" as AudioContextState;
-      createOscillator(): OscillatorNode {
+      createBuffer() { return { copyToChannel: vi.fn() }; }
+      createDynamicsCompressor() { return { threshold: { value: 0 }, knee: { value: 0 }, ratio: { value: 0 }, connect: vi.fn() }; }
+      createBufferSource(): AudioBufferSourceNode {
         return {
           connect: vi.fn(),
-          frequency: { value: 0 },
+          playbackRate: { value: 1 },
           start: () => { starts += 1; },
           stop: vi.fn(),
           type: "sine"
-        } as unknown as OscillatorNode;
+        } as unknown as AudioBufferSourceNode;
       }
       createGain(): GainNode {
         return {
           connect: vi.fn(),
-          gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() }
+          gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn(), setTargetAtTime: vi.fn() }
         } as unknown as GainNode;
       }
     }
@@ -626,11 +628,11 @@ describe("useSettlementPresentation", () => {
 
     rerender({ paused: false });
     await act(async () => vi.advanceTimersByTimeAsync(120));
-    expect(starts).toBe(3);
+    expect(starts).toBe(1);
     expect(navigator.vibrate).toHaveBeenCalledTimes(1);
     expect(navigator.vibrate).toHaveBeenCalledWith(12);
     rerender({ paused: false });
-    expect(starts).toBe(3);
+    expect(starts).toBe(1);
     expect(navigator.vibrate).toHaveBeenCalledTimes(1);
     await advancePresentationUntil(() => onCommand.mock.calls.length === 1);
     expect(navigator.vibrate).toHaveBeenCalledTimes(1);

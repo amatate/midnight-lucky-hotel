@@ -1,6 +1,7 @@
 import { GameScreen } from "@/app/GameScreen";
 import "@/app/archives.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { installAudio } from "@/presentation/audio";
 import { FrontDesk } from "@/app/components/FrontDesk";
 import { UpdateNotice } from "@/app/components/UpdateNotice";
 import { initializeLibrary, validSeed, type ArchiveLibrary } from "@/persistence/archives";
@@ -16,6 +17,7 @@ export function parseSeed(search: string): number {
 }
 
 export function App({ seed }: { readonly seed?: number } = {}): React.JSX.Element {
+  useEffect(installAudio, []);
   const language = useLanguage();
   const resolvedSeed = seed !== undefined && Number.isFinite(seed) && Number.isInteger(seed)
     ? seed

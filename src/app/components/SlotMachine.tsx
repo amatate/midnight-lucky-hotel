@@ -4,6 +4,7 @@ import { PAYLINES } from "@/core/paylines";
 import type { BoardInterventionController } from "@/app/useBoardIntervention";
 import type { Grid, LineWin, ReelIndex, RowIndex, RunState, SymbolId } from "@/core/types";
 import type { ReelMotionPlan } from "@/presentation/reel-timeline";
+import { playSfx } from "@/presentation/audio";
 
 export interface SlotMachineProps {
   readonly state: RunState;
@@ -159,6 +160,7 @@ export function SlotMachine({
 
     setMotionState({ timerKey, revealedReels: [] });
     const timers = activePlan.spinningReels.map((reel) => setTimeout(() => {
+      playSfx("stop", 1 + reel * .035);
       setMotionState((current) => current.timerKey !== timerKey || current.revealedReels.includes(reel)
         ? current
         : { timerKey, revealedReels: [...current.revealedReels, reel] });

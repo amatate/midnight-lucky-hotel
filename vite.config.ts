@@ -23,7 +23,7 @@ export default defineConfig({
   // These are local source modules, not dependencies. Prebundling them would
   // create a second language store and make dev mode ignore the UI preference.
   optimizeDeps: { exclude: ["@/i18n/jsx-runtime", "@/i18n/jsx-dev-runtime"] },
-  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.28-bilingual") },
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.28-audio") },
   plugins: [
     {
       name: "restart-on-rule-change",
@@ -58,7 +58,8 @@ export default defineConfig({
         "art/hotel-lobby-v1.png",
         "art/installed-parts-v1.png",
         "art/room-crowns-v1.png",
-        "art/hotel-rooms-v1.png"
+        "art/hotel-rooms-v1.png",
+        "audio/after-hours-v1.wav"
       ],
       manifest: {
         name: "Midnight Lucky Hotel · 午夜好运酒店",

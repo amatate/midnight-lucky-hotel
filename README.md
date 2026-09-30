@@ -32,6 +32,7 @@ game, not a native mobile app. Use Add to Home Screen where your browser support
 
 ## Latest playtest
 
+- 16 original synthesized sound effects and **After Hours**, a 48-second looping lounge track. Separate music/effects volumes, mute and sound previews in settings. [Audio notes](docs/audio.md).
 - English/Chinese menus, guide, part and service descriptions, results and readable logs.
 - Switch at the front desk or in the game menu without restarting your run.
 - Share `?lang=en` or `?lang=zh`. Append `&seed=8` to share a seed.

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LanguageSelector } from "@/app/components/LanguageSelector";
+import { AudioSettings } from "@/app/components/AudioSettings";
 import { ActionBar, selectedPaidBetIsUnaffordable } from "@/app/components/ActionBar";
 import { CoinBurst } from "@/app/components/CoinBurst";
 import { Hud } from "@/app/components/Hud";
@@ -335,6 +336,7 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
       <HelpButton title="酒店菜单" trigger="菜单" className="console-menu-key" interactive>
       <footer className="game-utilities">
         <LanguageSelector />
+        <AudioSettings />
         {game.state.acquiredUpgrades.length > 0 && <details className="acquired-upgrades"><summary>已获得升级 · {game.state.acquiredUpgrades.length}</summary>
           <ul>{game.state.acquiredUpgrades.map((id, index) => <li key={`${id}-${index}`}>{UPGRADES[id].name}</li>)}</ul>
         </details>}

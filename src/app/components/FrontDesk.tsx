@@ -15,6 +15,7 @@ import {
 import { LEGACY_RUN_STORAGE_KEY, RUN_STORAGE_KEY } from "@/persistence/storage";
 import "@/app/frontdesk-scene.css";
 import { LanguageSelector } from "@/app/components/LanguageSelector";
+import { AudioSettings } from "@/app/components/AudioSettings";
 import { translate } from "@/i18n/translate";
 import { getLanguage } from "@/i18n/language";
 
@@ -37,7 +38,6 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
   const [favoritePartsOnly, setFavoritePartsOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [reduceMotion, setReduceMotion] = useState(() => { try { return localStorage.getItem("midnight-lucky-hotel.reduce-flash") === "1"; } catch { return false; } });
-  const [muted, setMuted] = useState(() => { try { return localStorage.getItem("midnight-lucky-hotel.muted") === "1"; } catch { return false; } });
   const active = library === null ? null : activeRecord(library);
   const perform = (action: () => ArchiveLibrary, success: string): boolean => {
     try { onLibrary(action()); setNotice(success); return true; }
@@ -153,7 +153,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
 
       {section === "settings" && <>
         <section className="archive-card"><p className="eyebrow">WELCOME TO THE NIGHT SHIFT</p><h2>玩法与背景</h2><GameGuide /></section>
-        <section className="archive-card"><h2>体验设置</h2><label className="inline-check"><input type="checkbox" checked={reduceMotion} onChange={(event) => setPreference("midnight-lucky-hotel.reduce-flash", event.target.checked, setReduceMotion)} />减少动态与闪烁</label><label className="inline-check"><input type="checkbox" checked={muted} onChange={(event) => setPreference("midnight-lucky-hotel.muted", event.target.checked, setMuted)} />静音</label><p className="fine-print">减少动态不会改变中奖结果。系统减少动态设置也会被尊重。</p></section>
+        <section className="archive-card"><h2>体验设置</h2><label className="inline-check"><input type="checkbox" checked={reduceMotion} onChange={(event) => setPreference("midnight-lucky-hotel.reduce-flash", event.target.checked, setReduceMotion)} />减少动态与闪烁</label><p className="fine-print">减少动态不会改变中奖结果。系统减少动态设置也会被尊重。</p><AudioSettings /></section>
         <section className="archive-card"><h2>本地数据</h2><p>所有记录保存在当前浏览器。清理网站数据会丢失本地存档，请定期导出。容量不足时会提示并暂停自动推进，不自动删除旧记录。</p><button type="button" onClick={exportRaw}>导出全部原始备份</button><p className="fine-print">原始备份用于留底和排错；跨浏览器游玩请在历史中导出单局复盘包。规则版本：{RULES_VERSION}</p></section>
       </>}
       {error !== null && <button type="button" onClick={exportRaw}>导出原始备份（不覆盖数据）</button>}
