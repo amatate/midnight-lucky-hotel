@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createRun } from "../src/core/run";
+import { createLegacyRun as createRun } from "../tests/fixtures/legacy-run";
 import type { RunState } from "../src/core/types";
 
 async function pull(page: Page): Promise<void> {

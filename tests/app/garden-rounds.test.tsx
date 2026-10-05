@@ -4,7 +4,8 @@ import { GameScreen } from "@/app/GameScreen";
 import { RoomChoices, RoomIntermission } from "@/app/components/HotelChallenge";
 import { Hud } from "@/app/components/Hud";
 import { RunSummary } from "@/app/components/RunSummary";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { RunState } from "@/core/types";
 
 beforeEach(() => localStorage.clear());

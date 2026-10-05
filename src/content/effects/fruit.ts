@@ -21,7 +21,7 @@ function harvestVatEffects(part: PartInstance, context: ResolveContext, signal: 
   const charge = context.state.counters.harvestCharge ?? 0;
   return charge < 2 ? [{ type: "INCREMENT_COUNTER", counter: "harvestCharge", amount: 1 }] : [
     { type: "INCREMENT_COUNTER", counter: "harvestCharge", amount: -charge },
-    { type: "ADD_PAYOUT", source: "part", amount: (part.level === 1 ? 12 : 24) * context.currentBet }
+    { type: "ADD_PAYOUT", source: "part", amount: (part.level === 1 ? 12 : 18) * context.currentBet }
   ];
 }
 

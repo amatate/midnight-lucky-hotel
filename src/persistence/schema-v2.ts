@@ -99,7 +99,9 @@ function isSpinHistory(value: unknown, nextSpinOrdinal: unknown): value is reado
 }
 
 export function decodeRunStateV2(value: unknown): RunState | null {
-  if (!hasShape(value, ROOT_KEYS_V2, ["hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "blockReelAdditions"]) || value.schemaVersion !== 2) return null;
+  if (!hasShape(value, ROOT_KEYS_V2, ["hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "blockReelAdditions", "introShifts", "routeKits"]) || value.schemaVersion !== 2) return null;
+  if (Object.hasOwn(value, "routeKits") && value.routeKits !== true) return null;
+  if (Object.hasOwn(value, "introShifts") && value.introShifts !== 3) return null;
   if (Object.hasOwn(value, "blockReelAdditions") && (!isReels(value.blockReelAdditions, true)
     || value.blockReelAdditions.some((strip) => strip.some((symbol) => symbol !== "blank")))) return null;
   if (Object.hasOwn(value, "freeAfterHoursLevel") && !isSafeInteger(value.freeAfterHoursLevel, 0, Number(value.afterHoursLevel))) return null;
@@ -112,8 +114,10 @@ export function decodeRunStateV2(value: unknown): RunState | null {
   }
   if (Object.hasOwn(value, "hotel")) {
     const hotel = value.hotel;
-    if (!hasShape(hotel, ["cleared", "challenge"], ["gardenRewardsGranted"]) || !isSafeInteger(hotel.cleared, 0, MAX_ROOM_TIER)
+    if (!hasShape(hotel, ["cleared", "challenge"], ["gardenRewardsGranted", "roomRewardsGranted"]) || !isSafeInteger(hotel.cleared, 0, MAX_ROOM_TIER)
       || Object.hasOwn(hotel, "gardenRewardsGranted") && !isSafeInteger(hotel.gardenRewardsGranted, 0, 2)) return null;
+    if (Object.hasOwn(hotel, "roomRewardsGranted") && (!hasShape(hotel.roomRewardsGranted, ["2", "3"])
+      || !isSafeInteger(hotel.roomRewardsGranted[2], 0, 2) || !isSafeInteger(hotel.roomRewardsGranted[3], 0, 2))) return null;
     if (hotel.challenge !== null) {
       const challenge = hotel.challenge;
       if (!hasShape(challenge, ["tier", "status"], ["target", "paidSpins", "objective", "progress", "rounds"]) || !isSafeInteger(challenge.tier, 1, MAX_ROOM_TIER)
@@ -123,22 +127,24 @@ export function decodeRunStateV2(value: unknown): RunState | null {
         || (Object.hasOwn(challenge, "progress") && (!isBoundedMoney(challenge.progress)
           || isPlainRecord(challenge.objective) && challenge.objective.kind === "scoring-spins" && !isSafeInteger(challenge.progress, 0)))
         || !["playing", "cleared", "failed"].includes(String(challenge.status))
-        || value.shift !== 5 || !isSafeInteger(value.afterHoursLevel, 1) || value.exitUnlocked !== true) return null;
+        || value.shift !== (value.introShifts ?? 5) || !isSafeInteger(value.afterHoursLevel, 1) || value.exitUnlocked !== true) return null;
       if (challenge.status === "cleared" ? challenge.tier !== hotel.cleared : challenge.tier !== hotel.cleared + 1) return null;
+      const rewards = challenge.tier === 1 ? hotel.gardenRewardsGranted
+        : isPlainRecord(hotel.roomRewardsGranted) ? hotel.roomRewardsGranted[String(challenge.tier)] : undefined;
       if (Object.hasOwn(challenge, "rounds")) {
         const rounds = challenge.rounds;
-        if (challenge.tier !== 1 || challenge.paidSpins !== 3 || !isPlainRecord(challenge.objective)
+        if (challenge.tier > 3 || challenge.paidSpins !== 3 || !isPlainRecord(challenge.objective)
           || challenge.objective.kind !== "total-payout" || !isBoundedMoney(challenge.target)
           || !hasShape(rounds, ["current", "total", "payout"]) || rounds.total !== 3
           || !isSafeInteger(rounds.current, 1, 3) || !isBoundedMoney(rounds.payout)
           || rounds.current === 1 && rounds.payout !== 0
-          || !isSafeInteger(hotel.gardenRewardsGranted, Number(rounds.current) - 1, 2)
+          || !isSafeInteger(rewards, Number(rounds.current) - 1, 2)
           || challenge.status !== "playing" && rounds.current !== 3) return null;
       }
       if (challenge.status === "playing") {
         if (value.phase === "AFTER_HOURS") {
           if (!isPlainRecord(challenge.rounds) || Number(challenge.rounds.current) >= 3
-            || Number(hotel.gardenRewardsGranted) < Number(challenge.rounds.current) || value.workshop != null) return null;
+            || Number(rewards) < Number(challenge.rounds.current) || value.workshop != null) return null;
         } else if (!["READY_TO_SPIN", "SPINNING", "AWAITING_INTERVENTION", "RESOLVING_EFFECTS", "RUN_LOST"].includes(String(value.phase))) return null;
       } else if (!["AFTER_HOURS", "RUN_WON"].includes(String(value.phase))
         || value.baseSpinsInShift !== getPaidSpinLimit(value as unknown as RunState)) return null;

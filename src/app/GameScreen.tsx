@@ -7,6 +7,7 @@ import { Hud } from "@/app/components/Hud";
 import { HelpButton, HelpPauseContext } from "@/app/components/HelpWindow";
 import { GameGuide } from "@/app/components/GameGuide";
 import { getPaidSpinLimit, HOTEL_ROOMS, isRoomIntermission } from "@/content/hotel";
+import { ROUTE_KITS } from "@/content/route-kits";
 import { RoomIntermission, RoomResult } from "@/app/components/HotelChallenge";
 import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { PartsBar } from "@/app/components/PartsBar";
@@ -298,6 +299,7 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
                 <button type="button" className="service-choice" data-service={serviceId} key={serviceId} onClick={() => game.send({ type: "SELECT_SERVICE", serviceId })}>
                   <span className="service-seal" aria-hidden="true">{{ kitchen: "餐", chapel: "祈", repair: "修", security: "卫" }[serviceId]}</span>
                   <strong>{SERVICE_PRESENTATIONS[serviceId].name}</strong>
+                  {game.state.routeKits && <span className="service-starter">{ROUTE_KITS[serviceId].summary}</span>}
                   <span><b>定位</b> {SERVICE_PRESENTATIONS[serviceId].identity}</span>
                   <span><b>行动</b> {SERVICE_PRESENTATIONS[serviceId].action}</span>
                   <span><b>协同</b> {SERVICE_PRESENTATIONS[serviceId].synergies}</span>

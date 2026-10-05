@@ -15,7 +15,7 @@ describe("ShiftReceipt", () => {
 
     expect(screen.getByText("第 2 班收工")).toBeVisible();
     expect(screen.getByText("本班转轮盈亏 +¥18")).toBeVisible();
-    expect(screen.getByText("余额 ¥138 / 目标 ¥200")).toBeVisible();
+    expect(screen.getByText("余额 ¥138 / 目标 ¥150")).toBeVisible();
     expect(screen.getByText("下注 ¥30 · 赔付 ¥48")).toBeVisible();
   });
 

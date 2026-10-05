@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
 import { ActionBar } from "@/app/components/ActionBar";
+import { RouteBrief } from "@/app/components/RouteBrief";
+import { routeReadiness } from "@/app/route-readiness";
 import { CabinetPartArt } from "@/app/components/CabinetArtwork";
 import { HelpButton, HelpFacts, HelpWindow } from "@/app/components/HelpWindow";
 import { getCurrentBet, getMealCost } from "@/core/progression";
@@ -16,6 +18,7 @@ export function PreparationConsole({ state, foodReel, onFoodReel, onCommand }: {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const spinning = state.phase === "SPINNING";
+  const route = routeReadiness(state);
   const mealCost = getMealCost(state);
   const canOrder = state.service === "kitchen" && !state.shiftFlags.foodBought;
   const foodCommand: GameCommand = { type: "BUY_FOOD", reelIndex: foodReel ?? 0 };
@@ -31,8 +34,9 @@ export function PreparationConsole({ state, foodReel, onFoodReel, onCommand }: {
         <button type="button" className="primary-button" disabled={!legal} onClick={() => { onCommand(foodCommand); onFoodReel(null); }}>确认送餐<small>¥{mealCost} · 第{foodReel + 1}轮</small></button></div>
     </> : <div className="console-fixtures">
       {canOrder && <button type="button" className="console-service-key" disabled={spinning} onClick={() => onFoodReel(0)}>
-        <CabinetPartArt id="room-service" /><span>点餐<small>¥{mealCost} · 选轮后确认</small></span></button>}
-      {!canOrder && <p className="console-ready-copy">{spinning ? "转轮依次停下…" : state.service === "chapel" && !state.shiftFlags.prayerUsed ? "祈祷可增加目标图案" : "准备就绪 · 好运候场"}</p>}
+        <CabinetPartArt id="room-service" /><span>点餐<small>{route.badge} · ¥{mealCost}</small></span></button>}
+      {!canOrder && (spinning ? <p className="console-ready-copy">转轮依次停下…</p>
+        : <HelpButton title="构筑进度" trigger={route.badge} className="console-route-key"><RouteBrief state={state} /></HelpButton>)}
       <button type="button" className="console-tools-key" disabled={spinning} onClick={() => setOpen(true)}>{state.service === "chapel" && !state.shiftFlags.prayerUsed ? "祈祷 / 准备" : "准备 / 调注"}<small>服务 · 部件 · 下注</small></button>
     </div>}
     {open && <HelpWindow title="本转准备" interactive onClose={close}><ActionBar state={state} onCommand={(command) => { onCommand(command); close(); }} /></HelpWindow>}

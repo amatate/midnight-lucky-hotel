@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { buildDefaultUpgradeChoice } from "@/app/upgrade-choice";
 import { getRoomProgress, isRoomIntermission } from "@/content/hotel";
 import type { GameCommand } from "@/core/commands";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { ReelSet, RunState, SymbolId } from "@/core/types";
 import { activeRecord, canMigrateArchive, exportArchive, importArchive, initializeLibrary, migrateArchive,
   openArchiveSession, recordAction, verifyArchive } from "@/persistence/archives";

@@ -8,7 +8,9 @@ import type { GameCommand } from "@/core/commands";
 import type { Grid, RunState, SettlementResult } from "@/core/types";
 
 function selectService(state: RunState): RunState {
-  const result = dispatchCommand(state, {
+  // Bare-machine RNG/settlement fixtures; route-kits.test.ts covers starter effects.
+  const { routeKits: _kit, ...bare } = state;
+  const result = dispatchCommand(bare, {
     type: "SELECT_SERVICE",
     serviceId: state.serviceCandidates[0]
   });
@@ -67,7 +69,8 @@ describe("createRun", () => {
       initialSeed: 8675309,
       phase: "CHOOSING_SERVICE",
       bankroll: 100,
-      checkoutTarget: 200,
+      checkoutTarget: 150,
+      introShifts: 3,
       shift: 1,
       baseSpinsInShift: 0,
       shiftWager: 0,
@@ -252,7 +255,7 @@ describe("dispatchCommand", () => {
         service: initial.serviceCandidates[1],
         commandHistory: [{ type: "SELECT_SERVICE", serviceId: initial.serviceCandidates[1] }]
       }),
-      events: []
+      events: [expect.objectContaining({ type: "STARTER_GRANTED", partId: "cherry-press", sequence: 1 })]
     });
     expect(initial.phase).toBe("CHOOSING_SERVICE");
 

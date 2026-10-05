@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import { resolveSpin } from "@/core/settlement";
 import { getSafetyFuseRescuePayout } from "@/content/effects/neutral";
 import { UPGRADES } from "@/content/upgrades";

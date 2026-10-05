@@ -1,6 +1,7 @@
 import type { RunState } from "@/core/types";
 import { RoomResult } from "@/app/components/HotelChallenge";
 import { safeMoney } from "@/core/money";
+import { HOTEL_ROOMS } from "@/content/hotel";
 
 function money(value: number): string {
   return `¥${Object.is(value, -0) ? 0 : value}`;
@@ -17,7 +18,7 @@ export function ShiftReceipt({ state }: { readonly state: RunState }): React.JSX
   const snapshot = state.shiftHistory.at(-1);
   if (snapshot === undefined) return null;
   const heading = state.hotel?.challenge?.rounds
-    ? `花园房 · 第 ${state.hotel.challenge.rounds.current} 回合收工`
+    ? `${HOTEL_ROOMS[state.hotel.challenge.tier].name} · 第 ${state.hotel.challenge.rounds.current} 回合收工`
     : (snapshot.afterHoursLevel ?? 0) > 0
     ? `加班第 ${snapshot.afterHoursLevel} 段收工`
     : `第 ${snapshot.shift} 班收工`;

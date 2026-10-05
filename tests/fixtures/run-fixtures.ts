@@ -1,5 +1,6 @@
 import { normalizeDrawIdentity } from "@/core/reels";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "./legacy-run";
 import type { GameCommand } from "@/core/commands";
 import type { Grid, ReelDraw, ReelSet, RunState, UpgradeChoice, UpgradeId } from "@/core/types";
 

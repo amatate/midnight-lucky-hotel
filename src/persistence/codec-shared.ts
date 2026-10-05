@@ -277,7 +277,7 @@ export function isRoomObjective(value: unknown): value is RoomObjective {
 
 function hasRoomRuleFields(value: PlainRecord): boolean {
   return (!Object.hasOwn(value, "paidSpins") || isPaidSpinLimit(value.paidSpins))
-    && (!Object.hasOwn(value, "rounds") || value.tier === 1 && value.rounds === 3)
+    && (!Object.hasOwn(value, "rounds") || isSafeInteger(value.tier, 1, 3) && value.rounds === 3)
     && (!Object.hasOwn(value, "objective") || isRoomObjective(value.objective))
     && (!Object.hasOwn(value, "progress") || isBoundedMoney(value.progress)
       && (!isPlainRecord(value.objective) || value.objective.kind !== "scoring-spins" || isSafeInteger(value.progress, 0)));
@@ -314,6 +314,8 @@ function commonEvent(value: PlainRecord, money: (candidate: unknown) => candidat
     case "WORKSHOP_PURCHASED": return eventBase(value, ["cost"]) && money(value.cost) && Number(value.cost) > 0;
     case "MEAL_SERVED": return eventBase(value, ["spins", "additivePayout"])
       && value.spins === 3 && value.additivePayout === 0.5;
+    case "STARTER_GRANTED": return eventBase(value, ["partId", "tips", "omen", "cracks"])
+      && isEnum(value.partId, PARTS) && isSafeInteger(value.tips, 0) && isSafeInteger(value.omen, 0) && isSafeInteger(value.cracks, 0);
     case "PART_UPGRADED": return eventBase(value, ["partId", "cost"])
       && isEnum(value.partId, PARTS) && value.cost === 3;
     case "ROOM_ENTERED": return eventBase(value, ["tier", "bet", "target", "focus"], ["paidSpins", "objective", "rounds"])
@@ -442,7 +444,7 @@ function phaseIsCoherent(value: PlainRecord): boolean {
     case "RUN_LOST":
       return hasService && !hasSpin && !hasCandidates;
     case "AFTER_HOURS":
-      return hasService && !hasSpin && value.shift === 5 && isSafeInteger(value.afterHoursLevel, 1)
+      return hasService && !hasSpin && value.shift === (value.introShifts ?? 5) && isSafeInteger(value.afterHoursLevel, 1)
         && value.baseSpinsInShift === snapshotPaidSpinLimit(value) && value.freeSpinQueue === 0 && value.exitUnlocked === true;
     default: return false;
   }
@@ -454,7 +456,7 @@ export function validateCommonSnapshot(
   eventValidator: EventValidator
 ): boolean {
   if (!isEnum(value.phase, PHASES) || !isSafeInteger(value.initialSeed) || !isRng(value.rng)
-    || !isFiniteSafe(value.bankroll) || value.checkoutTarget !== 200
+    || !isFiniteSafe(value.bankroll) || value.checkoutTarget !== (value.introShifts === 3 ? 150 : 200)
     || !isSafeInteger(value.shift, 1) || !isSafeInteger(value.baseSpinsInShift, 0, snapshotPaidSpinLimit(value))
     || !isFiniteSafe(value.shiftWager) || !isFiniteSafe(value.shiftPayout) || !isFiniteSafe(value.baseBet)
     || !isEnum(value.betMode, BET_MODES) || !isSafeInteger(value.interventionPoints, 0)

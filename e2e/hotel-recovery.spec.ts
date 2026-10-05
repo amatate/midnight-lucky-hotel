@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createRun } from "../src/core/run";
+import { createLegacyRun as createRun } from "../tests/fixtures/legacy-run";
 import type { RunState } from "../src/core/types";
 
 test("hotel recovery: migrate, buy one upgrade, reload and retry on mobile", async ({ page }, testInfo) => {

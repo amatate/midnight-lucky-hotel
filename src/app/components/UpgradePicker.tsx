@@ -13,6 +13,7 @@ import { ReelUpgradePreview } from "@/app/components/ReelUpgradePreview";
 import { UpgradeConsequences } from "@/app/components/UpgradeConsequences";
 import { describeUpgrade } from "@/app/player-copy";
 import { UPGRADES } from "@/content/upgrades";
+import { getBuildFit } from "@/content/build-fit";
 import { HOTEL_ROOMS, nextRoomTier } from "@/content/hotel";
 import { dispatchCommand } from "@/core/run";
 import type { GameCommand } from "@/core/commands";
@@ -118,6 +119,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
                 <span>{presentation.kindLabel} · {presentation.routeLabel}</span>
               </div>
               <h3>{presentation.name}</h3>
+              {(compact || selectedId === null || selected) && <p className="upgrade-fit" data-fit={getBuildFit(state, id).kind}>{getBuildFit(state, id).text}</p>}
               {compact || selectedId === null || selected ? (
                 <>
                   <div className="upgrade-copy">

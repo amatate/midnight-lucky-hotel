@@ -1,5 +1,6 @@
 import { BASE_REELS } from "@/content/base-machine";
-import { activeRoom, canOpenWorkshop, getPaidSpinLimit, getRoomProgress, getWorkshopCost, HOTEL_ROOMS, isRoomIntermission, nextRoomTier } from "@/content/hotel";
+import { applyRouteKit, ROUTE_KITS } from "@/content/route-kits";
+import { activeRoom, canOpenWorkshop, getPaidSpinLimit, getRoomProgress, getRoomRewardsGranted, grantRoomRestReward, getWorkshopCost, HOTEL_ROOMS, isRoomIntermission, nextRoomTier } from "@/content/hotel";
 import { advanceRoomRound, resetForAfterHoursBlock } from "@/core/blocks";
 import { BASE_PAYTABLE } from "@/content/base-machine";
 import { consumeSafetyFuse } from "@/content/effects/neutral";
@@ -11,7 +12,7 @@ import { generateCandidates } from "@/core/candidates";
 import { generateContract, updateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent, GameEventDraft } from "@/core/events";
-import { getCurrentBet, getMinimumBet, roundMoney } from "@/core/progression";
+import { getCurrentBet, getMinimumBet, getIntroShiftLimit, roundMoney } from "@/core/progression";
 import { evaluateBaseWins } from "@/core/paylines";
 import { nextInt } from "@/core/random";
 import { appendSpinReceipt, finalizeSpinReceipt, type SpinReceiptBuildInput } from "@/core/receipts";
@@ -121,7 +122,9 @@ export function createRun(seed: number): RunState {
     phase: "CHOOSING_SERVICE",
     bankroll: 100,
     blockStartBankroll: 100,
-    checkoutTarget: 200,
+    checkoutTarget: 150,
+    introShifts: 3,
+    routeKits: true,
     shift: 1,
     baseSpinsInShift: 0,
     shiftWager: 0,
@@ -176,15 +179,20 @@ function selectService(state: RunState, command: Extract<GameCommand, { type: "S
     return rejected(state, "INVALID_TARGET", "service is not an offered candidate");
   }
   const baseMaximum = command.serviceId === "repair" ? 3 : 2;
-  const selectedState: RunState = {
+  const selectedState: RunState = applyRouteKit({
     ...state,
     phase: "READY_TO_SPIN",
     service: command.serviceId,
     interventionPoints: baseMaximum,
     maxInterventionPoints: baseMaximum
-  };
+  }, command.serviceId);
   const contractResult = generateContract(selectedState);
-  return accepted(state, command, [], {
+  const kit = ROUTE_KITS[command.serviceId];
+  const granted = selectedState.acquiredUpgrades !== state.acquiredUpgrades;
+  return accepted(state, command, granted ? sequenceEvents(state, [{ type: "STARTER_GRANTED", partId: kit.part,
+    tips: kit.tips, omen: kit.omen, cracks: kit.cracks }]) : [], {
+    partSlots: selectedState.partSlots, acquiredUpgrades: selectedState.acquiredUpgrades,
+    tips: selectedState.tips, omen: selectedState.omen, reels: selectedState.reels,
     phase: "READY_TO_SPIN",
     service: command.serviceId,
     interventionPoints: baseMaximum,
@@ -372,14 +380,14 @@ function presentationComplete(
   const contract = rewardTip ? { ...updatedContract, rewardClaimed: true } : updatedContract;
   const exitUnlocked = transitionState.exitUnlocked || (completedPaidBlock && blockBankroll >= transitionState.checkoutTarget);
   const isFifthLoss = completedPaidBlock && transitionState.afterHoursLevel === 0 &&
-    transitionState.shift >= 5 && blockBankroll < transitionState.checkoutTarget;
+    transitionState.shift >= getIntroShiftLimit(transitionState) && blockBankroll < transitionState.checkoutTarget;
   const unactionableLoss = !completedPaidBlock && belowMinimum && rescue === null;
   const nextPhase: RunPhase = state.freeSpinQueue > 0
     ? "READY_TO_SPIN"
     : completedPaidBlock
       ? transitionState.afterHoursLevel > 0
         ? "AFTER_HOURS"
-        : transitionState.shift < 5
+        : transitionState.shift < getIntroShiftLimit(transitionState)
           ? "CHOOSING_UPGRADE"
           : isFifthLoss
             ? "RUN_LOST"
@@ -391,7 +399,7 @@ function presentationComplete(
   const challenge = transitionState.hotel?.challenge;
   const roundRest = completedPaidBlock && room !== null && challenge?.rounds !== undefined
     && challenge.rounds.current < challenge.rounds.total;
-  const restReward = roundRest && challenge!.rounds!.current > (transitionState.hotel?.gardenRewardsGranted ?? 0);
+  const restReward = roundRest && challenge!.rounds!.current > getRoomRewardsGranted(transitionState);
   const roomFinished = completedPaidBlock && room !== null && !roundRest;
   const roomProgress = getRoomProgress(transitionState);
   const roomCleared = roomFinished && roomProgress?.cleared === true;
@@ -400,7 +408,7 @@ function presentationComplete(
         challenge: { ...challenge, status: roomCleared ? "cleared" as const : "failed" as const,
           target: roomProgress!.target, objective: roomProgress!.objective,
           paidSpins: getPaidSpinLimit(transitionState), progress: roomProgress!.value } }
-    : restReward ? { ...transitionState.hotel!, gardenRewardsGranted: challenge!.rounds!.current as 1 | 2 }
+    : restReward ? grantRoomRestReward(transitionState, challenge!.rounds!.current as 1 | 2)
       : transitionState.hotel;
   const boundaryOffersUpgrade = (nextPhase === "CHOOSING_UPGRADE" || nextPhase === "AFTER_HOURS")
     && (roundRest ? restReward : !roomFinished || roomCleared);
@@ -492,8 +500,8 @@ function cashOut(state: RunState, command: Extract<GameCommand, { type: "CASH_OU
 function enterRoom(state: RunState, command: Extract<GameCommand, { type: "ENTER_ROOM" }>): DispatchResult {
   if (state.phase !== "SHIFT_COMPLETE" && state.phase !== "AFTER_HOURS") return invalidPhase(state, command);
   if (isRoomIntermission(state)) return rejected(state, "INVALID_PHASE", "先完成本房剩余回合");
-  if (!state.exitUnlocked || state.shift !== 5 || state.currentCandidates !== null) {
-    return rejected(state, "INVALID_TARGET", "先完成五班并处理当前升级，才能升房");
+  if (!state.exitUnlocked || state.shift !== getIntroShiftLimit(state) || state.currentCandidates !== null) {
+    return rejected(state, "INVALID_TARGET", "先完成开场夜班并处理当前升级，才能升房");
   }
   const tier = nextRoomTier(state);
   if (tier === null) return rejected(state, "RESOURCE_EXHAUSTED", "六间客房已经全部通关");

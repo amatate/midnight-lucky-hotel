@@ -114,7 +114,7 @@ export const SERVICE_PRESENTATIONS = {
 const UPGRADE_COPY = {
   "harvest-vat": {
     effect: "有樱桃线、柠檬线或水果沙拉中奖的付费转，存 1 格果酿；第 3 格立即开桶，额外支付 12 × 当前下注并清零。",
-    levelTwoEffect: "L2：开桶额外支付 24 × 当前下注。",
+    levelTwoEffect: "L2：开桶额外支付 18 × 当前下注。",
     synergy: "稳定水果构筑负责存酿；可等即将开桶时买餐，放大这一转。",
     risk: "每个付费转最多存 1 格，免费转不存也不开桶；跨班保留。占一个槽，前两次只积累；替换果桶会丢失存酿。", targetHint: null
   },
@@ -126,7 +126,7 @@ const UPGRADE_COPY = {
   },
   "shock-absorber": {
     effect: "每转抵消 1 个可见裂纹造成的停工，并按 1 个可见实体裂纹支付 2 × 当前下注；自己免疫裂纹。",
-    levelTwoEffect: "L2：抵消 2 个裂纹，按最多 2 个实体裂纹各付 3 × 当前下注。",
+    levelTwoEffect: "L2：抵消 2 个裂纹，按最多 2 个实体裂纹各付 4 × 当前下注。",
     synergy: "少量裂纹变收入，还能保护电容或马达；留给磁铁回收，或用维修间清理。",
     risk: "不移除裂纹，多于保护额度的裂纹仍会让其他部件停工；占一个槽，减少停工也可能减少骗保机会。", targetHint: null
   },
@@ -444,12 +444,12 @@ function equippedImpact(state: RunState, part: PartInstance): string {
   switch (part.id) {
     case "harvest-vat":
       return state.phase === "RESOLVING_EFFECTS" ? `存酿进度结算后更新。${status}`
-        : `果酿 ${state.counters.harvestCharge ?? 0}/3；再有 ${3 - (state.counters.harvestCharge ?? 0)} 个付费转水果中奖即可开桶，加 ¥${money((part.level === 1 ? 12 : 24) * bet)}（未计食物）。${status}`;
+        : `果酿 ${state.counters.harvestCharge ?? 0}/3；再有 ${3 - (state.counters.harvestCharge ?? 0)} 个付费转水果中奖即可开桶，加 ¥${money((part.level === 1 ? 12 : 18) * bet)}（未计食物）。${status}`;
     case "votive-candle":
       return state.phase === "RESOLVING_EFFECTS" ? `烛台存量结算后更新。${status}`
         : `烛台已存 ${state.counters.votiveCharge ?? 0} 层；每层可兑 ¥${money((part.level === 1 ? 2 : 4) * bet)}（未计食物）。尚有恶兆 ${state.omen}，小费 ${state.tips}。${status}`;
     case "shock-absorber":
-      return `最多挡住 ${part.level} 个裂纹停工；按最多 ${part.level} 个实体裂纹各付 ¥${money((part.level === 1 ? 2 : 3) * bet)}。不消除裂纹。${status}`;
+      return `最多挡住 ${part.level} 个裂纹停工；按最多 ${part.level} 个实体裂纹各付 ¥${money((part.level === 1 ? 2 : 4) * bet)}。不消除裂纹。${status}`;
     case "jam-jar": {
       const lines = state.counters.cherryWinsThisShift;
       const payout = Math.min(6, lines) * (part.level === 1 ? 0.5 : 1) * bet;

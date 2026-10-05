@@ -120,7 +120,7 @@ it("puts route choices, glossary, public room targets and estimate limitations i
   fireEvent.click(screen.getByText("干预点、裂纹、恶兆：用在哪里？"));
   expect(screen.getByText(/飞轮、磁铁、保修欺诈免疫裂纹/)).toBeVisible();
   fireEvent.click(screen.getByText("升级、合同、加班和客房目标"));
-  expect(screen.getByText(/顶层套房：3 次付费转，每转 ¥100；本段奖金合计 ¥3600/)).toBeVisible();
+  expect(screen.getByText(/顶层套房：3 回合 × 3 次付费转，每转 ¥100；本房累计奖金 ¥6000/)).toBeVisible();
   fireEvent.click(screen.getByText("RTP、报告、种子与日志怎么看"));
   expect(screen.getByText(/不是实时胜率/)).toBeVisible();
 });

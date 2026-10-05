@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCurrentBet } from "@/core/progression";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { GameCommand } from "@/core/commands";
 import type { RunState } from "@/core/types";
 

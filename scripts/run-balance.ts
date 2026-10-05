@@ -33,6 +33,7 @@ const { evaluateBaseWins, PAYLINES } = await import("../src/core/paylines.ts");
 const { getCurrentBet } = await import("../src/core/progression.ts");
 const { drawReels } = await import("../src/core/reels.ts");
 const { createRun, dispatchCommand } = await import("../src/core/run.ts");
+const { getIntroShiftLimit } = await import("../src/core/progression.ts");
 const { resolveBaseMachineSpin } = await import("../src/core/base-settlement.ts");
 const { mean, sampleVariance } = await import("../src/sim/statistics.ts");
 
@@ -305,7 +306,7 @@ export function runPolicy(route: Route, sampleCount: number, seed: number): Rout
     let afterHoursRounds = 0;
     let safeGuard = 0;
 
-    while (state.phase !== "RUN_LOST" && state.phase !== "RUN_WON" && state.shift <= 5) {
+    while (state.phase !== "RUN_LOST" && state.phase !== "RUN_WON" && state.shift <= getIntroShiftLimit(state)) {
       safeGuard += 1;
       if (safeGuard > SAFE_GUARD_LIMIT) {
         if (DEBUG || sample === DEBUG_SAMPLE) {
@@ -357,7 +358,7 @@ export function runPolicy(route: Route, sampleCount: number, seed: number): Rout
       if (firstCross === null && state.bankroll >= startBankroll) firstCross = state.shift;
     }
     if (state.phase === "RUN_WON") wins += 1;
-    if (policyRuin || (state.phase === "RUN_LOST" && (state.shift < 5 || state.baseSpinsInShift < 3))) ruins += 1;
+    if (policyRuin || (state.phase === "RUN_LOST" && (state.shift < getIntroShiftLimit(state) || state.baseSpinsInShift < 3))) ruins += 1;
     if (firstCross === null) distribution.unreachable += 1;
     else {
       distribution[String(firstCross) as "1" | "2" | "3" | "4" | "5"] += 1;

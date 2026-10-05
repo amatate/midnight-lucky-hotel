@@ -125,7 +125,7 @@ function shockAbsorber(part: PartInstance, context: ResolveContext, signal: Reso
   const authorized = readAuthorizedViolentPart(context);
   const count = Math.min(part.level, authorized?.visiblePhysicalCount("crack") ?? 0);
   if (count === 0 || !authorized?.claimTrigger("shock-absorber")) return [];
-  return [{ type: "ADD_PAYOUT", source: "part", amount: count * (part.level === 1 ? 2 : 3) * context.currentBet }];
+  return [{ type: "ADD_PAYOUT", source: "part", amount: count * (part.level === 1 ? 2 : 4) * context.currentBet }];
 }
 
 /** Returns violent-route effects for the exact settlement-owned part registration in context. */

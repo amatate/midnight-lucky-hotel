@@ -60,6 +60,7 @@ export function eventLabel(event: GameEvent): string {
       + "，本房累计 " + money(event.totalPayout) + (event.reward ? " · 获得一次免费强化" : "");
     case "WORKSHOP_PURCHASED": return "金币整备购买 · 花费 " + money(event.cost);
     case "MEAL_SERVED": return "餐点已送达：接下来 " + event.spins + " 转赔付 +" + event.additivePayout * 100 + "%（免费转也消耗次数）";
+    case "STARTER_GRANTED": return `开局装备 ${UPGRADES[event.partId].name} L1 · 小费 +${event.tips} · 恶兆 +${event.omen} · 永久裂纹 +${event.cracks}`;
     case "PART_UPGRADED": return UPGRADES[event.partId].name + " 升至 L2 · 花费 " + event.cost + " 小费";
     case "ROOM_ENTERED": return "入住" + HOTEL_ROOMS[event.tier].name + "：固定下注 " + money(event.bet) + " · "
       + (event.rounds ? event.rounds + " 回合 × " : "") + (event.paidSpins ?? 3) + " 次付费转 · "

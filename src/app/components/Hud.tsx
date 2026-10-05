@@ -111,7 +111,7 @@ export function Hud({
       {room !== null && roomProgress !== null && <section className="room-progress" aria-label="客房进度">
         <strong className="sr-only">{room.name}{roomProgress.rounds ? ` · 第 ${state.hotel!.challenge!.rounds!.current}/${roomProgress.rounds} 回合` : ""} · {getPaidSpinLimit(state)} 次付费转</strong>
         <p>{roomProgressCopy(roomProgress)} · 干预点上限 {room.focusCap}</p>
-        <HelpButton title="本房目标"><p>{roomProgressCopy(roomProgress)}</p><p>{roomProgress.objective.kind === "scoring-spins" ? "每转单独判断，不要求连续；" : "旧余额不抵目标；"}免费转也计入。全部回合转完再判定通关。</p><p>{state.hotel?.challenge?.tier === 1 && !roomProgress.rounds ? "这是旧版三转挑战；本段结束后再入住才使用新规则。" : room.hint}</p></HelpButton>
+        <HelpButton title="本房目标"><p>{roomProgressCopy(roomProgress)}</p><p>{roomProgress.objective.kind === "scoring-spins" ? "每转单独判断，不要求连续；" : "旧余额不抵目标；"}免费转也计入。全部回合转完再判定通关。</p><p>{room.rounds && !roomProgress.rounds ? "这是旧版三转挑战；本段结束后再入住才使用新规则。" : room.hint}</p></HelpButton>
         <div className="room-turn-ticks" aria-label={`已用 ${state.baseSpinsInShift}/${getPaidSpinLimit(state)} 次付费转`}>
           {Array.from({ length: getPaidSpinLimit(state) }, (_, index) => <i key={index} data-used={index < state.baseSpinsInShift} aria-hidden="true" />)}
         </div>

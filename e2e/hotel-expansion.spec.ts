@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createRun } from "../src/core/run";
+import { createLegacyRun as createRun } from "../tests/fixtures/legacy-run";
 import { HOTEL_ROOMS } from "../src/content/hotel";
 import type { RoomTier, RunState } from "../src/core/types";
 

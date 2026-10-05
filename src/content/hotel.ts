@@ -16,8 +16,8 @@ export const HOTEL_ROOM_TIERS = [1, 2, 3, 4, 5, 6] as const;
 export const MAX_ROOM_TIER = 6;
 export const HOTEL_ROOMS: Readonly<Record<RoomTier, HotelRoom>> = {
   1: { name: "花园房", bet: 25, target: 1000, focusCap: 3, paidSpins: 3, rounds: 3, objective: { kind: "total-payout" }, hint: "三回合累计奖金；前两回合后各强化一次，把新部件带进下一回合。" },
-  2: { name: "景观房", bet: 50, target: 1200, focusCap: 3, paidSpins: 3, objective: { kind: "total-payout" }, hint: "给核心部件升到 L2，食物能放大已成形的收益。" },
-  3: { name: "顶层套房", bet: 100, target: 3600, focusCap: 2, paidSpins: 3, objective: { kind: "total-payout" }, hint: "干预点更紧张：把机会留给最值得挽救的一转。" },
+  2: { name: "景观房", bet: 50, target: 2400, focusCap: 3, paidSpins: 3, rounds: 3, objective: { kind: "total-payout" }, hint: "三回合专精：前两次休息各强化一次，补命中或升级核心，再用最后一回合兑现。" },
+  3: { name: "顶层套房", bet: 100, target: 6000, focusCap: 3, paidSpins: 3, rounds: 3, objective: { kind: "total-payout" }, hint: "三回合展示成型机器：中途仍可补强，安排食物与部件蓄能的爆发时机。" },
   4: { name: "留声机房", bet: 125, target: 2500, focusCap: 3, paidSpins: 4, objective: { kind: "best-spin" }, hint: "追求一次爆发。集中叠加部件、食物和连线，比平均赚一点更有用。" },
   5: { name: "双星阁", bet: 150, target: 1200, focusCap: 3, paidSpins: 4, objective: { kind: "scoring-spins", count: 3 }, hint: "至少三转各自达标，不要求连续。一把大奖不能替代稳定出奖。" },
   6: { name: "长夜套房", bet: 200, target: 16000, focusCap: 3, paidSpins: 5, objective: { kind: "total-payout" }, hint: "五转长局：餐效和干预点不会随转数增加，免费转也是重要收入。" }
@@ -45,6 +45,20 @@ export function isRoomIntermission(state: Pick<RunState, "hotel" | "phase">): bo
     && challenge.rounds !== undefined && challenge.rounds.current < challenge.rounds.total;
 }
 
+export function getRoomRewardsGranted(state: Pick<RunState, "hotel">): number {
+  const hotel = state.hotel;
+  const tier = hotel?.challenge?.tier;
+  return tier === 1 ? hotel?.gardenRewardsGranted ?? 0
+    : tier === 2 || tier === 3 ? hotel?.roomRewardsGranted?.[tier] ?? 0 : 0;
+}
+
+export function grantRoomRestReward(state: RunState, round: 1 | 2): NonNullable<RunState["hotel"]> {
+  const hotel = state.hotel!;
+  const tier = hotel.challenge!.tier;
+  return tier === 1 ? { ...hotel, gardenRewardsGranted: round }
+    : { ...hotel, roomRewardsGranted: { 2: 0, 3: 0, ...hotel.roomRewardsGranted, [tier]: round } };
+}
+
 export interface RoomProgress {
   readonly objective: RoomObjective;
   readonly value: number;
@@ -64,7 +78,9 @@ export function getRoomProgress(state: RunState, visibleSpinPayout?: number): Ro
   const room = HOTEL_ROOMS[challenge.tier];
   const objective = challenge.objective ?? room.objective;
   // Older Garden saves with no captured target were always a single 450-point block.
-  const target = challenge.target ?? (challenge.tier === 1 && challenge.rounds === undefined ? 450 : room.target);
+  const legacyTargets = { 1: 450, 2: 1200, 3: 3600 };
+  const target = challenge.target ?? (challenge.tier <= 3 && challenge.rounds === undefined
+    ? legacyTargets[challenge.tier as 1 | 2 | 3] : room.target);
   const last = state.spinHistory.at(-1);
   const hideUnpresented = state.phase === "RESOLVING_EFFECTS" && visibleSpinPayout !== undefined;
   const amounts = state.spinHistory

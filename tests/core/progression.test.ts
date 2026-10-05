@@ -12,7 +12,8 @@ function dispatch(state: RunState, command: GameCommand): RunState {
 }
 
 function readyRun(seed = 1): RunState {
-  const initial = createRun(seed);
+  // Isolate wager/free-spin progression from starter parts and their log event.
+  const { routeKits: _kit, ...initial } = createRun(seed);
   return dispatch(initial, { type: "SELECT_SERVICE", serviceId: initial.serviceCandidates[0] });
 }
 

@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { HOTEL_ROOMS } from "@/content/hotel";
 import type { GameCommand } from "@/core/commands";
 import { buildSpinReceipt, isSpinReceipt } from "@/core/receipts";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { BaseSpinIndex, RoomTier, RunState } from "@/core/types";
 import {
   activeRecord, canMigrateArchive, exportArchive, importArchive, initializeLibrary, migrateArchive,

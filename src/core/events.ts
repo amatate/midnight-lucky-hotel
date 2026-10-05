@@ -42,6 +42,7 @@ type PatternLineWinEvent = {
 } & FormulaFields;
 
 export type GameEvent =
+  | { readonly sequence: number; readonly type: "STARTER_GRANTED"; readonly partId: PartId; readonly tips: number; readonly omen: number; readonly cracks: number }
   | { readonly sequence: number; readonly type: "ROOM_ROUND_COMPLETED"; readonly round: number; readonly payout: number; readonly totalPayout: number; readonly reward: boolean }
   | { readonly sequence: number; readonly type: "ROOM_ROUND_STARTED"; readonly round: number }
   | { readonly sequence: number; readonly type: "WORKSHOP_PURCHASED"; readonly cost: number }

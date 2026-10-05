@@ -22,7 +22,7 @@ function sources(directory: string): string[] {
       : entry.name.endsWith(".ts") ? [readFileSync(join(directory, entry.name), "utf8")] : []);
 }
 const rules = "rules-" + createHash("sha256").update([...sources(join(root, "src/core")), ...sources(join(root, "src/content"))].join("\n")).digest("hex").slice(0, 16);
-const initial: RunState = { ...createRun(8), phase: "SHIFT_COMPLETE", shift: 5, baseSpinsInShift: 3,
+const initial: RunState = { ...createRun(8), phase: "SHIFT_COMPLETE", shift: 3, baseSpinsInShift: 3,
   service: "kitchen", bankroll: 600, exitUnlocked: true, tips: 3,
   partSlots: [{ id: "fruit-salad", level: 1 }, { id: "harvest-vat", level: 1 }, null, null, null] };
 const result = dispatchCommand(initial, { type: "ENTER_ROOM" });

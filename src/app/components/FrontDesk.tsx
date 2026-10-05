@@ -102,7 +102,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
         </section>
         <form className={"new-run-form" + (active !== null ? " has-current-run" : "")} onSubmit={(event) => { event.preventDefault(); if (seed.trim() === "" || !validSeed(Number(seed))) { setNotice("种子必须是 0 到 4294967295 之间的整数。"); return; } begin(Number(seed)); }}>
           <button className={active === null ? "primary-button lobby-enter-button" : "lobby-new-night"} type="submit" disabled={library === null}>开始新局{active === null && <span aria-hidden="true">↗</span>}</button>
-          {active === null && <p className="lobby-goal">五班内赚到 ¥200 · 每班 3 转，班后选升级</p>}
+          {active === null && <p className="lobby-goal">三班内达到 ¥150 · 再入住客房，边转边强化</p>}
           <details className="lobby-seed-options"><summary>自选种子与收藏</summary>
             <label>游戏种子<input inputMode="numeric" value={seed} onChange={(event) => setSeed(event.target.value)} /></label>
             <div className="frontdesk-actions"><button type="button" onClick={() => setSeed(String(crypto.getRandomValues(new Uint32Array(1))[0]))}>随机种子</button><button type="button" disabled={library === null || seed.trim() === ""} onClick={() => toggleSeed(Number(seed))}>{library?.favoriteSeeds.includes(Number(seed)) ? "取消收藏种子" : "收藏种子"}</button></div>

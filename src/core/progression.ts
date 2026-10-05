@@ -7,6 +7,10 @@ export const BET_MULTIPLIER = {
   aggressive: 2
 } as const satisfies Readonly<Record<BetMode, number>>;
 
+export function getIntroShiftLimit(state: Pick<RunState, "introShifts">): number {
+  return state.introShifts ?? 5;
+}
+
 export function roundMoney(value: number): Money {
   if (!Number.isFinite(value)) throw new RangeError("money must be finite");
   return Math.round(value * 100) / 100;

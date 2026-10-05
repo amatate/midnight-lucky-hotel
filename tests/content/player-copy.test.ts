@@ -77,9 +77,9 @@ const STATIC_FACTS: Readonly<Record<UpgradeId, readonly string[]>> = {
 };
 
 const LEVEL_TWO_FACTS: Readonly<Record<PartId, readonly string[]>> = {
-  "harvest-vat": ["24 × 当前下注"],
+  "harvest-vat": ["18 × 当前下注"],
   "votive-candle": ["4 × 当前下注"],
-  "shock-absorber": ["抵消 2 个", "3 × 当前下注"],
+  "shock-absorber": ["抵消 2 个", "4 × 当前下注"],
   "cherry-press": ["1 × 下注"],
   "salad-dressing": ["100%"],
   "lemon-infection": ["2 个", "收成提高为 5 × 下注"],

@@ -12,7 +12,10 @@ export function resetForAfterHoursBlock(state: RunState, level: number, roomTier
     freeAfterHoursLevel: getFreeAfterHoursLevel(state) + (room === null ? 1 : 0),
     blockStartBankroll: state.bankroll, blockReelAdditions: [[], [], []], workshop: null,
     hotel: { ...state.hotel, cleared: state.hotel?.cleared ?? 0,
-      ...(room?.rounds === undefined ? {} : { gardenRewardsGranted: state.hotel?.gardenRewardsGranted ?? 0 }),
+      ...(room?.rounds === undefined ? {} : {
+        gardenRewardsGranted: state.hotel?.gardenRewardsGranted ?? 0,
+        roomRewardsGranted: state.hotel?.roomRewardsGranted ?? { 2: 0, 3: 0 }
+      }),
       challenge: room === null || roomTier === undefined ? null : {
         tier: roomTier, status: "playing", target: room.target, paidSpins: room.paidSpins, objective: room.objective,
         ...(room.rounds === undefined ? {} : { rounds: { current: 1, total: room.rounds, payout: 0 } })

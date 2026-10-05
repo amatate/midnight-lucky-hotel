@@ -1,4 +1,6 @@
 import { UPGRADES, UPGRADE_IDS } from "@/content/upgrades";
+import { getBuildFit } from "@/content/build-fit";
+import { ROUTE_KITS } from "@/content/route-kits";
 import { nextInt } from "@/core/random";
 import type {
   CandidateResult,
@@ -113,11 +115,22 @@ function seededRoleOrder(
 export function assignCandidateRoles(state: RunState, eligible: readonly UpgradeId[], previous?: CandidateSet): CandidateResult {
   const dominantRoute = getDominantRoute(state);
   const tags = acquiredTags(state);
+  // One learnable opening connection, not a scripted build for the whole run.
+  const starterPairs: Readonly<Record<NonNullable<RunState["service"]>, readonly UpgradeId[]>> = {
+    kitchen: ["cherry-pitter", "lemon-crate"],
+    chapel: ["triple-blessing"],
+    security: ["shock-absorber"],
+    repair: ["cherry-pitter", "cherry-press"]
+  };
+  const starter = state.routeKits && state.shift === 1 && !state.exitUnlocked && state.service !== null
+    && state.acquiredUpgrades[0] === ROUTE_KITS[state.service].part
+    ? starterPairs[state.service].filter((id) => eligible.includes(id)) : [];
   const synergy = seededRoleOrder(
     state,
     eligible,
     "synergy",
-    (id) => UPGRADES[id].route === dominantRoute || UPGRADES[id].tags.some((tag) => tags.has(tag))
+    (id) => starter.length > 0 ? starter.includes(id) : getBuildFit(state, id).kind === "fits"
+      && (UPGRADES[id].route === dominantRoute || UPGRADES[id].tags.some((tag) => tags.has(tag)))
   );
   const pivotState = { ...state, rng: synergy.rng };
   const pivot = seededRoleOrder(

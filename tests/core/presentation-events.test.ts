@@ -231,7 +231,7 @@ describe("resolveSpin presentation part events", () => {
       buffs: [],
       progression: {
         phase: "AWAITING_INTERVENTION",
-        checkoutTarget: 200,
+        checkoutTarget: 150,
         shift: 1,
         baseSpinsInShift: 0,
         shiftWager: 0,

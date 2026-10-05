@@ -25,30 +25,37 @@ playtest: fun, clarity and balance need real player feedback.
 - **Build an income engine:** Cherry Jam, spreading Lemons, mixed Fruit Salad, copied Seven wins or machine damage. Some combinations work against each other.
 - **Intervene carefully:** rerolls are random; kicks preview an exact move. Focus, tips, meals and damage create trade-offs.
 - **Follow the winnings:** animated reels, itemized payouts, coin feedback, effect windows and a persistent ledger.
-- **Keep improving:** survive five shifts, then keep your build in overtime or try room challenges and workshops.
+- **Keep improving:** complete a three-shift opening, then build across hotel rounds or keep playing in overtime.
 
 Designed for portrait touch play, also playable on desktop. This is a Web/PWA
 game, not a native mobile app. Use Add to Home Screen where your browser supports it.
 
-## Latest playtest
+## Latest playtest · October 5, 2026
 
+- **Routes that start working earlier:** service selection grants a starter part and matching reel changes where applicable. The first Strengthen offer connects to it; later cards explain fit, missing prerequisites and conflicts. Read live charges and next triggers from the existing preparation panel.
+- Chapel starts with four permanent Sevens per reel plus a Candle, 2 omens and 2 tips; Security starts with an Absorber and one crack per reel. Kitchen starts with a Vat; Repair starts with a Cherry Press and denser Cherries.
+- Trial balance: L2 Vat release **24→18×** bet; L2 Absorber **3→4×** per physical crack (still capped at two). L1 part payouts and the base paytable are unchanged in this balance pass. [Methods, results and limitations](docs/implementation/2026-10-05-route-balance.md).
+- Old archives are preserved. Explicit migration creates a new branch; starter kits apply only to new runs, never retroactively to a saved machine.
 - 16 original synthesized sound effects and **After Hours**, a 48-second looping lounge track. Separate music/effects volumes, mute and sound previews in settings. [Audio notes](docs/audio.md).
 - English/Chinese menus, guide, part and service descriptions, results and readable logs.
 - Switch at the front desk or in the game menu without restarting your run.
 - Share `?lang=en` or `?lang=zh`. Append `&seed=8` to share a seed.
-- Garden Room: **3 rounds × 3 paid spins**, with free upgrades after rounds 1 and 2.
-- Provisional cumulative winnings goal: **¥1,000**. Each rest-stop upgrade is once per run, not repeated on retries.
-- Other rooms remain single-round challenges. Mobile cabinet proportions and information density have also been revised.
+- Garden, View and Penthouse: **3 rounds × 3 paid spins each**, with free upgrades after rounds 1 and 2. Trial cumulative goals: **¥1,000 / ¥2,400 / ¥6,000**.
+- Each rest-stop upgrade is once per room per run, not repeated on retries.
+- The final three rooms remain single-round special challenges. Mobile cabinet proportions and information density have also been revised.
 
 Targets are playtest values, not finished balance. Legacy room attempts keep their
 captured rules; re-entering uses the new format.
 
+To try the starter kits, **begin a new run**. Export an older run before updating;
+use the explicit migration option for supported saves. Do not clear browser data.
+
 ## Your first night
 
-1. Start with ¥100 and pick Repair Shop, Kitchen, Chapel or Security.
+1. Start with ¥100 and choose one of three offered services, drawn from Repair Shop, Kitchen, Chapel and Security. Your starting part makes the route tangible immediately.
 2. Spin, then keep the result or use one intervention. Rerolling is optional.
 3. Ordinary shifts have three paid spins plus awarded free spins. Upgrade between early shifts; start with one coherent income engine.
-4. Reach a ¥200 balance within five shifts. Open **Effects & costs** when unsure, **Ledger** for payouts, and **Full log** for actions.
+4. Reach a ¥150 balance within three shifts. Older saves keep their five-shift / ¥200 opening. Open **Effects & costs** when unsure, **Ledger** for payouts, and **Full log** for actions.
 
 Five paylines: three rows and two diagonals. Winnings are gross payouts, not
 profit: subtract bets, meals and sacrifices. RTP above 100% guarantees neither
@@ -86,6 +93,7 @@ npm test -- --maxWorkers=2
 npm run build
 npm run preview
 npx vitest run tests/app/language.test.tsx
+node scripts/audit-journey.ts 24 0
 ```
 
 | Directory | Responsibility |
@@ -100,7 +108,7 @@ npx vitest run tests/app/language.test.tsx
 | `tests` / `e2e` | Rule, component and browser regressions |
 
 See [localization maintenance](docs/localization.md) and
-[Garden Room design notes](docs/garden-rounds-mobile.md). Automated checks verify
+[three-room pacing notes](docs/implementation/2026-10-03-journey-pacing.md). The journey audit uses real opening choices and a fixed strategy, not optimal play or a player win-rate estimate. Automated checks verify
 rules and regressions, not fun or perfect balance.
 
 ### GitHub Pages

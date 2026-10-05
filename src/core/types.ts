@@ -360,6 +360,8 @@ export interface HotelProgress {
   readonly cleared: 0 | RoomTier;
   /** First two Garden rest stops grant a reward once per run, including retries. */
   readonly gardenRewardsGranted?: 0 | 1 | 2;
+  /** Once-per-run rest rewards for rooms 2 and 3; retries cannot farm choices. */
+  readonly roomRewardsGranted?: { readonly 2: 0 | 1 | 2; readonly 3: 0 | 1 | 2 };
   readonly challenge: {
     readonly tier: RoomTier;
     readonly status: "playing" | "cleared" | "failed";
@@ -379,7 +381,11 @@ export interface RunState {
   readonly rng: RngState;
   readonly phase: RunPhase;
   readonly bankroll: Money;
-  readonly checkoutTarget: 200;
+  readonly checkoutTarget: 150 | 200;
+  /** Absent in legacy saves, which retain their five-shift opening. */
+  readonly introShifts?: 3;
+  /** Absent on old checkpoints: choosing a service will not retrofit a kit. */
+  readonly routeKits?: true;
   readonly shift: number;
   readonly baseSpinsInShift: number;
   readonly shiftWager: Money;

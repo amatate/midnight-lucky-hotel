@@ -136,6 +136,15 @@
 .help-content .part-detail, .help-content .part-discovery { color: #f2e3c0; background: transparent; }
 .help-content .action-bar { color: #f2e3c0; background: transparent; }
 .help-content .tray-heading { display: none; }
+.console-fixtures .console-route-key { flex: 1 1 0; min-width: 0; min-height: 48px; height: auto; padding: 6px; color: #f2e3c0; background: #1d392c; border: 1px solid #938160; border-radius: 3px; white-space: normal; font: oblique 400 .9rem "Smiley Sans", sans-serif; }
+.console-fixtures .console-route-key:focus-visible { outline: 2px solid #d8c48f; outline-offset: 2px; }
+.route-brief { padding: 8px 0; border-bottom: 1px solid #938160; color: #f2e3c0; }
+.route-brief h3 { margin: 0 0 6px; color: #d8c48f; font-family: "Smiley Sans", sans-serif; }
+.route-brief p { margin: 5px 0; font-size: .875rem; line-height: 1.55; }
+.route-brief summary { min-height: 44px; padding-block: 8px; cursor: pointer; }
+.upgrade-card .upgrade-fit { grid-column: 1 / -1; margin: 4px 0 8px; padding-left: 7px; border-left: 2px solid #68704e; font-size: .8125rem; line-height: 1.5; color: #20352c; }
+.upgrade-card .upgrade-fit[data-fit="conflict"], .upgrade-card .upgrade-fit[data-fit="setup"] { border-color: #87362d; color: #20352c; }
+.service-choice .service-starter { color: #f2e3c0; font-size: .875rem; line-height: 1.5; }
 .help-content .service-fixture { margin-block: 14px; padding-block: 10px; border-bottom: 1px solid #85744e; }
 .help-content .service-fixture > .installed-part-art { width: 48px; height: 48px; }
 .fixture-targets { display: flex; flex-wrap: wrap; gap: 5px; flex-basis: 100%; }

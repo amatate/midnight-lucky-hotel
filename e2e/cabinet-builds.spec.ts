@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { HOTEL_ROOMS } from "../src/content/hotel";
-import { createRun, dispatchCommand } from "../src/core/run";
+import { dispatchCommand } from "../src/core/run";
+import { createLegacyRun as createRun } from "../tests/fixtures/legacy-run";
 import type { RoomTier, RunState } from "../src/core/types";
 
 async function load(page: Page, tier: RoomTier, patch: Partial<RunState> = {}) {

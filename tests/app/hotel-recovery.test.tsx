@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { RunSummary } from "@/app/components/RunSummary";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { RunState } from "@/core/types";
 
 const failed = (): RunState => ({ ...createRun(8), phase: "AFTER_HOURS", service: "repair",
@@ -20,7 +21,7 @@ it("shows local net profit, all lifetime expenses, old result target and exact n
   expect(screen.getByText(/自由加班下一转：¥31.25/)).toBeVisible();
   expect(screen.queryByText(/最终余额/)).not.toBeInTheDocument();
   expect(screen.getByText(/本段奖金 ¥1185 \/ ¥2000/)).toBeVisible();
-  expect(screen.getByText(/新版目标：本段奖金合计 ¥1200/)).toBeVisible();
+  expect(screen.getByText(/新版目标：本房累计奖金 ¥2400/)).toBeVisible();
   fireEvent.click(screen.getByText("整局累计账本（从开局至今）"));
   expect(screen.getByText(/献祭／奉献 −¥516/)).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "查看金币整备 · ¥100" }));

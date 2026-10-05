@@ -23,7 +23,7 @@ export default defineConfig({
   // These are local source modules, not dependencies. Prebundling them would
   // create a second language store and make dev mode ignore the UI preference.
   optimizeDeps: { exclude: ["@/i18n/jsx-runtime", "@/i18n/jsx-dev-runtime"] },
-  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.09.28-audio") },
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.10.05-routes") },
   plugins: [
     {
       name: "restart-on-rule-change",

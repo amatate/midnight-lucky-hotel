@@ -5,7 +5,7 @@ import { Hud } from "@/app/components/Hud";
 import { RoomChoices, RoomResult } from "@/app/components/HotelChallenge";
 import type { SettlementPresentationState } from "@/app/useSettlementPresentation";
 import { HOTEL_ROOMS } from "@/content/hotel";
-import { createRun } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { RoomTier, RunState, SpinReceipt } from "@/core/types";
 import { summarizePresentation } from "@/presentation/summary";
 
@@ -37,7 +37,7 @@ function presentation(visiblePayoutTarget: number): SettlementPresentationState 
 
 describe("room objective readouts", () => {
   it.each([
-    { tier: 2 as const, payouts: [300, 400], label: "本段奖金目标", value: "700", max: "1200" },
+    { tier: 2 as const, payouts: [300, 400], label: "本段奖金目标", value: "700", max: "2400" },
     { tier: 4 as const, payouts: [700, 1800], label: "单转最高目标", value: "1800", max: "2500" },
     { tier: 5 as const, payouts: [1200, 0, 1400], label: "达标转数目标", value: "2", max: "3" }
   ])("shows $label independently from the wallet", ({ tier, payouts, label, value, max }) => {
@@ -73,7 +73,7 @@ describe("room objective readouts", () => {
     expect(within(choices).getByRole("button", { name: "升房挑战 · 留声机房" })).toBeDisabled();
     expect(choices).toHaveTextContent("下一房备付金 ¥500（4 次 × ¥125）");
     expect(choices).toHaveTextContent("至少 3 转各得 ¥1200，不要求连续");
-    expect(choices).toHaveTextContent("全部回合转完再判通关");
+    expect(choices).toHaveTextContent("最后一回合结束才判通关");
   });
 
   it("preserves old recorded targets without changing historical results", () => {
@@ -82,7 +82,7 @@ describe("room objective readouts", () => {
     const result = screen.getByRole("region", { name: "客房挑战结果" });
     expect(result).toHaveTextContent("本段奖金 ¥1185 / ¥2000 · 已通关 1/6 间");
     expect(result).toHaveTextContent("以上是旧规则成绩");
-    expect(result).toHaveTextContent("本段奖金合计 ¥1200");
+    expect(result).toHaveTextContent("本房累计奖金 ¥2400");
   });
 
   it("uses the completed best-spin snapshot instead of total room payout", () => {

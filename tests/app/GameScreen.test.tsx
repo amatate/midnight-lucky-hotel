@@ -87,7 +87,7 @@ describe("GameScreen", () => {
     const cabinet = screen.getByRole("region", { name: "午夜好运老虎机" });
     const counters = within(cabinet).getByRole("group", { name: "酒店房号计数窗" });
     expect(counters.querySelector("[data-counter='bankroll'] .bankroll-value")).toHaveTextContent(/^¥100$/);
-    expect(within(counters).getByText("目标 ¥200")).toHaveAttribute("data-counter", "target");
+    expect(within(counters).getByText("目标 ¥150")).toHaveAttribute("data-counter", "target");
     expect(within(counters).getByText("下注 ¥10")).toHaveAttribute("data-counter", "bet");
     expect(within(cabinet).getByRole("button", { name: "拉动老虎机" })).toBeEnabled();
     expect(screen.queryByText("功能原型")).not.toBeInTheDocument();

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { assignCandidateRoles } from "@/core/candidates";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import { resolveSpin } from "@/core/settlement";
 import { normalizeDrawIdentity } from "@/core/reels";
 import type { GameCommand } from "@/core/commands";
@@ -37,7 +38,7 @@ describe("build diversity rules", () => {
     let state = ready({ reels: solid("lemon"), partSlots: [{ id: "harvest-vat", level }, null, null, null, null] });
     for (let index = 0; index < 3; index++) {
       const result = fixed(state, solid("lemon"));
-      expect(partPayout(result, "harvest-vat")).toBe(index === 2 ? (level === 1 ? 120 : 240) : 0);
+      expect(partPayout(result, "harvest-vat")).toBe(index === 2 ? (level === 1 ? 120 : 180) : 0);
       state = result.state;
       expect(state.counters.harvestCharge).toBe((index + 1) % 3);
     }
@@ -108,7 +109,7 @@ describe("build diversity rules", () => {
     const reels: ReelSet = [["crack", "crack", "blank", "bell"], ["blank", "blank", "blank"], ["blank", "blank", "blank"]];
     const state = ready({ partSlots: [{ id: "shock-absorber", level }, { id: "blank-capacitor", level: 1 }, { id: "overload-motor", level: 1 }, null, null] });
     const result = fixed(state, reels);
-    expect(partPayout(result, "shock-absorber")).toBe(level === 1 ? 20 : 60);
+    expect(partPayout(result, "shock-absorber")).toBe(level === 1 ? 20 : 80);
     expect(result.events.filter((event) => event.type === "PART_DISABLED")).toHaveLength(level === 1 ? 1 : 0);
     expect(result.events.some((event) => event.type === "PART_DISABLED" && event.partId === "shock-absorber")).toBe(false);
     expect(result.state.reels.flat().filter((symbol) => symbol === "crack")).toHaveLength(2);
@@ -116,7 +117,7 @@ describe("build diversity rules", () => {
   });
   it("flywheel pays for physical cracks only, not repeated views of one short-strip cell", () => {
     const state = ready({ partSlots: [{ id: "shock-absorber", level: 2 }, null, null, null, null] });
-    expect(partPayout(fixed(state, [["crack"], ["blank"], ["blank"]]), "shock-absorber")).toBe(30);
+    expect(partPayout(fixed(state, [["crack"], ["blank"], ["blank"]]), "shock-absorber")).toBe(40);
   });
   it("allows one late meal, keeps its price and three-spin duration, and refuses a second meal", () => {
     const state = ready({ baseSpinsInShift: 2 });

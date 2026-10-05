@@ -73,7 +73,7 @@ describe("bounded experience balance", () => {
       const room = HOTEL_ROOMS[tier];
       return room.target / (room.bet * room.paidSpins * (room.rounds ?? 1));
     });
-    expect(pressure).toEqual([1000 / 225, 8, 12]);
+    expect(pressure).toEqual([1000 / 225, 2400 / 450, 6000 / 900]);
     expect(getCurrentBet(ready({ betMode: "aggressive", hotel: { cleared: 1, challenge: { tier: 2, status: "playing" } } }))).toBe(50);
   });
 });

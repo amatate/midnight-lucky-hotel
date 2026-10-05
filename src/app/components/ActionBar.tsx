@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { HelpButton, HelpFacts } from "@/app/components/HelpWindow";
 import { CabinetPartArt } from "@/app/components/CabinetArtwork";
+import { RouteBrief } from "@/app/components/RouteBrief";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { activeRoom, getPaidSpinLimit } from "@/content/hotel";
 import { UPGRADES } from "@/content/upgrades";
@@ -29,7 +30,7 @@ export function selectedPaidBetIsUnaffordable(state: RunState): boolean {
 
 export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Element | null {
   const [serviceReel, setServiceReel] = useState<ReelIndex>(0);
-  const [prayerSymbol, setPrayerSymbol] = useState<BaseSymbolId>("cherry");
+  const [prayerSymbol, setPrayerSymbol] = useState<BaseSymbolId>("seven");
   const boundary = state.phase === "CHOOSING_UPGRADE" || state.phase === "SHIFT_COMPLETE" || state.phase === "AFTER_HOURS";
 
   if (state.phase === "SPINNING") {
@@ -65,6 +66,7 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
           <p className="tray-kicker">房客决定</p>
           <h2>准备这一转</h2>
         </div>
+        <RouteBrief state={state} />
         <fieldset className={`bet-selector${activeRoom(state) !== null ? " fixed-bet" : ""}`}>
           <legend>{activeRoom(state) !== null ? `本房固定下注 ¥${getCurrentBet(state)}` : "下注模式"} <HelpButton title="下注"><HelpFacts cost={state.freeSpinQueue > 0 ? "下一转是免费转，不扣下注。" : "下一次付费拉动扣 ¥" + getCurrentBet(state) + "。"}
             effect="保守 / 正常 / 激进对应标准下注的 0.5 / 1 / 2 倍，赔付随下注同比变化，不改变中奖概率。"

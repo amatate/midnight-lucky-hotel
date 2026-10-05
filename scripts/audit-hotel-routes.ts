@@ -13,7 +13,7 @@ registerHooks({ resolve(id, context, next) {
   return { url: pathToFileURL(existsSync(path) ? path : path + ".ts").href, shortCircuit: true };
 } });
 const { createRun, dispatchCommand } = await import("../src/core/run.ts");
-const { HOTEL_ROOMS, HOTEL_ROOM_TIERS } = await import("../src/content/hotel.ts");
+const { HOTEL_ROOMS, HOTEL_ROOM_TIERS, isRoomIntermission } = await import("../src/content/hotel.ts");
 const { BASE_REELS, BASE_PAYTABLE } = await import("../src/content/base-machine.ts");
 const { evaluateBaseWins } = await import("../src/core/paylines.ts");
 const variant = process.argv.includes("--new-parts");
@@ -42,7 +42,7 @@ const rows = builds.map((build) => {
     const observations = Array.from({ length: samples }, (_, sample) => {
       const parts = [...build.parts, ...(variant ? [part(build.extra as PartInstance["id"], build.level)] : [])];
       let state: RunState = { ...createRun((820127 + Math.imul(sample, 0x9e3779b9)) >>> 0),
-        phase: "SHIFT_COMPLETE", shift: 5, baseSpinsInShift: 3, exitUnlocked: true,
+        phase: "SHIFT_COMPLETE", shift: 3, baseSpinsInShift: 3, exitUnlocked: true,
         bankroll: room.bet * 20, service: build.service, tips: 3, omen: build.service === "chapel" ? 3 : 0,
         reels: build.reels, partSlots: Array.from({ length: 5 }, (_, i) => parts[i] ?? null) as unknown as RunState["partSlots"],
         hotel: { cleared: (tier - 1) as 0 | RoomTier, challenge: null } };
@@ -54,7 +54,12 @@ const rows = builds.map((build) => {
         state = send(state, { type: "PRAY", symbol: "seven" });
       }
       let spins = 0;
-      while (state.phase === "READY_TO_SPIN" && spins < 20) {
+      while ((state.phase === "READY_TO_SPIN" || isRoomIntermission(state)) && spins < 40) {
+        if (isRoomIntermission(state)) {
+          // Keep the preset build fixed; do not mistake a rest stop for a completed room.
+          state = send(state, { type: state.currentCandidates ? "DECLINE_UPGRADE" : "NEXT_ROOM_ROUND" });
+          continue;
+        }
         const mealAt = variant && tier >= 4 ? room.paidSpins - 3 : 0;
         if (build.service === "kitchen" && !state.shiftFlags.foodBought && state.baseSpinsInShift >= mealAt)
           state = send(state, { type: "BUY_FOOD", reelIndex: 0 });
@@ -71,7 +76,7 @@ const rows = builds.map((build) => {
         state = send(send(state, { type: "ACCEPT_OUTCOME" }), { type: "PRESENTATION_COMPLETE" });
         spins++;
       }
-      return { complete: state.phase === "AFTER_HOURS", passed: state.hotel?.challenge?.status === "cleared",
+      return { complete: state.phase === "AFTER_HOURS" && !isRoomIntermission(state), passed: state.hotel?.challenge?.status === "cleared",
         netB: (state.bankroll - opening) / room.bet, spins, tipsSpent: 3 - state.tips };
     });
     return { tier, passed: observations.filter((s) => s.passed).length, completed: observations.filter((s) => s.complete).length,

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { ReelDraw, RunState } from "@/core/types";
 import { clearRun, LEGACY_RUN_STORAGE_KEY, loadRun, RUN_STORAGE_KEY, saveRun } from "@/persistence/storage";
 

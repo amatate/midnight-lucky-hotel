@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getPaidSpinLimit, getRoomProgress, HOTEL_ROOMS, HOTEL_ROOM_TIERS, nextRoomTier } from "@/content/hotel";
 import type { GameCommand } from "@/core/commands";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import type { ReelSet, RoomTier, RunState, SymbolId } from "@/core/types";
 import { activeRecord, exportArchive, importArchive, initializeLibrary, openArchiveSession, readLibrary, recordAction, verifyArchive } from "@/persistence/archives";
 import { decodeRunStateV2 } from "@/persistence/schema-v2";

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createRun, dispatchCommand } from "../src/core/run";
+import { dispatchCommand } from "../src/core/run";
+import { createLegacyRun as createRun } from "../tests/fixtures/legacy-run";
 import type { RunState } from "../src/core/types";
 
 async function load(page: Page) {

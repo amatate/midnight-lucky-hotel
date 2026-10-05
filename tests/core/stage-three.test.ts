@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { HOTEL_ROOMS } from "@/content/hotel";
-import { createRun, dispatchCommand } from "@/core/run";
+import { dispatchCommand } from "@/core/run";
+import { createLegacyRun as createRun } from "../fixtures/legacy-run";
 import { getCurrentBet } from "@/core/progression";
 import { resolveSpin } from "@/core/settlement";
 import type { GameCommand } from "@/core/commands";
