@@ -35,11 +35,13 @@ it("unlocks on gesture, routes independent buses, limits voices and pauses in th
   expect(resumes).toBe(1);
   expect(audio.playSfx("kick")).toBe(true);
   expect(sources.at(-1)!.connect).toHaveBeenCalledWith(gains[0]);
+  expect(audio.playCoinImpact(.7, -.3, 1)).toBe(true);
+  expect(audio.playCoinImpact(.7, .3, 2)).toBe(false);
   const effectTarget = gains[0]!.gain.setTargetAtTime.mock.lastCall![0];
   prefs.setAudioSettings({ music: .5 });
   expect(gains[0]!.gain.setTargetAtTime.mock.lastCall![0]).toBe(effectTarget);
   expect(gains[1]!.gain.setTargetAtTime.mock.lastCall![0]).toBe(.375);
-  prefs.setAudioSettings({ sfx: 0 }); expect(audio.playSfx("win")).toBe(false);
+  prefs.setAudioSettings({ sfx: 0 }); expect(audio.playSfx("win")).toBe(false); expect(audio.playCoinImpact(1)).toBe(false);
   expect(sources.filter((source) => source.loop)).toHaveLength(1);
   prefs.setAudioSettings({ sfx: .7, muted: true });
   expect(sources[0]!.stop).toHaveBeenCalled(); expect(audio.playSfx("win")).toBe(false);
@@ -51,6 +53,7 @@ it("unlocks on gesture, routes independent buses, limits voices and pauses in th
   expect(sources.filter((source) => !source.loop)).toHaveLength(8);
   vi.spyOn(document, "hidden", "get").mockReturnValue(true);
   document.dispatchEvent(new Event("visibilitychange"));
+  expect(audio.playCoinImpact(1)).toBe(false);
   expect(suspends).toBe(1); expect(audio.playSfx("kick")).toBe(false);
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);
   document.dispatchEvent(new Event("visibilitychange")); await Promise.resolve();

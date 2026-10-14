@@ -25,10 +25,11 @@ interface FrontDeskProps {
   readonly defaultSeed: number;
   readonly onLibrary: (library: ArchiveLibrary) => void;
   readonly onPlay: () => void;
+  readonly onClassic?: () => void;
 }
 const SECTION_LABELS = { lobby: "前台", history: "历史与存档", collection: "收藏图鉴", settings: "玩法与设置" } as const;
 
-export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: FrontDeskProps): React.JSX.Element {
+export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onClassic }: FrontDeskProps): React.JSX.Element {
   const [section, setSection] = useState<keyof typeof SECTION_LABELS>("lobby");
   const [seed, setSeed] = useState(String(defaultSeed));
   const [notice, setNotice] = useState("");
@@ -110,6 +111,10 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay }: Fr
             {(library?.favoriteSeeds.length ?? 0) > 0 && <div className="lobby-favorite-seeds"><h3>收藏的种子</h3><div className="seed-list">{library!.favoriteSeeds.map((value) => <button type="button" key={value} onClick={() => setSeed(String(value))}>{value}</button>)}</div></div>}
           </details>
         </form>
+        {onClassic && <button type="button" className="lobby-classic-entry" onClick={onClassic}>
+          <strong>{getLanguage() === "en" ? "Classic machine" : "经典机台"}</strong>
+          <small>{getLanguage() === "en" ? "Three reels. One payline. No upgrades." : "三轮 · 单线 · 只享受转动与中奖"}</small><span aria-hidden="true">↗</span>
+        </button>}
         </div>
       </div>}
       {section === "lobby" && menu}

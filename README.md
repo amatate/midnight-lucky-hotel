@@ -9,6 +9,9 @@ in your browser. Change actual reels, combine parts, and decide when to reroll,
 pray or kick the machine. React UI, deterministic TypeScript engine. Still a
 playtest: fun, clarity and balance need real player feedback.
 
+Prefer a pure mechanical slot? **Classic mode** adds four independent cabinets,
+curved 3D reels and a physical coin tray, without upgrades or hotel goals.
+
 **[Play in English](https://amatate.github.io/midnight-lucky-hotel/?lang=en)** ·
 [中文试玩](https://amatate.github.io/midnight-lucky-hotel/?lang=zh) ·
 [Send feedback](https://github.com/amatate/midnight-lucky-hotel/issues)
@@ -30,7 +33,37 @@ playtest: fun, clarity and balance need real player feedback.
 Designed for portrait touch play, also playable on desktop. This is a Web/PWA
 game, not a native mobile app. Use Add to Home Screen where your browser supports it.
 
-## Latest playtest · October 5, 2026
+## Latest playtest · Classic cabinets (October 14, 2026)
+
+A separate **Classic machine** is available from the lobby, or
+[play Classic directly](https://amatate.github.io/midnight-lucky-hotel/?mode=classic&lang=en).
+
+- Three curved 3D reel drums, a draggable lever, staggered mechanical stops and tiered payout feedback. A 2D fallback uses the same results when WebGL is unavailable.
+- One center payline, fixed bets and a visible paytable. No rooms, upgrades or interventions. Start with 1,000 virtual credits; resetting requires confirmation.
+- Payouts include the stake. Break-even is not celebrated as a profit. A persistent ledger separates bets, payouts and net change.
+- Classic has its own save key and rules version. Interrupted spins settle the reserved result once. Hotel saves and their rules fingerprint are unchanged.
+- Fixed 20-stop reels: enumerating all 8,000 combinations gives a theoretical return of **94.0125%**. This is a long-run model, not a session guarantee or certified gambling software.
+- [Architecture, paytable and validation boundaries](docs/implementation/2026-10-13-classic.md).
+
+### Three new cabinets, one preserved original
+
+Use **MACHINES** at the top of Classic to switch without resetting. Every cabinet has its own credits and ledger; the original's rules and save key are unchanged.
+
+- **Double Diamond** (`&machine=diamond`): wild diamonds complete three-of-a-kind and multiply the line ×2/×4. Three diamonds pay ×100. Theoretical RTP 95%.
+- **Midnight Wheel** (`&machine=wheel`): a wheel on the third center reel unlocks a separately animated bonus wheel. Press **BONUS**; no extra bet. Eight equal-probability sectors add ×1–×10 to any base payout. Combined theoretical RTP 96.325%.
+- **Vault 777** (`&machine=vault`): exactly two 7s pay a ×10 mini; three collect a persistent single-machine pool. The pool starts at ×200 and grows ×0.04 per paid spin. Displayed credits scale with the bet, not a shared cash pool. Long-run fixed-bet model 93.7%; next-spin RTP depends on the current pool and is shown in Rules.
+
+All three retain curved reels, the original acceleration/braking/rebound and the draggable lever. Features and their complete outcomes are saved before animation; reload pays an earned bonus once. English/Chinese rules and ledgers show base, multiplier/bonus, total payout and net change. [Family design and validation](docs/implementation/2026-10-13-classic-family.md).
+
+### Physical coin payouts
+
+[Open the no-wager coin demo](https://amatate.github.io/midnight-lucky-hotel/?mode=classic&demo=coins&lang=en), or use a classic machine's Settings → Try the coin demo. Compare 8 / 18 / 32 physical coins: thickness, tumbling, contact, short-lived piles and three contact-driven sounds. The demo does not read or modify machine saves; coin count represents effect intensity, not payout value.
+
+Profitable payouts on all four classic cabinets also use the bottom receiving pan. Reel motion, probabilities, credits and settlement rules are unchanged. Settings offer lightweight animation and reduced motion; contact sounds use the existing independent SFX volume. Effects never delay the next spin or replay old awards after reload. Short screens may scroll to the tray and ledger.
+
+Physics loads on demand, outside the hotel's initial offline precache. First-use offline or graphics failures fall back to lightweight visuals; successful loads in a Service Worker-controlled page can subsequently use the bounded runtime cache. **Real-phone performance and sustained play still need testing.** If your phone struggles, switch off 3D coin collisions in Settings. [Implementation and validation limits](docs/implementation/2026-10-14-coin-tray.md).
+
+## Published playtest · October 5, 2026
 
 - **Routes that start working earlier:** service selection grants a starter part and matching reel changes where applicable. The first Strengthen offer connects to it; later cards explain fit, missing prerequisites and conflicts. Read live charges and next triggers from the existing preparation panel.
 - Chapel starts with four permanent Sevens per reel plus a Candle, 2 omens and 2 tips; Security starts with an Absorber and one crack per reel. Kitchen starts with a Vat; Repair starts with a Cherry Press and denser Cherries.
@@ -101,6 +134,7 @@ node scripts/audit-journey.ts 24 0
 | `src/core` | Deterministic commands, events, reels and settlement |
 | `src/content` | Parts, services, upgrades, rooms and rules-side copy |
 | `src/app` | React UI, interactions, help and archives |
+| `src/classic` | Independent classic rules/saves, cabinet UI, 3D reels and coin physics |
 | `src/i18n` | Display-only Chinese/English localization |
 | `src/presentation` | Animation timing, audio and feedback |
 | `src/persistence` | Local saves, validation and migrations |
@@ -140,9 +174,11 @@ automatically nor uploads your save.
 Development uses AI assistance and generated visual assets. Design judgment and
 real playtesting still matter. No analytics or accounts are needed to play.
 
-## License and fonts
+## Licenses and credits
 
 A source-code license has **not yet been selected**. Public access does not grant
 an open-source license. A root `LICENSE` will be added when one is chosen.
 
 Bundled fonts retain their licenses in [public/fonts/licenses](public/fonts/licenses).
+Classic rendering uses **Three.js** (MIT) and coin physics uses **Rapier** (Apache-2.0).
+Their bundled license texts are in [public/licenses](public/licenses); those licenses apply to the dependencies, not the game's source code.

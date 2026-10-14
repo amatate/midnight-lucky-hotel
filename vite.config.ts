@@ -23,7 +23,7 @@ export default defineConfig({
   // These are local source modules, not dependencies. Prebundling them would
   // create a second language store and make dev mode ignore the UI preference.
   optimizeDeps: { exclude: ["@/i18n/jsx-runtime", "@/i18n/jsx-dev-runtime"] },
-  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.10.05-routes") },
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.10.14-coin-tray") },
   plugins: [
     {
       name: "restart-on-rule-change",
@@ -54,6 +54,8 @@ export default defineConfig({
         "icons/icon-512.svg",
         "fonts/SmileySans-Oblique.woff2",
         "fonts/BarlowCondensed-SemiBold.woff2",
+        "assets/classic/cabinet-enamel-v1.webp",
+        "assets/classic/diamond-crest-v1.webp",
         "art/cabinet-frame-v1.png",
         "art/hotel-lobby-v1.png",
         "art/installed-parts-v1.png",
@@ -80,8 +82,15 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        // Optional WASM-backed coin effects must not inflate every player's initial offline download.
+        // First use needs a connection; later uses can be served from this bounded runtime cache.
+        globIgnores: ["**/coin-scene-*.js"],
         navigateFallback: "index.html",
-        runtimeCaching: [],
+        runtimeCaching: [{
+          urlPattern: ({ url }) => url.origin === self.location.origin && /\/assets\/coin-scene-[^/]+\.js$/.test(url.pathname),
+          handler: "CacheFirst",
+          options: { cacheName: "midnight-classic-coins-v1", expiration: { maxEntries: 2, maxAgeSeconds: 30 * 24 * 60 * 60 }, cacheableResponse: { statuses: [200] } }
+        }],
         cleanupOutdatedCaches: true
       }
     })

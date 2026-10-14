@@ -3,6 +3,7 @@ import type { GameCommand } from "@/core/commands";
 import type { FeedbackPlan } from "@/presentation/feedback";
 import { getAudioSettings, loadAudioSettings, subscribeAudio, AUDIO_KEY, MUTE_KEY } from "./audio-settings";
 import { renderSfx, SAMPLE_RATE, type SfxId } from "./audio-synthesis";
+import { renderCoinImpact } from "./coin-impact";
 
 let context: AudioContext | null = null;
 let effects: GainNode | null = null;
@@ -18,6 +19,8 @@ const buffers = new Map<SfxId, AudioBuffer>();
 const voices = new Set<AudioBufferSourceNode>();
 const lastPlayed = new Map<SfxId, number>();
 const MAX_VOICES = 8;
+const impactBuffers = new Map<number, AudioBuffer>();
+let lastImpact = -Infinity;
 
 function ramp(node: GainNode | null, value: number, seconds = .04): void {
   if (!context || !node) return;
@@ -68,7 +71,7 @@ export function unlockAudio(): boolean {
       const limiter = next.createDynamicsCompressor();
       limiter.threshold.value = -6; limiter.knee.value = 6; limiter.ratio.value = 8;
       sfxBus.connect(limiter); musicBus.connect(limiter); limiter.connect(next.destination);
-      context = next; effects = sfxBus; music = musicBus; buffers.clear(); lastPlayed.clear();
+      context = next; effects = sfxBus; music = musicBus; buffers.clear(); lastPlayed.clear(); impactBuffers.clear(); lastImpact = -Infinity;
       context.onstatechange = () => { if (context?.state === "running") syncMix(); };
     }
     unlocked = true; musicFailed = false;
@@ -100,6 +103,36 @@ export function playSfx(id: SfxId, rate = 1): boolean {
   } catch { return false; }
 }
 export const playLeverDetentTone = () => playSfx("lever");
+/** Real contact feedback, throttled across all coins; uses the existing SFX volume/mute bus. */
+export function playCoinImpact(strength: number, pan = 0, variant = 0): boolean {
+  const settings = getAudioSettings();
+  if (!context || !effects || context.state !== "running" || document.hidden || settings.muted || settings.sfx === 0
+    || !Number.isFinite(strength) || strength < .12 || voices.size >= 6 || context.currentTime - lastImpact < .06) return false;
+  try {
+    const kind = Math.abs(Math.trunc(variant)) % 3;
+    let buffer = impactBuffers.get(kind);
+    if (!buffer) { const data = renderCoinImpact(kind); buffer = context.createBuffer(1, data.length, SAMPLE_RATE); buffer.copyToChannel(data, 0); impactBuffers.set(kind, buffer); }
+    const source = context.createBufferSource(); source.buffer = buffer; source.playbackRate.value = .94 + kind * .055;
+    const gain = context.createGain(); gain.gain.value = .2 + Math.min(1, strength) * .6;
+    const panner = typeof context.createStereoPanner === "function" ? context.createStereoPanner() : null;
+    source.connect(gain);
+    if (panner) { panner.pan.value = Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0; gain.connect(panner); panner.connect(effects); } else gain.connect(effects);
+    source.onended = () => { source.disconnect(); gain.disconnect(); panner?.disconnect(); voices.delete(source); };
+    source.start(); voices.add(source); lastImpact = context.currentTime; return true;
+  } catch { return false; }
+}
+/** A mode-specific mechanical bed, routed through the same SFX mix and visibility lifecycle. */
+export function playMechanicalBed(data: Float32Array<ArrayBuffer>): () => void {
+  const settings = getAudioSettings();
+  if (!context || !effects || context.state !== "running" || settings.muted || settings.sfx === 0 || document.hidden || voices.size >= MAX_VOICES) return () => {};
+  try {
+    const buffer = context.createBuffer(1, data.length, SAMPLE_RATE); buffer.copyToChannel(data, 0);
+    const source = context.createBufferSource(); source.buffer = buffer; source.connect(effects);
+    source.onended = () => { source.disconnect(); voices.delete(source); };
+    source.start(); voices.add(source);
+    return () => { if (voices.has(source)) { source.stop(); source.disconnect(); voices.delete(source); } };
+  } catch { return () => {}; }
+}
 export function commandSound(command: GameCommand): SfxId | null {
   switch (command.type) {
     case "SPIN": return "spin";
@@ -135,7 +168,7 @@ export function installAudio(): () => void {
   const gesture = () => { unlockAudio(); };
   const click = (event: MouseEvent) => {
     const button = event.target instanceof Element ? event.target.closest("button, summary") : null;
-    if (button && !button.hasAttribute("disabled") && !button.closest(".pull-control, .audio-settings")) playSfx("ui");
+    if (button && !button.hasAttribute("disabled") && !button.closest(".pull-control, .audio-settings, [data-own-sound]")) playSfx("ui");
   };
   const pause = () => {
     stopMusic(); voices.forEach((voice) => { voice.stop(); voice.disconnect(); }); voices.clear();
