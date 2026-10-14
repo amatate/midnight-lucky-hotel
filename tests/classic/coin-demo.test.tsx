@@ -36,8 +36,12 @@ it("does not initialize 3D for reduced motion and disposes it on a quality switc
 it("keeps a lightweight tray available if the physical renderer fails", async () => {
   createScene.mockRejectedValueOnce(new Error("WebGL unavailable"));
   render(<PayoutTray cue={{ id: 1, seed: 9, tier: "small" }} three reduced={false} warm />);
-  await waitFor(() => expect(screen.getByTestId("payout-tray")).toHaveAttribute("data-mode", "2d"));
-  expect(document.querySelectorAll(".payout-flat-coins i")).toHaveLength(8);
+  // The mode changes before a passive effect mounts the fallback coins.
+  // Wait for the actual visible result, not only the intermediate mode flag.
+  await waitFor(() => {
+    expect(screen.getByTestId("payout-tray")).toHaveAttribute("data-mode", "2d");
+    expect(document.querySelectorAll(".payout-flat-coins i")).toHaveLength(8);
+  });
 });
 
 it("clears cosmetics on backgrounding without replaying the last cue", async () => {
