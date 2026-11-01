@@ -10,18 +10,18 @@ const SEEN_KEY = "midnight-lucky-hotel.discovered-parts-v1";
 const EMPTY_EVENTS: readonly GameEvent[] = [];
 const REASONS: Readonly<Record<PartId, string>> = {
   "harvest-vat": "这次付费转有水果中奖，存入一格；集齐第三格才开桶付钱，免费转不计。",
-  "votive-candle": "之前点燃的恶兆现在兑现，不需要这次转轮中奖；不是再次消耗恶兆。",
+  "votive-candle": "之前点烛存下的恶兆，现在换成了奖金。这次不用中奖，也不会再扣恶兆。",
   "shock-absorber": "飞轮承受少量裂纹，保护其他部件并发放奖励，但裂纹仍留在机器里。",
   "cherry-press": "樱桃线中奖，盘面至少有3个真正的樱桃图案；从第3个起有额外奖金，百搭不计数。",
   "jam-jar": "樱桃线给果酱罐充能。第一条只充能，后面的樱桃线才享受累计奖励。",
   "fruit-salad": "同一条支付线凑齐了樱桃、柠檬、铃铛，混搭也能中奖。",
   "salad-dressing": "水果沙拉刚刚中奖，沙拉酱再追加一份奖金。",
-  "lemon-infection": "柠檬线启动感染：能改造线外图案时改造，成熟且无可感染目标时改为收成。",
+  "lemon-infection": "柠檬中奖后，把中奖线外的图案变成柠檬。如果没图案可换、盘面又有至少6颗真正的柠檬，就改发一笔奖金。",
   leftovers: "吃到转轮中的食物后，剩菜打包把食物送回转轮；这是补给，不是直接奖金。",
   "omen-collector": "幸运7线中奖，储存的恶兆被兑现并清空。",
   "triple-blessing": "本转第一条幸运7线中奖，祝福复制这条线的基础奖金。",
   "midnight-bell": "铃铛线中奖，把线上的真正铃铛永久改成百搭，再检查有没有新的中奖线。",
-  "martyr-coin": "本班已经主动献祭，现在用复制幸运7线兑现这笔投入。",
+  "martyr-coin": "你在本班开头花钱献祭过，这次幸运7中奖，所以额外再发奖金。",
   "scrap-magnet": "三个裂纹图案连成一条线，磁铁发放回收奖金，再清理这些裂纹；百搭不能代替裂纹。",
   "loose-spring": "使用了踹击，弹簧提供更远的位移；能否救出中奖仍取决于盘面。",
   "blank-capacitor": "付费转抽到了空白，电容积累蓄能；达到阈值才赠免费转，免费转不再充能。",
@@ -90,8 +90,8 @@ export function PartDiscovery({ state, presentedThroughSequence, observedEvents 
   const content = <section className="part-discovery" aria-label="初次发现">
     <header><h3>{UPGRADES[note.id].name} · 初次发现</h3><span className="discovery-caption">{note.id === "safety-fuse" ? "余额救援" : `第 ${note.ordinal} 转`}</span></header>
     <p>{REASONS[note.id]}</p>
-    <p><strong>{note.amount > 0 ? `本次已入账的直接奖励 +¥${note.amount}` : note.complete ? "本次没有直接加钱，收益体现在充能或改造。" : "直接奖励随结算入账后显示。"}</strong></p>
-    <p className="discovery-caption">只统计这个部件明确记名的奖励，不把后续基础中奖都算给它。</p>
+    <p><strong>{note.amount > 0 ? `本次已入账的直接奖励 +¥${note.amount}` : note.complete ? "这次没有直接发钱；攒进度、改图案等效果要看后续转动。" : "直接奖励随结算入账后显示。"}</strong></p>
+    <p className="discovery-caption">这里只算部件直接发的钱。改图案后连线中奖的钱，仍算连线奖金。</p>
     <details><summary>再看效果与代价</summary><p>{details.effect}</p><p>{details.risk}</p></details>
     {notes.length > 1 && <p className="discovery-caption">还有 {notes.length - 1} 个首次发现等你查看。</p>}
     <button type="button" onClick={() => setNotes((current) => current.slice(1))}>明白了</button>

@@ -1,0 +1,45 @@
+/* The roguelite keeps its authoritative 3 × 3 board and five paylines.
+   Only the display becomes three continuous enamel drums behind one glass pane. */
+.slot-machine.continuous-drums {
+  --drum-paper: #f5edcf; --drum-edge: #a99a73; --drum-ink: #18231c;
+  padding: 4px; gap: 5px; border: 2px solid #ad9564; border-radius: 11px;
+  background: linear-gradient(90deg, #080d0a, #75623e 33%, #0a100b 34%, #75623e 66%, #080d0a 67%);
+  box-shadow: inset 0 3px 12px #000d, 0 1px #f5e3b2, 0 6px 10px #0008;
+}
+.continuous-drums .reel {
+  gap: 0; padding: 0; border: 0; border-radius: 7px;
+  background: linear-gradient(90deg, #b9aa84, var(--drum-paper) 14% 84%, #b5a781);
+  box-shadow: inset 3px 0 6px #43351e55, inset -3px 0 6px #43351e55;
+}
+.continuous-drums .reel::after {
+  border-radius: inherit;
+  background: linear-gradient(180deg, #111a13b3, #33381c25 15%, transparent 34% 66%, #33381c25 85%, #111a13b3),
+    linear-gradient(100deg, transparent 30%, #ffffef2b 39%, transparent 48%);
+  box-shadow: inset 0 10px 12px #13180c66, inset 0 -10px 12px #13180c55;
+}
+.continuous-drums .symbol {
+  border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible;
+}
+.continuous-drums .symbol:first-child .symbol-face { transform: perspective(360px) rotateX(24deg) scale(.95); transform-origin: center bottom; }
+.continuous-drums .symbol:nth-child(3) .symbol-face { transform: perspective(360px) rotateX(-24deg) scale(.95); transform-origin: center top; }
+.continuous-drums .symbol.is-line-highlighted {
+  outline: 1px solid #a87436; outline-offset: -7px; border-radius: 9px;
+  background: radial-gradient(ellipse, #ffe3a270, transparent 72%); box-shadow: none;
+}
+.continuous-drums .symbol.is-intervention-risk::after { z-index: 5; inset: 7px; border-radius: 9px; border-color: #a84435; }
+.continuous-drums .reel-filler { background: var(--drum-paper); }
+.continuous-drums .reel-filler-strip {
+  height: 400%; min-height: 400%; grid-template-rows: repeat(12, 1fr); gap: 0; padding: 0;
+  background: linear-gradient(90deg, #b9aa84, var(--drum-paper) 14% 84%, #b5a781);
+  animation: drum-travel 340ms linear infinite; filter: blur(.4px);
+}
+.continuous-drums .reel:nth-child(2) .reel-filler-strip { animation-duration: 300ms; }
+.continuous-drums .reel:nth-child(3) .reel-filler-strip { animation-duration: 370ms; }
+.continuous-drums .reel-filler .symbol-face { width: min(78%, 78px); }
+.continuous-drums .reel-settled .symbol { animation: drum-detent 220ms cubic-bezier(.16,.9,.24,1) both; }
+.drum-paylines { position: absolute; inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); z-index: 5; pointer-events: none; }
+.drum-paylines polyline { fill: none; stroke: #a34630; stroke-width: 1.3; stroke-dasharray: 3 4; opacity: .75; }
+@keyframes drum-travel { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+@keyframes drum-detent { 0% { translate: 0 -18%; } 65% { translate: 0 5%; } 84% { translate: 0 -2%; } 100% { translate: 0 0; } }
+.continuous-drums.is-reduced .reel-settled .symbol { animation: none; }
+@media (prefers-reduced-motion: reduce) { .continuous-drums .reel-settled .symbol, .continuous-drums .reel-filler-strip { animation: none; } }

@@ -1,0 +1,63 @@
+/* A mobile game reception, not a landing-page stack. The cabinet renderer is untouched. */
+.app-shell.frontdesk-shell:has(.reception) { max-width: 1000px; overflow: clip; }
+.frontdesk.frontdesk-scene.reception {
+  --reception-night: #0c1715; --reception-green: #183c32; --reception-paper: #f2e7cc;
+  --reception-gold: #ddc895; --reception-muted: #b7b7a1; --reception-ruby: #783c48;
+  min-height: 100svh; color: var(--reception-paper); padding: max(15px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) calc(90px + env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: var(--reception-night); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", system-ui, sans-serif;
+}
+.frontdesk-scene.reception[data-section="lobby"] { background: linear-gradient(180deg, #0c171526 0, #0c171575 300px, #0c1715 590px), url("/art/hotel-lobby-v1.png") center top / auto 560px no-repeat, #0c1715; }
+.reception .frontdesk-heading { display: block; text-align: left; padding: 0; margin: 0 115px 19px 0; min-height: 46px; border: 0; }
+.reception .hotel-sign { font: .6rem "Barlow Condensed", sans-serif; letter-spacing: .18em; color: #ddc895; margin: 0 0 4px; }
+.reception .frontdesk-heading h1 { font: 1.35rem/1.2 "Smiley Sans", sans-serif; letter-spacing: .03em; text-shadow: 0 2px 10px #000; margin: 0; }
+.reception .frontdesk-tagline, .reception .frontdesk-key { display: none; }
+.reception > .language-selector { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(15px, env(safe-area-inset-top)); margin: 0; }
+.reception > .language-selector button { min-height: 44px; min-width: 44px; padding: 5px 6px; }
+.reception .lobby-arrival { max-width: 440px; margin: 0 auto; }
+.reception .reception-next-goal { display: flex; width: 100%; min-height: 64px; align-items: center; gap: 12px; margin-top: 16px; padding: 9px 12px; border: 0; border-radius: 9px; box-shadow: none; background: #10231de8; color: #ddc895; text-align: left; }
+.reception-next-goal > span:nth-child(2) { min-width: 0; flex: 1; }.reception-next-goal small { display: block; color: #b7b7a1; font: .625rem/1.6 "Barlow Condensed", sans-serif; letter-spacing: .08em; }.reception-next-goal strong { display: block; color: #f2e7cc; font: 1rem/1.5 "Smiley Sans", sans-serif; }.reception-next-goal > span:last-child { font: .875rem "Barlow Condensed", sans-serif; white-space: nowrap; }.reception-next-goal b { font-weight: 400; font-size: 1.4rem; margin-left: 8px; }.reception-goal-mark { font-size: 1.6rem; width: 29px; text-align: center; }
+.reception .lobby-playdesk { width: 100%; margin: 14px 0 0; padding: 0; border: 0; background: transparent; }
+.reception .lobby-playdesk::before, .reception .lobby-playdesk::after { display: none; }
+.reception .lobby-classic-entry { margin: 0 0 15px; padding: 13px 16px; min-height: 76px; border: 1px solid #f2e7cc; border-radius: 10px; color: #13271f; background: linear-gradient(115deg, #ecdbb1, #d2b981); box-shadow: inset 0 1px #fff8, 0 3px 0 #79643d; }
+.reception .lobby-classic-entry strong { font-size: 1.4rem; }.reception .lobby-classic-entry small { color: #3e503d; font-size: .75rem; }.reception .lobby-classic-entry:hover:not(:disabled) { background: #f2e7cc; color: #13271f; }.reception .lobby-classic-entry:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #79643d; }
+.reception-hotel-run { padding: 14px 14px 0; border: 1px solid #ddc89540; border-radius: 12px; background: #10231d; }
+.reception .frontdesk-hero { text-align: left; background: transparent; padding: 0; }
+.reception .frontdesk-hero > .eyebrow { font-size: .6rem; margin-bottom: 4px; color: #b7b7a1; }
+.reception .frontdesk-hero h2 { font: 1.1rem/1.4 "Smiley Sans", sans-serif; margin: 0 0 6px; }
+.reception .lobby-premise { font-size: .8125rem; margin: 0 0 10px; color: #c4c4aa; }
+.reception .lobby-current-run { justify-content: flex-start; gap: 6px 12px; margin-bottom: 10px; }.reception .frontdesk-balance { font-size: 1.3rem; }
+.reception .lobby-enter-button { min-height: 48px; padding: 10px 32px; border-radius: 8px; border: 1px solid #ddc89580; color: #f2e7cc; background: #274233; box-shadow: inset 0 1px #ffffff0f, 0 2px 0 #091a12; font-size: 1.1rem; letter-spacing: .04em; }
+.reception .lobby-enter-button:hover:not(:disabled) { background: #36513e; color: #f2e7cc; }.reception .lobby-enter-button:active:not(:disabled) { box-shadow: 0 0 0 transparent; transform: translateY(2px); }
+.reception .lobby-goal { margin: 9px 0 0; font-size: .75rem; color: #b7b7a1; }
+.reception .lobby-seed-options, .reception .lobby-run-details { margin-top: 4px; }.reception .lobby-seed-options > summary, .reception .lobby-run-details > summary { font-size: .75rem; color: #b7b7a1; min-height: 44px; padding: 12px 0; }
+.reception .frontdesk-tabs { position: fixed; z-index: 25; left: 50%; bottom: 0; transform: translateX(-50%); width: min(100%, 1000px); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin: 0; padding: 7px max(8px, env(safe-area-inset-right)) max(7px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: #0c1715f5; backdrop-filter: blur(14px); border-top: 1px solid #ddc89540; box-shadow: 0 -5px 18px #0003; }
+.reception .frontdesk-tabs button, .reception .frontdesk-tabs button[aria-current="page"] { min-height: 54px; padding: 4px 2px; font-size: .6875rem; line-height: 1.35; gap: 6px; color: #b7b7a1; border: 0; border-radius: 8px; white-space: normal; background: transparent; box-shadow: none; }
+.reception .frontdesk-tabs button[aria-current="page"] { color: #f2e7cc; background: #ddc89512; }.reception .frontdesk-tabs button[aria-current="page"] .lobby-menu-mark { opacity: 1; color: #ddc895; }
+.reception .lobby-menu-mark-quests { border-radius: 4px 1px 1px 4px; }.reception .lobby-menu-mark-quests::after { content: ""; position: absolute; inset: 4px; border-block: 1px solid currentColor; }
+.reception .frontdesk-footer { margin-top: 22px; padding: 0; font-size: .6875rem; max-width: 440px; color: #a7ad98; }.reception[data-section="lobby"] .frontdesk-footer > p:last-child { display: none; }
+.reception .archive-card { background: #13261f; border: 1px solid #ddc89540; border-radius: 10px; box-shadow: none; }
+.reception input:not([type="checkbox"]), .reception select { font-size: 1rem; min-height: 48px; color: #f2e7cc; background: #0c1715; border: 1px solid #ddc89570; border-radius: 8px; }
+.reception button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.reception button:focus-visible, .reception summary:focus-visible { outline: 2px solid #f2e7cc; outline-offset: 3px; }
+.reception .concierge-dialogue button:focus-visible { outline-color: #183c32; }
+.reception:not([data-section="lobby"]) .frontdesk-heading { margin-bottom: 26px; }
+.reception:not([data-section="lobby"]) > h2 { font: 1.5rem "Smiley Sans", sans-serif; }
+.reception[data-reduce-motion="true"] * { animation: none !important; transition: none !important; }
+/* Outrank legacy lobby/language rules without changing the cabinet typography. */
+.frontdesk.reception .frontdesk-heading { margin-right: 150px; }
+.frontdesk.frontdesk-scene.reception .frontdesk-heading h1 { font-size: 1.35rem; line-height: 1.2; }
+.frontdesk.frontdesk-scene.reception:lang(en) .frontdesk-heading h1 { font-family: "Barlow Condensed", sans-serif; font-size: 1.5rem; }
+.frontdesk.frontdesk-scene.reception .frontdesk-tabs button { font-size: .6875rem; }
+@media (min-width: 760px) {
+  .frontdesk.frontdesk-scene.reception { padding: 24px 40px 110px; }
+  .reception[data-section="lobby"] .lobby-arrival { display: grid; grid-template-columns: 1.15fr 1fr; grid-template-areas: "npc goal" "npc actions"; align-items: start; gap: 0 32px; max-width: 900px; }
+  .reception .concierge-scene { grid-area: npc; }.reception .concierge-stage { height: 350px; }.reception .concierge-stage > .mio-bust { width: 270px; }.reception .concierge-scene-copy { padding-top: 35px; }.reception .concierge-scene-copy h2 { font-size: 1.5rem; }
+  .reception .reception-next-goal { grid-area: goal; margin: 0; }.reception .lobby-playdesk { grid-area: actions; }.reception .frontdesk-tabs { padding-inline: 170px; }.reception .frontdesk-tabs button { font-size: .75rem; }
+  .reception > .language-selector { right: 40px; top: 24px; }.reception .frontdesk-heading { margin-bottom: 25px; }.reception .frontdesk-heading h1 { font-size: 1.7rem; }.reception .frontdesk-footer { margin-left: auto; max-width: 380px; }
+  .frontdesk.frontdesk-scene.reception .frontdesk-heading h1, .frontdesk.frontdesk-scene.reception:lang(en) .frontdesk-heading h1 { font-size: 1.7rem; }
+  .frontdesk.frontdesk-scene.reception .frontdesk-tabs button { font-size: .75rem; }
+}
+@media (max-width: 359px) { .frontdesk.frontdesk-scene.reception { padding-inline: max(12px, env(safe-area-inset-left)); }.reception .frontdesk-heading { margin-right: 103px; }.reception .frontdesk-heading h1 { font-size: 1.2rem; }.reception .hotel-sign { letter-spacing: .1em; font-size: .55rem; }.reception .frontdesk-tabs button { font-size: .625rem; }.reception > .language-selector { right: 10px; } }
+@media (max-height: 700px) and (max-width: 759px) { .reception .concierge-stage { height: 200px; }.reception .concierge-stage > .mio-bust { width: 200px; }.reception .concierge-scene-copy { padding-top: 16px; } }
+@media (max-width: 359px) { .frontdesk.frontdesk-scene.reception .frontdesk-heading h1, .frontdesk.frontdesk-scene.reception:lang(en) .frontdesk-heading h1 { font-size: 1.25rem; } }
+@media (prefers-reduced-motion: reduce) { .reception *, .guest-reward * { animation: none !important; transition: none !important; } }

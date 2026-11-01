@@ -6,7 +6,7 @@ import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { translate } from "@/i18n/translate";
 import { getLanguage } from "@/i18n/language";
 
-export function ArchiveViewer({ record, onClose }: { readonly record: RunArchive; readonly onClose: () => void }): React.JSX.Element {
+export function ArchiveViewer({ record, onClose, onHome }: { readonly record: RunArchive; readonly onClose: () => void; readonly onHome?: (() => void) | undefined }): React.JSX.Element {
   const [query, setQuery] = useState("");
   const [actor, setActor] = useState("all");
   const [block, setBlock] = useState("all");
@@ -23,7 +23,7 @@ export function ArchiveViewer({ record, onClose }: { readonly record: RunArchive
   return (
     <section className="archive-view frontdesk" aria-label="完整游戏日志">
       <header className="frontdesk-heading"><div><p className="eyebrow">NIGHT AUDIT / GAME ARCHIVE</p><h1>游戏档案</h1></div>
-        <button type="button" onClick={onClose}>返回</button></header>
+        <nav aria-label="档案导航"><button type="button" onClick={onClose}>返回</button>{onHome && <button type="button" onClick={onHome}>返回前台</button>}</nav></header>
       <section className="archive-card">
         <h2 translate="no">{record.name}</h2>
         <p>种子 {state.initialSeed} · 余额 {money(state.bankroll)} · 共 {state.nextSpinOrdinal - 1} 转</p>

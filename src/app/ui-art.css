@@ -1,0 +1,107 @@
+/* One shared asset language for equipment, route labels and hotel keepsakes.
+   Text, progress, selection and touch targets stay live DOM; art carries no rules. */
+:root {
+  --ui-art-gold: #ddc895;
+  --ui-art-paper: #f2e7cc;
+  --ui-art-night: #0c1715;
+  --ui-art-edge: #ddc89548;
+}
+.ui-atlas-art { position: relative; display: inline-block; width: 48px; height: 48px; flex: none; vertical-align: middle; pointer-events: none; }
+.ui-atlas-art > svg { display: block; width: 100%; height: 100%; overflow: hidden; opacity: 0; }
+.ui-atlas-art[data-art-ready] > svg { opacity: 1; }
+.ui-art-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ui-art-gold); font-size: 1.4rem; }
+.ui-atlas-art[data-art-ready] > .ui-art-fallback { display: none; }
+.upgrade-art { display: block; width: 72px; height: 72px; flex: none; pointer-events: none; }
+.upgrade-art > .ui-atlas-art, .upgrade-art > .installed-part-art { width: 100%; height: 100%; }
+.route-art-badge { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; vertical-align: middle; line-height: 1.3; }
+.route-art-badge > .ui-atlas-art { width: 25px; height: 25px; }
+.route-art-badge > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+
+/* Equipment catalogue: the picture is a recognizable object, not another banner. */
+.frontdesk-scene .collection-item {
+  border: 1px solid var(--ui-art-edge); border-top-color: #ddc89578;
+  border-radius: 4px 14px 4px 4px;
+  background: linear-gradient(135deg, #1c3027, #101e19 70%);
+  box-shadow: inset 0 0 0 4px #ddc89506, 0 7px 18px #0002;
+}
+.collection-card-head { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--ui-art-edge); }
+.collection-art-display { position: relative; display: grid; place-items: center; height: 102px; padding: 5px 7px 12px; border: 1px solid #ddc8953d; border-radius: 40px 40px 3px 3px; background: radial-gradient(ellipse at 50% 32%, #52644744, #071510 76%); }
+.collection-art-display .upgrade-art { width: 78px; height: 78px; filter: drop-shadow(0 4px 5px #0005); }
+.collection-index { position: absolute; bottom: 4px; color: #ae9c76; font: .625rem "Barlow Condensed", sans-serif; letter-spacing: .15em; }
+.collection-card-title { min-width: 0; }
+.collection-kind { color: #b6bba7; font-size: .6875rem; letter-spacing: .06em; }
+.frontdesk-scene .collection-card-title h3 { margin: 5px 0 7px; font: oblique 400 1.35rem/1.3 "Smiley Sans", sans-serif; color: var(--ui-art-paper); }
+.collection-card-title .route-art-badge { padding: 2px 7px 2px 2px; border: 1px solid #ddc89530; border-radius: 5px; font-size: .6875rem; color: var(--ui-art-gold); background: #07151065; }
+.collection-item > .collection-discovery { display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 0; color: #b4baa8; font-size: .6875rem; }
+.collection-discovery::before { content: ""; width: 5px; height: 5px; border: 1px solid #a3ac98; border-radius: 50%; }
+.collection-discovery[data-discovered] { color: #d3dbbd; }
+.collection-discovery[data-discovered]::before { background: #d6c085; border-color: #d6c085; box-shadow: 0 0 6px #ddc89530; }
+.collection-item:not([data-discovered]) .collection-art-display { filter: saturate(.65); }
+.collection-item > p:not(.collection-discovery) { font-size: .875rem; line-height: 1.7; margin-block: 9px; }
+.collection-item > details { border-top: 1px solid #ddc89526; }
+.collection-item > details p { font-size: .8125rem; color: #c8c9b4; }
+.collection-item > button { min-height: 44px; border-radius: 5px; border-color: #ddc89565; }
+
+/* Upgrade tickets retain three choices and an obvious confirmation button. */
+.upgrade-card-heading { display: flex; align-items: center; gap: 10px; min-width: 0; margin: 9px 0; }
+.upgrade-card-heading > div { min-width: 0; }
+.upgrade-card-heading > .upgrade-art { padding: 3px; border: 1px solid #816d4666; border-radius: 24px 24px 4px 4px; background: radial-gradient(ellipse, #41614e, #18291e); }
+.upgrade-card-heading small { display: block; color: #514a39; font-size: .625rem; line-height: 1.4; }
+.upgrade-card-heading h3 { margin: 3px 0 0; }
+.upgrade-card .ticket-stub { align-items: center; }
+.upgrade-card .ticket-stub > .route-art-badge { font-size: .6875rem; letter-spacing: 0; }
+.upgrade-confirm-art { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--ui-art-edge); }
+.upgrade-confirm-art > .upgrade-art { width: 64px; height: 64px; }
+.upgrade-confirm-art h4 { margin: 0; }
+.help-content .upgrade-confirm-art h4 { color: var(--ui-art-paper); font: 1.2rem/1.4 "Smiley Sans", sans-serif; }
+.console-upgrade-picker .upgrade-card-heading { grid-column: 1; margin: 1px 0; gap: 8px; }
+.console-upgrade-picker .upgrade-card-heading .upgrade-art { width: 49px; height: 49px; padding: 2px; border-radius: 16px 16px 3px 3px; }
+.console-upgrade-picker .upgrade-card-heading h3 { font-size: 1.125rem; line-height: 1.25; }
+.console-upgrade-picker .upgrade-card .select-ticket { grid-row: 2 / 4; }
+.service-contract .service-choice { grid-template-columns: 48px minmax(0, 1fr); column-gap: 10px; }
+.service-choice .service-seal:has(.ui-atlas-art) { position: static; grid-column: 1; grid-row: 1; width: 48px; height: 48px; border: 0; background: none; box-shadow: none; border-radius: 0; }
+.service-contract .service-choice > strong { grid-column: 2; grid-row: 1; align-self: center; min-width: 0; }
+.service-contract .service-choice > span:not(.service-seal), .service-contract .service-choice > small { grid-column: 1 / -1; }
+.service-seal > .ui-atlas-art { width: 100%; height: 100%; }
+
+/* Keepsakes remain cosmetic. Unowned previews say so; only actual claims get a seal. */
+.guestbook-quest { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; }
+.guestbook-stamp { position: relative; width: 54px; height: 62px; padding: 2px; border-color: var(--ui-art-edge); background: #13271f; border-radius: 22px 22px 4px 4px; }
+.guestbook-stamp > .ui-atlas-art { width: 100%; height: 100%; }
+.keepsake-check { position: absolute; right: -3px; bottom: -3px; display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid #d9c38c; border-radius: 50%; color: #142a20; background: #dbc48f; font: 12px/1 system-ui, sans-serif; }
+.guestbook-keepsakes { gap: 10px; }
+.guestbook-keepsakes .keepsake-card { min-width: 0; padding: 12px 9px 14px; border: 1px solid var(--ui-art-edge); border-radius: 3px 12px 3px 3px; background: linear-gradient(145deg, #1d3329, #0f2018); text-align: center; }
+.guestbook-keepsakes .keepsake-display { position: relative; display: grid; place-items: center; height: 112px; margin: 0 0 10px; padding: 6px; background: radial-gradient(ellipse at 50% 40%, #6f785e28, transparent 72%); border-bottom: 1px solid #ddc89530; }
+.keepsake-display > .ui-atlas-art { width: 102px; height: 102px; }
+.keepsake-display .keepsake-check { right: 5px; bottom: 7px; }
+.guestbook-keepsakes .keepsake-card:not([data-collected]) .ui-atlas-art { opacity: .6; filter: saturate(.35); }
+.guestbook-keepsakes .keepsake-card strong { font-size: .9375rem; line-height: 1.5; overflow-wrap: anywhere; }
+.guestbook-keepsakes .keepsake-card[aria-pressed="true"] { outline: 1px solid var(--ui-art-gold); outline-offset: 2px; color: var(--ui-art-paper); }
+.guestbook-selected { margin-top: 18px; padding: 16px; border: 1px solid var(--ui-art-edge); background: #183025; border-radius: 6px; }
+.guestbook-selected h3 { font: 1.125rem "Smiley Sans", sans-serif; margin: 0 0 10px; }
+.guestbook-selected p { font-size: .875rem; line-height: 1.7; color: #d0d3bc; }
+.guestbook-selected .guestbook-memory { margin: 0; }
+.guestbook-selected button { min-height: 44px; }
+.guest-reward-stamp { width: 100px; height: 100px; bottom: 12px; left: 5%; border-radius: 3px 24px 3px 3px; border: 1px solid var(--ui-art-edge); background: linear-gradient(140deg, #244131, #0f2118); box-shadow: 0 8px 14px #0005; }
+.guest-reward-stamp > .ui-atlas-art { width: 100%; height: 100%; }
+.reception .reception-goal-mark { width: 43px; height: 43px; flex: none; }
+.reception-goal-mark > .ui-atlas-art { width: 100%; height: 100%; }
+
+@media (min-width: 700px) {
+  .guestbook-keepsakes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 359px) {
+  .collection-card-head { grid-template-columns: 76px minmax(0, 1fr); gap: 10px; }
+  .collection-art-display { height: 89px; }
+  .collection-art-display .upgrade-art { width: 65px; height: 65px; }
+  .frontdesk-scene .collection-card-title h3 { font-size: 1.15rem; }
+  .guestbook-page .guestbook-quest { grid-template-columns: 44px minmax(0, 1fr); gap: 9px; }
+  .guestbook-page .guestbook-stamp { width: 44px; height: 54px; }
+  .console-upgrade-picker .upgrade-card { grid-template-columns: minmax(0, 1fr) 58px; }
+  .console-upgrade-picker .upgrade-card-heading { gap: 5px; }
+  .console-upgrade-picker .upgrade-card-heading .upgrade-art { width: 40px; height: 44px; }
+  .console-upgrade-picker .upgrade-card-heading h3 { font-size: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-atlas-art, .upgrade-art, .keepsake-card { animation: none; transition: none; }
+}

@@ -29,17 +29,18 @@ describe("UpgradePicker", () => {
 
     expect(screen.getByText("强化")).toBeVisible();
     expect(screen.getByText("转向")).toBeVisible();
-    expect(screen.getByText("豪赌")).toBeVisible();
+    expect(screen.getByText("新选择")).toBeVisible();
     const jamJar = screen.getByRole("heading", { name: "果酱罐" }).closest("article")!;
-    expect(jamJar).toHaveTextContent("本班樱桃线越多，后续奖励越高");
-    expect(jamJar).toHaveTextContent("第一条只充能");
+    expect(jamJar).toHaveTextContent("这一班樱桃中奖越多，后面的樱桃奖越高");
+    expect(jamJar).toHaveTextContent("第一条只攒进度，不加钱");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(within(jamJar).queryByText(/协同/)).not.toBeInTheDocument();
     await user.click(within(jamJar).getByRole("button", { name: "效果与代价" }));
     const dialog = screen.getByRole("dialog", { name: "果酱罐升级说明" });
     await user.click(within(dialog).getByText("搭配建议与完整规则"));
     const strategy = within(dialog).getByText("搭配建议与完整规则").closest("details")!;
-    expect(strategy).toHaveTextContent("此前樱桃中奖线数（最多计 6 层）× 0.5 × 当前下注");
+    expect(strategy).toHaveTextContent("第二条多奖0.5倍下注，第三条多奖1倍");
+    expect(strategy).toHaveTextContent("最高每条多奖3倍");
     expect(within(strategy).getByText(/适合搭配/).closest("p")).toBeVisible();
     expect(within(strategy).getByText(/代价／风险/).closest("p")).toBeVisible();
     expect(container).not.toHaveTextContent(/reel-growth|reel-control|shift-scaling/);
@@ -55,7 +56,7 @@ describe("UpgradePicker", () => {
     expect(within(card).getByText("已持有 L1 → 本次升为 L2")).toBeVisible();
     await userEvent.click(within(card).getByRole("button", { name: "效果与代价" }));
     const dialog = screen.getByRole("dialog", { name: "果酱罐升级说明" });
-    expect(within(dialog).getByText("L2：系数从 0.5 × 当前下注提高为 1 × 当前下注。")).toBeVisible();
+    expect(within(dialog).getByText("L2：每多中过一条樱桃线，下一条多奖1倍下注，最高多奖6倍。第一条仍不加钱，换班重新开始。")).toBeVisible();
   });
 
   it("keeps the martyr coin immediate paid-action warning visible", () => {

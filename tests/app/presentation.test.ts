@@ -630,7 +630,7 @@ describe("useSettlementPresentation", () => {
     await act(async () => vi.advanceTimersByTimeAsync(120));
     expect(starts).toBe(1);
     expect(navigator.vibrate).toHaveBeenCalledTimes(1);
-    expect(navigator.vibrate).toHaveBeenCalledWith(12);
+    expect(navigator.vibrate).toHaveBeenCalledWith(8);
     rerender({ paused: false });
     expect(starts).toBe(1);
     expect(navigator.vibrate).toHaveBeenCalledTimes(1);
@@ -767,7 +767,7 @@ describe("useSettlementPresentation", () => {
       onCommand: onFull
     }));
 
-    expect(full.result.current?.displayGrid).toEqual(authoritative);
+    expect(full.result.current?.displayGrid).toEqual(original);
     while (full.result.current?.currentEvent?.type !== "PAYOUT_COMPLETE") {
       await act(async () => vi.advanceTimersToNextTimerAsync());
     }
@@ -965,7 +965,8 @@ describe("presentation recovery UI", () => {
     expect(screen.getByLabelText("第 1 层 +25%，剩余 3/3 次转动")).toBeVisible();
   });
 
-  it("mounts the coin layer on the cabinet and measures the real slot-to-balance route", () => {
+  it("mounts coins only when money is presented and measures the real slot-to-balance route", async () => {
+    vi.useFakeTimers();
     const rect = (x: number, y: number, width: number, height: number): DOMRect => ({
       x,
       y,
@@ -990,11 +991,13 @@ describe("presentation recovery UI", () => {
     const { container } = render(createElement(GameScreen, { seed: 707, initialState: resolving }));
 
     const cabinet = container.querySelector(".game-screen");
-    const burst = screen.getByTestId("coin-burst");
+    expect(screen.queryByTestId("coin-burst")).not.toBeInTheDocument();
     expect(cabinet).toHaveAttribute("data-coin-cabinet", "true");
     expect(screen.getByRole("region", { name: "老虎机转轮" })).toHaveAttribute("data-coin-source", "true");
     expect(container.querySelector('[data-counter="bankroll"]')).toHaveTextContent("余额 ¥100");
     expect(container.querySelector('[data-counter="bankroll"]')).toHaveAttribute("data-coin-destination", "true");
+    await advancePresentationUntil(() => screen.queryByTestId("coin-burst") !== null);
+    const burst = screen.getByTestId("coin-burst");
     expect(burst.parentElement).toBe(cabinet);
     expect(within(screen.getByRole("region", { name: "结算演出队列" })).queryByTestId("coin-burst")).not.toBeInTheDocument();
     expect(burst).toHaveAttribute("data-source-x", "160");
@@ -1082,7 +1085,7 @@ describe("presentation recovery UI", () => {
     expect(commands.filter((command: { type: string }) => command.type === "PRESENTATION_COMPLETE")).toHaveLength(0);
   });
 
-  it("uses a generic single recovery action outside active spin phases", async () => {
+  it("offers a generic recovery action and a dismiss button outside active spin phases", async () => {
     const user = userEvent.setup();
     const saved = accept(dispatchCommand(createRun(203), {
       type: "SELECT_SERVICE", serviceId: createRun(203).serviceCandidates[0]
@@ -1091,7 +1094,8 @@ describe("presentation recovery UI", () => {
     render(createElement(GameScreen, { seed: 999 }));
 
     const dialog = screen.getByRole("dialog", { name: "恢复上次进度" });
-    expect(within(dialog).getAllByRole("button")).toHaveLength(1);
+    expect(within(dialog).getAllByRole("button")).toHaveLength(2);
+    expect(within(dialog).getByRole("button", { name: "关闭说明" })).toBeVisible();
     await user.click(within(dialog).getByRole("button", { name: "继续游戏" }));
     expect(screen.getByRole("button", { name: "拉动老虎机" })).toBeVisible();
   });

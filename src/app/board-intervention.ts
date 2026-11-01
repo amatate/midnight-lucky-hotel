@@ -1,6 +1,8 @@
 import { BASE_PAYTABLE } from "@/content/base-machine";
 import { previewKick } from "@/content/services/security";
 import { evaluateBaseWins } from "@/core/paylines";
+import { resolveBasePaylines } from "@/core/base-settlement";
+import { getCurrentBet } from "@/core/progression";
 import type { GameCommand } from "@/core/commands";
 import type { Grid, LineWin, ReelIndex, RunState } from "@/core/types";
 
@@ -10,6 +12,14 @@ export type InterventionMode = InterventionCommand["type"];
 export const INTERVENTION_LABELS: Readonly<Record<InterventionMode, string>> = {
   RESPIN_REEL: "重转", LOCK_AND_RESPIN_OTHERS: "锁轮", KICK_REEL: "踹击"
 };
+
+/** Reads only the visible stopped grid. No RNG, simulation, or future part triggers. */
+export function stoppedBoardBasis(state: RunState): { lineIds: readonly LineWin["lineId"][]; amount: number } | null {
+  if (state.phase !== "AWAITING_INTERVENTION" || state.pendingSpin === null) return null;
+  const grid = state.pendingSpin.draw.grid;
+  return { lineIds: evaluateBaseWins(grid, BASE_PAYTABLE).map((win) => win.lineId),
+    amount: resolveBasePaylines(grid, getCurrentBet(state)) };
+}
 
 export function interventionReel(command: InterventionCommand): ReelIndex {
   return command.type === "LOCK_AND_RESPIN_OTHERS" ? command.lockedReelIndex : command.reelIndex;

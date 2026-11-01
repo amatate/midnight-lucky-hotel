@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { coinBurstPaths } from "@/presentation/feedback";
+import type { PartId } from "@/core/types";
 
 interface CoinGeometry {
   readonly width: number;
@@ -12,6 +13,7 @@ interface CoinGeometry {
 
 export interface CoinBurstProps {
   readonly count: number;
+  readonly sourcePartId?: PartId | null | undefined;
   readonly containerRef?: RefObject<HTMLElement | null>;
   readonly sourceRef?: RefObject<HTMLElement | null>;
   readonly destinationRef?: RefObject<HTMLElement | null>;
@@ -32,6 +34,7 @@ function coordinate(value: number, extent: number): number {
 
 export function CoinBurst({
   count,
+  sourcePartId,
   containerRef,
   sourceRef,
   destinationRef
@@ -44,7 +47,8 @@ export function CoinBurst({
     const measure = () => {
       const overlay = overlayRef.current;
       const container = containerRef?.current ?? overlay?.closest<HTMLElement>("[data-coin-cabinet='true']") ?? null;
-      const source = sourceRef?.current ?? container?.querySelector<HTMLElement>("[data-coin-source='true']") ?? null;
+      const source = sourceRef?.current ?? (sourcePartId ? container?.querySelector<HTMLElement>(`[data-part-id="${sourcePartId}"]`) : null)
+        ?? container?.querySelector<HTMLElement>("[data-coin-source='true']") ?? null;
       const destination = destinationRef?.current ?? container?.querySelector<HTMLElement>("[data-coin-destination='true']") ?? null;
       if (container === null || source === null || destination === null) {
         setGeometry((current) => sameGeometry(current, null) ? current : null);
@@ -83,7 +87,7 @@ export function CoinBurst({
       window.removeEventListener("resize", measure);
       observer?.disconnect();
     };
-  }, [containerRef, destinationRef, sourceRef]);
+  }, [containerRef, destinationRef, sourceRef, sourcePartId]);
 
   if (paths.length === 0) return null;
   return (
@@ -127,4 +131,26 @@ export function CoinBurst({
       })}
     </div>
   );
+}
+
+/** A money cue may finish its 746 ms flight after the counter's shorter tween.
+ * It neither holds up the next input nor replays when a paused screen resumes. */
+export function PresentedCoins({ animationKey, paying, count, sourcePartId, cancel }: {
+  readonly animationKey: string; readonly paying: boolean; readonly count: number;
+  readonly sourcePartId: PartId | null; readonly cancel: boolean;
+}): React.JSX.Element | null {
+  const seen = useRef<string | null>(null);
+  const [cue, setCue] = useState<{ key: string; count: number; part: PartId | null } | null>(null);
+  useEffect(() => {
+    if (cancel) { if (paying) seen.current = animationKey; setCue(null); return; }
+    if (!paying || count === 0 || seen.current === animationKey) return;
+    seen.current = animationKey;
+    setCue({ key: animationKey, count, part: sourcePartId });
+  }, [animationKey, paying, count, sourcePartId, cancel]);
+  useEffect(() => {
+    if (!cue) return;
+    const timer = setTimeout(() => setCue(null), 780);
+    return () => clearTimeout(timer);
+  }, [cue]);
+  return cue && !cancel ? <CoinBurst key={cue.key} count={cue.count} sourcePartId={cue.part} /> : null;
 }

@@ -1,4 +1,5 @@
 import type { UpgradePresentation } from "@/app/player-copy";
+import { translate } from "@/i18n/translate";
 
 interface UpgradeStrategyDetailsProps {
   readonly presentation: UpgradePresentation;
@@ -12,7 +13,7 @@ export function UpgradeStrategyDetails({ presentation, levelLabel }: UpgradeStra
       <div className="upgrade-strategy-copy">
         <p><strong>完整效果</strong> {presentation.effect}</p>
         {presentation.levelTwoEffect !== null && (
-          <p><strong>{levelLabel}</strong> {presentation.levelTwoEffect.replace(/^L2：/, "")}</p>
+          <p><strong>{levelLabel}</strong> {translate(presentation.levelTwoEffect).replace(/^L2[：:]\s*/, "")}</p>
         )}
         <p><strong>适合搭配</strong> {presentation.synergy}</p>
         <p><strong>代价／风险</strong> {presentation.risk}</p>

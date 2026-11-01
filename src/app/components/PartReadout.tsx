@@ -1,7 +1,8 @@
-import type { PartInstance, RunState } from "@/core/types";
+import type { PartCounters, PartInstance, RunState } from "@/core/types";
 
-export function PartReadout({ part, state, disabled }: {
+export function PartReadout({ part, state, disabled, visibleCounters }: {
   readonly part: PartInstance; readonly state: RunState; readonly disabled: boolean;
+  readonly visibleCounters?: Partial<PartCounters> | undefined;
 }): React.JSX.Element | null {
   const resolving = state.phase === "RESOLVING_EFFECTS";
   let label: string;
@@ -16,7 +17,10 @@ export function PartReadout({ part, state, disabled }: {
   }
   // These counters are committed before playback. Never expose a future reset or
   // increase; only effects with authoritative events get a live trigger light.
-  const hidden = resolving && part.id !== "shock-absorber";
+  const counter = part.id === "harvest-vat" ? "harvestCharge" : part.id === "votive-candle" ? "votiveCharge" : "blankCharge";
+  const projected = visibleCounters?.[counter];
+  const hidden = resolving && part.id !== "shock-absorber" && projected === undefined;
+  if (resolving && part.id !== "shock-absorber" && projected !== undefined) value = projected;
   return <span className="part-readout" data-part-readout={part.id} data-pending={hidden}>
     <span className="part-charge-lights" aria-hidden="true">
       {Array.from({ length: capacity }, (_, i) => <i key={i} data-lit={!hidden && !disabled && i < value} />)}

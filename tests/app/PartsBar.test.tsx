@@ -34,8 +34,8 @@ describe("PartsBar", () => {
     expect(socket).toHaveAttribute("aria-haspopup", "dialog");
     const dialog = screen.getByRole("dialog", { name: "果酱罐 · L1" });
     const part = within(dialog).getByRole("group", { name: "果酱罐部件详情" });
-    expect(within(part).getByText(/每条樱桃中奖线都会充能/)).toBeInTheDocument();
-    expect(within(part).getByText(/L1 → L2/).closest("p")).toHaveTextContent("0.5 × 当前下注提高为 1 × 当前下注");
+    expect(within(part).getByText(/第二条多奖0.5倍下注，第三条多奖1倍/)).toBeInTheDocument();
+    expect(within(part).getByText(/L1 → L2/).closest("p")).toHaveTextContent("下一条多奖1倍下注，最高多奖6倍");
     expect(within(part).getByText(/本班已有 2 条樱桃中奖线/).closest("p")).toHaveTextContent("下一条额外奖金 ¥10");
     expect(within(part).getByText(/当前状态：等待触发/)).toBeInTheDocument();
     expect(panel).not.toHaveTextContent(/shift-scaling|fruit|cherry/);

@@ -28,7 +28,7 @@ export function BoardInterventionControls({ controller, onAccept, paused, compac
     {compact && <BoardInterventionModes controller={controller} compact />}
     {controller.modes.length === 0 ? <p role="status">没有可用干预，正在确认结果</p> : <>
       <div className="board-decision-copy" aria-live="polite">
-        <strong>{preview === null ? "点一列可干预，或收下这把" : isKick ? "盘面是踹击预览 · 尚未执行" : compact ? `当前 ${preview.currentLineCount} 条基础中奖线可能被打散` : isLock ? `保留第${selectedReel! + 1}轮，重转另外两轮` : `只重转第${selectedReel! + 1}轮，其余不动`}</strong>
+        <strong>{preview === null ? "亮起的是基础中奖线 · 点列预览" : isKick ? "盘面是踹击预览 · 尚未执行" : compact ? preview.atRiskLineIds.length > 0 ? `${preview.atRiskLineIds.length} 条中奖线有风险 · 确认才消耗` : "当前无基础中奖线 · 重转也可能不中" : isLock ? `保留第${selectedReel! + 1}轮，重转另外两轮` : `只重转第${selectedReel! + 1}轮，其余不动`}</strong>
         <p>{cost}</p>
         {!compact && preview !== null && (isKick
           ? <p>基础中奖线：{preview.currentLineCount} → {preview.previewLineCount} 条。只预览图案，部件连锁另算。</p>
@@ -44,7 +44,7 @@ export function BoardInterventionControls({ controller, onAccept, paused, compac
       </div>
       <div className="board-decision-note"><span>选轮、看预览不消耗资源</span>
         <HelpButton title="盘面干预"><HelpFacts cost={cost}
-          effect={isKick ? "按盘面预览确定性推进选定转轮。确认后才移动图案并留下裂纹。" : isLock ? "锁住一整列，另外两列随机重转。" : "只随机重转选中的一列，另外两列保持不变。"}
+          effect={isKick ? "把选中的一列挪到预览的位置。确认才会移动，并留下1个永久裂纹。" : isLock ? "锁住一整列，另外两列随机重转。" : "只随机重转选中的一列，另外两列保持不变。"}
           limit="每转只能干预一次。锁轮和踹击各限每班一次；祈祷也会占用这一转的干预。基础线提示不代表最终奖金，部件、食物和裂纹效果仍在确认结果后结算。"
           current={preview === null ? "点列只是预览，不消耗资源。" : isKick ? `基础中奖线 ${preview.currentLineCount} → ${preview.previewLineCount} 条。` : `当前 ${preview.currentLineCount} 条中奖线可能被打散；重转也可能不中。`} /></HelpButton>
       </div>

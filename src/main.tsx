@@ -11,6 +11,8 @@ import { registerSW } from "virtual:pwa-register";
 import { gameUpdates } from "@/app/update-policy";
 import { initialLanguage, setLanguage } from "@/i18n/language";
 import "@/app/language.css";
+import "@/app/ui-art.css";
+import "@/app/build-feedback.css";
 
 setLanguage(initialLanguage(), false);
 

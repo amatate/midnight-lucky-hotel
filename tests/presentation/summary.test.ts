@@ -79,7 +79,7 @@ describe("summarizePresentation", () => {
     });
   });
 
-  it("enters chain at two line wins and counts only lines plus part triggers in chainLength", () => {
+  it("counts a chain separately without celebrating a net loss", () => {
     const events: GameEvent[] = [
       { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 1, appliedMultiplier: 1, amount: 1, source: "base" },
       { sequence: 2, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
@@ -91,11 +91,11 @@ describe("summarizePresentation", () => {
     expect(summarizePresentation(events, 10)).toMatchObject({
       effectCount: 2,
       chainLength: 3,
-      tier: "chain"
+      tier: "return"
     });
   });
 
-  it("enters chain at two part triggers", () => {
+  it("does not increase reward intensity for two part triggers", () => {
     const events: GameEvent[] = [
       { sequence: 1, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
       { sequence: 2, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
@@ -109,11 +109,11 @@ describe("summarizePresentation", () => {
       ],
       effectCount: 2,
       chainLength: 2,
-      tier: "chain"
+      tier: "return"
     });
   });
 
-  it("counts only positive free-spin grants and enters chain when one is present", () => {
+  it("counts positive free-spin grants without pretending they are paid money", () => {
     const events: GameEvent[] = [
       { sequence: 1, type: "RESOURCE_CHANGED", resource: "freeSpins", delta: 2 },
       { sequence: 2, type: "RESOURCE_CHANGED", resource: "freeSpins", delta: -1 },
@@ -124,11 +124,11 @@ describe("summarizePresentation", () => {
       freeSpinsGranted: 2,
       effectCount: 2,
       chainLength: 0,
-      tier: "chain"
+      tier: "return"
     });
   });
 
-  it("enters runaway at six visible rule effects while excluding meta events", () => {
+  it("does not enter runaway at six visible rule effects with only a tiny payout", () => {
     const events: GameEvent[] = [
       { sequence: 1, type: "BET_PLACED", amount: 10 },
       { sequence: 2, type: "PART_TRIGGERED", partId: "jam-jar", level: 1 },
@@ -145,7 +145,7 @@ describe("summarizePresentation", () => {
       total: 1,
       effectCount: 6,
       chainLength: 1,
-      tier: "runaway"
+      tier: "return"
     });
   });
 
@@ -185,7 +185,7 @@ describe("summarizePresentation", () => {
     ).toBe("runaway");
   });
 
-  it("gives overload runaway priority even when authoritative total is zero", () => {
+  it("does not celebrate overload when the authoritative total is zero", () => {
     const events: GameEvent[] = [
       { sequence: 1, type: "OVERLOAD", preMultiplierAmount: 250, appliedMultiplier: 1, amount: 250 },
       { sequence: 2, type: "PAYOUT_COMPLETE", total: 0 }
@@ -194,7 +194,7 @@ describe("summarizePresentation", () => {
     expect(summarizePresentation(events, 10)).toMatchObject({
       total: 0,
       effectCount: 1,
-      tier: "runaway"
+      tier: "none"
     });
   });
 

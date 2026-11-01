@@ -102,7 +102,7 @@ describe("route starters and readable builds", () => {
     const state: RunState = { ...kitchen, counters: { ...kitchen.counters, harvestCharge: 2 } };
     const before = structuredClone(state);
     expect(routeReadiness(state)).toMatchObject({ badge: "果桶 2/3", next: expect.stringContaining("+¥120") });
-    expect(routeReadiness(state).detail).toContain("不是下一转保证中奖");
+    expect(routeReadiness(state).detail).toContain("也不代表下一转一定能开桶");
     expect(state).toEqual(before);
     expect(routeReadiness(send(initialFor("security"), { type: "SELECT_SERVICE", serviceId: "security" })).badge).toBe("裂纹 3 · 保护 1");
     const candle = send(send(initialFor("chapel"), { type: "SELECT_SERVICE", serviceId: "chapel" }), { type: "LIGHT_CANDLE" });

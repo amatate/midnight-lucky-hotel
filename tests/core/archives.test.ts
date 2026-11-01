@@ -4,7 +4,7 @@ import type { GameCommand } from "@/core/commands";
 import { saveRun, RUN_STORAGE_KEY } from "@/persistence/storage";
 import {
   activeRecord, ARCHIVE_KEY, backupSession, exportArchive, importArchive, initializeLibrary, openArchiveSession,
-  persistSession, readLibrary, recordAction, restoreArchive, RULES_VERSION, startArchivedRun, verifyArchive,
+  persistSession, readLibrary, recordAction, restoreArchive, RULES_VERSION, startArchivedRun, verifyArchive, canMigrateArchive, migrateArchive,
   type ArchiveSession
 } from "@/persistence/archives";
 
@@ -20,6 +20,31 @@ function send(run: ArchiveSession, command: GameCommand): void {
 }
 
 describe("game archives", () => {
+  it("branches the local copy-only version without changing an in-flight result or its original archive", () => {
+    const run = session();
+    send(run, { type: "SELECT_SERVICE", serviceId: run.record.snapshot.serviceCandidates[0] });
+    for (const type of ["SPIN", "REELS_STOPPED", "ACCEPT_OUTCOME"] as const) send(run, { type });
+    const source = { ...run.record, rulesVersion: "rules-26033f2e5a3a637b" };
+    const original = structuredClone(source);
+    const library = { ...run.library, runs: [source] };
+    expect(source.snapshot.phase).toBe("RESOLVING_EFFECTS");
+    expect(canMigrateArchive(source)).toBe(true);
+    const migrated = migrateArchive(library, source);
+    const active = activeRecord(migrated)!;
+    expect(active.rulesVersion).toBe(RULES_VERSION);
+    expect(active.parentId).toBe(source.id);
+    expect(active.snapshot).toEqual(original.snapshot);
+    expect(active.initialState).toEqual(original.snapshot);
+    expect(active.entries).toEqual([]);
+    expect(migrated.runs.find(record => record.id === source.id)).toEqual(original);
+    expect(source).toEqual(original);
+    const resumed = openArchiveSession(active.snapshot);
+    send(resumed, { type: "PRESENTATION_COMPLETE" });
+    expect(resumed.record.snapshot.bankroll).toBe(source.snapshot.bankroll);
+    expect(resumed.record.snapshot.rng).toEqual(source.snapshot.rng);
+    expect(resumed.record.snapshot.spinHistory).toEqual(source.snapshot.spinHistory);
+    expect(verifyArchive(resumed.record)).toContain("核验通过");
+  });
   it("reloads and replays block blanks alongside one-spin prayer copies without permanent pollution", () => {
     const state = { ...createRun(8), phase: "READY_TO_SPIN" as const, service: "chapel" as const,
       bankroll: 1000, reels: [Array(12).fill("seven"), Array(12).fill("seven"), Array(12).fill("seven")] as const,

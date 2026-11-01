@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LanguageSelector } from "@/app/components/LanguageSelector";
-import { AudioSettings } from "@/app/components/AudioSettings";
+import { GameMenu } from "@/app/components/GameMenu";
 import { ActionBar, selectedPaidBetIsUnaffordable } from "@/app/components/ActionBar";
-import { CoinBurst } from "@/app/components/CoinBurst";
+import { PresentedCoins } from "@/app/components/CoinBurst";
 import { Hud } from "@/app/components/Hud";
-import { HelpButton, HelpPauseContext } from "@/app/components/HelpWindow";
-import { GameGuide } from "@/app/components/GameGuide";
+import { HelpButton, HelpWindow, HelpPauseContext } from "@/app/components/HelpWindow";
 import { getPaidSpinLimit, HOTEL_ROOMS, isRoomIntermission } from "@/content/hotel";
-import { ROUTE_KITS } from "@/content/route-kits";
 import { RoomIntermission, RoomResult } from "@/app/components/HotelChallenge";
 import { LedgerDrawer } from "@/app/components/LedgerDrawer";
 import { PartsBar } from "@/app/components/PartsBar";
 import { RoomBackdrop, RoomCrown } from "@/app/components/CabinetArtwork";
 import { PartDiscovery } from "@/app/components/PartDiscovery";
-import { FeedbackButton } from "@/app/components/FeedbackButton";
 import { PullLever } from "@/app/components/PullLever";
 import { PreparationConsole } from "@/app/components/PreparationConsole";
 import { RunSummary } from "@/app/components/RunSummary";
@@ -22,6 +18,7 @@ import { SlotMachine } from "@/app/components/SlotMachine";
 import { SpinPayoutPlaque } from "@/app/components/SpinPayoutPlaque";
 import { BoardInterventionControls } from "@/app/components/BoardIntervention";
 import { useBoardIntervention } from "@/app/useBoardIntervention";
+import { stoppedBoardBasis } from "@/app/board-intervention";
 import { getCurrentBet } from "@/core/progression";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
 import { WinPresentation } from "@/app/components/WinPresentation";
@@ -29,14 +26,14 @@ import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
 import { useAutomaticSpinFlow } from "@/app/useAutomaticSpinFlow";
 import { useSettlementPresentation } from "@/app/useSettlementPresentation";
-import { SERVICE_PRESENTATIONS } from "@/app/player-copy";
-import { UPGRADES } from "@/content/upgrades";
+import { ServiceChoices } from "@/app/components/ServiceChoices";
 import type { CommandError, CommandErrorCode, ReelIndex, RunState } from "@/core/types";
 import { unlockAudio } from "@/presentation/audio";
 import { ArchiveViewer } from "@/app/components/ArchiveViewer";
-import { downloadText } from "@/app/archive-copy";
-import { exportArchive } from "@/persistence/archives";
 import { feedbackPlan } from "@/presentation/feedback";
+import { payoutTier } from "@/presentation/summary";
+import { counterSnapshot, presentedCounters, settlementEntry } from "@/presentation/part-feedback";
+import { PartInstallFeedback, captureInstallOrigin, type InstallOrigin } from "@/app/components/PartInstallFeedback";
 import type { MachineEstimate } from "@/sim/types";
 
 const PHASE_LABELS = {
@@ -81,22 +78,22 @@ interface GameScreenProps {
   readonly seed: number;
   readonly initialState?: RunState;
   readonly onHome?: () => void;
+  readonly entry?: "new" | "resume";
 }
 
-export function GameScreen({ seed, initialState, onHome }: GameScreenProps): React.JSX.Element {
+export function GameScreen({ seed, initialState, onHome, entry = "resume" }: GameScreenProps): React.JSX.Element {
   const game = useGame(seed, initialState);
   const { estimate, status: estimateStatus } = useEstimate(game.state);
+  const installOrigin = useRef<InstallOrigin | null>(null);
   const [trajectory, setTrajectory] = useState<readonly MachineEstimate[]>([]);
   const lastEstimate = useRef<MachineEstimate | null>(null);
   const [documentHidden, setDocumentHidden] = useState(() => typeof document !== "undefined" && document.hidden);
-  const [recoveryOpen, setRecoveryOpen] = useState(game.wasRecovered);
+  const [recoveryOpen, setRecoveryOpen] = useState(game.wasRecovered && entry !== "new");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [helpCount, setHelpCount] = useState(0);
   const setHelpOpen = useCallback((open: boolean) => setHelpCount((count) => Math.max(0, count + (open ? 1 : -1))), []);
   const [foodReel, setFoodReel] = useState<ReelIndex | null>(null);
   const activeFoodReel = game.state.phase === "READY_TO_SPIN" && !game.state.shiftFlags.foodBought ? foodReel : null;
-  const [backupName, setBackupName] = useState("手动备份");
-  const [archiveNotice, setArchiveNotice] = useState("");
   const [reduceFlash, setReduceFlash] = useState(storedReduceFlash);
   const [osReducedMotion, setOsReducedMotion] = useState(systemReducedMotion);
   const effectiveReducedMotion = reduceFlash || osReducedMotion;
@@ -118,12 +115,17 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
   });
   const settlementFeedback = settlementPresentation === null
     ? null
-    : feedbackPlan(settlementPresentation.summary.tier, effectiveReducedMotion);
+    : feedbackPlan(payoutTier(settlementPresentation.visiblePayoutTarget,
+      game.state.spinHistory.at(-1)?.wager ?? game.state.pendingSpin?.wager ?? getCurrentBet(game.state),
+      getCurrentBet(game.state)), effectiveReducedMotion);
   const presentedThroughSequence = settlementPresentation === null
     ? undefined
     : settlementPresentation.done
       ? Math.max(0, ...game.state.pendingEvents.map((event) => event.sequence))
       : settlementPresentation.currentEvent?.sequence ?? null;
+  const currentEntry = settlementEntry(game.archive?.entries ?? [], game.state.spinHistory.at(-1));
+  const beforeCounters = game.settlementBefore?.counters ?? counterSnapshot(currentEntry?.changes.counters?.before);
+  const visibleCounters = settlementPresentation === null ? undefined : presentedCounters(game.state, presentedThroughSequence ?? null, beforeCounters);
 
   useEffect(() => {
     if (estimate === null || estimate === lastEstimate.current) return;
@@ -166,9 +168,14 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
     (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates !== null);
   const showCabinet = !isRoomRest && !isUpgradeScene && !isRunSummary && game.state.phase !== "CHOOSING_SERVICE";
   const roomTier = game.state.hotel?.challenge?.tier;
+  const returnHome = () => {
+    // Every command is journaled first. Leaving never draws, accepts, or settles a spin.
+    if (initialState !== undefined || game.retrySave()) onHome?.();
+    else setArchiveOpen(false);
+  };
 
   if (archiveOpen && game.archive !== null) {
-    return <ArchiveViewer record={game.archive} onClose={() => setArchiveOpen(false)} />;
+    return <ArchiveViewer record={game.archive} onClose={() => setArchiveOpen(false)} onHome={onHome ? returnHome : undefined} />;
   }
 
   return (
@@ -194,10 +201,17 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
           <span>{roomTier === undefined ? "ROOM 1313" : HOTEL_ROOMS[roomTier].name}</span>
         </div>
       </header>
+      <nav className="console-navigation" aria-label="机台导航">
+        {onHome && <button type="button" className="console-home-key" aria-label="返回前台" onClick={returnHome}>‹ 前台</button>}
         <div className="shift-plaque">
           <strong>{game.state.hotel?.challenge != null ? HOTEL_ROOMS[game.state.hotel.challenge.tier].name : game.state.afterHoursLevel > 0 ? `加班 ${game.state.afterHoursLevel}` : `第 ${game.state.shift} 班`}{roomRounds ? ` · 回合 ${roomRounds.current}/${roomRounds.total}` : ` · 剩余 ${Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift)} 转`}</strong>
           <span className={showCabinet && !roomRounds ? "sr-only" : undefined}>{showCabinet && roomRounds ? `余 ${Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift)} 转` : isRoomRest ? "中途整备" : game.state.phase === "AFTER_HOURS" && roomTier !== undefined ? "客房结算" : PHASE_LABELS[game.state.phase]}</span>
         </div>
+        <GameMenu game={game} onHome={onHome ? returnHome : undefined} onArchive={() => setArchiveOpen(true)} reduceFlash={reduceFlash} onReduceFlash={(checked) => {
+          setReduceFlash(checked);
+          try { localStorage.setItem(REDUCE_FLASH_KEY, checked ? "1" : "0"); } catch { /* optional setting */ }
+        }} />
+      </nav>
       {game.storageWarning !== null && <section className="archive-warning" role="alert"><p>{game.storageWarning}</p><p>自动推进已暂停。请先导出本局，避免关闭页面后丢失未保存进度。</p><button type="button" onClick={game.retrySave}>重试保存</button></section>}
 
       {showCabinet && (
@@ -222,7 +236,7 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
             reducedMotion={effectiveReducedMotion}
             presentedThroughSequence={presentedThroughSequence}
           />
-          <SpinPayoutPlaque state={game.state} presentation={settlementPresentation} reducedMotion={effectiveReducedMotion} />
+          <SpinPayoutPlaque state={game.state} presentation={settlementPresentation} reducedMotion={effectiveReducedMotion} previewing={boardIntervention.preview?.grid != null} entries={game.archive?.entries} />
           <div className="cabinet-stage">
             <SlotMachine
               state={game.state}
@@ -230,12 +244,12 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
               reducedMotion={effectiveReducedMotion}
               displayGrid={settlementPresentation?.displayGrid ?? null}
               idleGrid={game.state.spinHistory.at(-1)?.finalGrid ?? null}
-              highlightedLineIds={settlementPresentation?.activeLineIds ?? []}
+              highlightedLineIds={settlementPresentation?.activeLineIds ?? (boardIntervention.preview?.grid ? [] : stoppedBoardBasis(game.state)?.lineIds ?? [])}
               changedCells={settlementPresentation?.changedCells ?? []}
               highlightedReels={settlementPresentation?.currentEvent?.type === "FOOD_CONSUMED"
                 ? [settlementPresentation.currentEvent.reel]
                 : []}
-              shakePx={settlementFeedback?.shakePx ?? 0}
+              shakePx={!paused && (settlementPresentation?.awardDelta ?? 0) > 0 ? settlementFeedback?.shakePx ?? 0 : 0}
               intervention={boardIntervention}
               foodSelection={activeFoodReel === null ? undefined : { reel: activeFoodReel, onSelect: setFoodReel }}
             />
@@ -260,6 +274,7 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
             state={game.state}
             activePartId={settlementPresentation?.activePartId ?? null}
             presentedThroughSequence={presentedThroughSequence}
+            visibleCounters={visibleCounters}
           />
           {(game.state.phase === "READY_TO_SPIN" || game.state.phase === "SPINNING") && <PreparationConsole
             state={game.state} foodReel={activeFoodReel} onFoodReel={setFoodReel} onCommand={game.send} />}
@@ -270,53 +285,43 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
               ? game.state.freeSpinQueue > 0 ? "免费转 · 不扣下注" : `花费 ¥${getCurrentBet(game.state)}`
               : ""}
             statusLabel={game.storageWarning !== null ? "请先处理保存提示"
+              : paused ? "已暂停"
               : game.state.phase === "READY_TO_SPIN" ? "余额不足 · 可调整下注"
                 : game.state.phase === "SPINNING" ? "转动中…"
                     : game.state.phase === "AWAITING_INTERVENTION" ? "选择是否重转"
                       : "奖金结算中…"}
             onPull={() => game.send({ type: "SPIN" })}
           />
-          {!documentHidden && !recoveryOpen && (settlementFeedback?.coinCount ?? 0) > 0 && (
-            <CoinBurst count={settlementFeedback!.coinCount} />
-          )}
+          <PresentedCoins animationKey={settlementPresentation?.moneyAnimationKey ?? "idle"}
+            paying={(settlementPresentation?.awardDelta ?? 0) > 0} count={settlementFeedback?.coinCount ?? 0}
+            sourcePartId={settlementPresentation?.activePartId ?? null}
+            cancel={paused || effectiveReducedMotion || settlementPresentation?.done === true || game.state.phase === "SPINNING"} />
         </section>
       )}
+      <PartInstallFeedback state={game.state} origin={installOrigin} reducedMotion={effectiveReducedMotion} paused={paused} />
 
-      <PartDiscovery compact={showCabinet} key={game.archive?.id ?? game.state.initialSeed} state={game.state} presentedThroughSequence={presentedThroughSequence} observedEvents={settlementPresentation === null ? game.events : undefined} />
-      {!showCabinet && (
+      <PartDiscovery compact key={game.archive?.id ?? game.state.initialSeed} state={game.state} presentedThroughSequence={presentedThroughSequence} observedEvents={settlementPresentation === null ? game.events : undefined} />
+      {!showCabinet && !isUpgradeScene && game.state.phase !== "CHOOSING_SERVICE" && (
         <div className="page-ledger">
-          <LedgerDrawer receipts={game.state.spinHistory} />
+          <LedgerDrawer receipts={game.state.spinHistory} entries={game.archive?.entries} />
         </div>
       )}
 
       {game.state.phase !== "READY_TO_SPIN" && game.state.phase !== "SPINNING" && game.state.phase !== "AWAITING_INTERVENTION" && game.state.phase !== "RESOLVING_EFFECTS" && <section className="context-tray" aria-label="当前决策" data-phase={game.state.phase}>
         {game.state.phase === "CHOOSING_SERVICE" && (
-          <div className="service-chooser" role="group" aria-label="选择服务">
-            <h2>今夜与谁合作？</h2>
-            <p>每位值夜伙伴会改变你准备和干预老虎机的方式。</p>
-            <div className="service-list">
-              {game.state.serviceCandidates.map((serviceId) => (
-                <button type="button" className="service-choice" data-service={serviceId} key={serviceId} onClick={() => game.send({ type: "SELECT_SERVICE", serviceId })}>
-                  <span className="service-seal" aria-hidden="true">{{ kitchen: "餐", chapel: "祈", repair: "修", security: "卫" }[serviceId]}</span>
-                  <strong>{SERVICE_PRESENTATIONS[serviceId].name}</strong>
-                  {game.state.routeKits && <span className="service-starter">{ROUTE_KITS[serviceId].summary}</span>}
-                  <span><b>定位</b> {SERVICE_PRESENTATIONS[serviceId].identity}</span>
-                  <span><b>行动</b> {SERVICE_PRESENTATIONS[serviceId].action}</span>
-                  <span><b>协同</b> {SERVICE_PRESENTATIONS[serviceId].synergies}</span>
-                  <span><b>代价／风险</b> {SERVICE_PRESENTATIONS[serviceId].risk}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <ServiceChoices state={game.state} onCommand={game.send} />
         )}
         {isRoomRest && <RoomIntermission state={game.state} onCommand={game.send} />}
         {isUpgradeScene && (
           <>
             {!isRoomRest && <RoomResult state={game.state} />}
-            <ActionBar state={game.state} onCommand={game.send} />
+            <UpgradePicker compact state={game.state} onCommand={(command) => {
+              if (command.type === "CHOOSE_UPGRADE") installOrigin.current = captureInstallOrigin();
+              game.send(command);
+            }} currentEstimate={estimate} />
             <HelpButton title="本班小票" trigger="查看本班收支" className="console-receipt-key"><ShiftReceipt state={game.state} /></HelpButton>
-            <UpgradePicker compact state={game.state} onCommand={game.send} currentEstimate={estimate} />
-            {game.state.exitUnlocked && !isRoomRest && <button className="cash-out-button" type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账离开</button>}
+            <HelpButton title="整备工具" trigger="整备工具" interactive><ActionBar state={game.state} onCommand={game.send} /></HelpButton>
+            {game.state.exitUnlocked && !isRoomRest && <button className="cash-out-button" type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账看报告</button>}
           </>
         )}
         {isRunSummary && (
@@ -330,50 +335,20 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
               onCommand={game.send}
               onRestartSameSeed={restartSameSeed}
               onRestartNextSeed={restartNextSeed}
+              onHome={onHome ? returnHome : undefined}
             />
           </>
         )}
       </section>}
 
-      <HelpButton title="酒店菜单" trigger="菜单" className="console-menu-key" interactive>
-      <footer className="game-utilities">
-        <LanguageSelector />
-        <AudioSettings />
-        {game.state.acquiredUpgrades.length > 0 && <details className="acquired-upgrades"><summary>已获得升级 · {game.state.acquiredUpgrades.length}</summary>
-          <ul>{game.state.acquiredUpgrades.map((id, index) => <li key={`${id}-${index}`}>{UPGRADES[id].name}</li>)}</ul>
-        </details>}
-        <nav className="game-guide-entry" aria-label="游戏工具"><HelpButton title="游戏介绍" trigger="玩法与术语" className="guide-open-button"><GameGuide /></HelpButton><FeedbackButton seed={game.state.initialSeed} />
-          {onHome !== undefined && <button type="button" disabled={game.storageWarning !== null} onClick={() => { if (game.retrySave()) onHome(); }}>返回前台</button>}
-        </nav>
-        {game.archive !== null && <section className="game-archive-bar" aria-label="档案工具">
-          <div className="frontdesk-actions">
-            <button type="button" onClick={() => setArchiveOpen(true)}>完整日志</button>
-            <button type="button" onClick={() => downloadText("night-" + game.state.initialSeed + ".json", exportArchive(game.archive!))}>导出本局</button>
-          </div>
-          <details><summary>存档与种子 · {game.state.initialSeed}</summary><form className="backup-form" onSubmit={(event) => { event.preventDefault(); setArchiveNotice(game.backup(backupName) ? "备份已保存，可在前台的历史与存档中恢复。" : "备份未写入，请查看保存提示并导出本局。"); }}>
-            <label>备份名称<input maxLength={80} value={backupName} onChange={(event) => setBackupName(event.target.value)} /></label><button type="submit" disabled={game.storageWarning !== null}>保存手动备份</button></form>
-            <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(String(game.state.initialSeed)); setArchiveNotice("种子已复制。"); } catch { setArchiveNotice("请手动复制种子：" + game.state.initialSeed); } }}>复制种子</button><p role="status">{archiveNotice}</p>
-          </details>
-        </section>}
-        <label className="reduce-flash-setting">
-        <input type="checkbox" aria-label="减少闪烁" checked={reduceFlash} onChange={(event) => {
-          const checked = event.target.checked;
-          setReduceFlash(checked);
-          try { localStorage.setItem(REDUCE_FLASH_KEY, checked ? "1" : "0"); } catch { /* optional setting */ }
-        }} />
-        减弱动态与闪烁
-        </label>
-      </footer>
-      </HelpButton>
-
       <div className="game-feedback" aria-live="assertive">
         {game.error !== null ? playerFacingCommandError(game.error) : ""}
       </div>
       {recoveryOpen && (
-        <div className="recovery-backdrop">
-          <section className="recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
-            <h2 id="recovery-title">恢复上次进度</h2>
+        <HelpWindow title="恢复上次进度" interactive onClose={onHome ? returnHome : () => setRecoveryOpen(false)}
+          closeLabel={onHome ? "返回前台" : "关闭说明"} footnote="尚未执行任何新操作。返回前台仍保留此进度。">
             <p>规则状态已经保存。请选择如何继续当前阶段。</p>
+            {game.storageWarning && <p role="alert">{game.storageWarning}</p>}
             <div className="summary-actions">
               <button type="button" onClick={() => {
                 unlockAudio();
@@ -397,9 +372,9 @@ export function GameScreen({ seed, initialState, onHome }: GameScreenProps): Rea
                   game.send({ type: "ACCEPT_OUTCOME" });
                 }}>接受结果</button>
               )}
+              {onHome && <button type="button" onClick={returnHome}>返回前台并保留进度</button>}
             </div>
-          </section>
-        </div>
+        </HelpWindow>
       )}
     </div>
     </HelpPauseContext.Provider>

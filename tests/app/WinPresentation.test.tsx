@@ -389,7 +389,7 @@ describe("WinPresentation", () => {
     expect(region).not.toHaveTextContent("35");
     expect(region).not.toHaveTextContent("125");
   });
-  it("keeps exact payout, balance destination, line count, part count, and cause chain visible", () => {
+  it("keeps money exact and only describes causes already presented", () => {
     const event = { sequence: 1, type: "LINE_WIN", lineId: "top", symbol: "cherry", preMultiplierAmount: 20, appliedMultiplier: 1, amount: 20, source: "base" } as const;
     const currentSummary = summary({
       total: 35,
@@ -406,7 +406,8 @@ describe("WinPresentation", () => {
     const region = screen.getByRole("region", { name: "结算演出队列" });
     expect(within(region).getByText("本转累计 ¥35，余额 ¥135")).toHaveClass("sr-only");
     expect(within(region).getByText(/飞向余额/)).toHaveTextContent("135");
-    expect(within(region).getByText("1 条中奖线 · 1 次部件触发 · 因果链 2")).toBeVisible();
+    expect(within(region).getByText("1 条中奖线 · 0 次部件触发")).toBeVisible();
+    expect(region).not.toHaveTextContent("因果链");
     expect(within(region).getByText("樱桃顶线 +¥20")).toBeVisible();
     expect(within(region).queryByTestId("coin-burst")).not.toBeInTheDocument();
     expect(region).toHaveStyle({ "--cabinet-shake": "3px" });

@@ -8,6 +8,8 @@ import { eventLabel } from "@/app/archive-copy";
 import type { GameEvent } from "@/core/events";
 import type { RunState } from "@/core/types";
 import { feedbackPlan } from "@/presentation/feedback";
+import { payoutTier } from "@/presentation/summary";
+import { getCurrentBet } from "@/core/progression";
 
 const LINE_LABELS: Readonly<Record<string, string>> = {
   top: "顶线",
@@ -66,11 +68,15 @@ export function settlementEventLabel(state: RunState, event: GameEvent | null): 
         return `剩菜打包：本班返回食物额度 ${Math.min(level, used)}/${level}`;
       }
       if (event.partId === "lemon-infection") return `柠檬感染 L${event.level}：准备替换中奖线外的字面图案`;
+      if (event.partId === "harvest-vat") return "果桶：水果命中，存下一格";
+      if (event.partId === "votive-candle") return "烛台：点燃已存的恶兆，准备兑现";
       return `部件触发：${UPGRADES[event.partId].name} L${event.level}`;
     }
     case "PART_DISABLED": return `部件因裂纹失效：${UPGRADES[event.partId].name}`;
     case "FOOD_CONSUMED": return `第${event.reel + 1}轮食物已消耗：这份食物提供 1 层 +25%，接下来 3 次转动有效；多份食物的层数可叠加`;
-    case "PAYOUT_ADDED": return `${PAYOUT_SOURCE_LABELS[event.source]}追加赔付 +¥${event.amount}`;
+    case "PAYOUT_ADDED": return event.source === "part"
+      ? `${event.partId === "harvest-vat" ? "果桶开桶" : event.partId === "votive-candle" ? "烛台兑现" : UPGRADES[event.partId].name} +¥${event.amount}`
+      : `${PAYOUT_SOURCE_LABELS[event.source]}追加赔付 +¥${event.amount}`;
     case "SYMBOL_CHANGED": return `第${event.reel + 1}轮第${event.row + 1}格：${SYMBOL_LABELS[event.from]} → ${SYMBOL_LABELS[event.to]}`;
     case "RESOURCE_CHANGED": return `${event.resource === "tips" ? "小费" : event.resource === "focus" ? "干预点" : event.resource === "omen" ? "恶兆" : event.resource === "agitation" ? "躁动" : "免费转动"} ${event.delta >= 0 ? "+" : ""}${event.delta}`;
     case "SERVICE_USED": return `${SERVICE_PRESENTATIONS[event.serviceId].name}行动，花费 ¥${event.cost}`;
@@ -104,9 +110,12 @@ function stagedEventLabel(
 }
 
 export function WinPresentation({ state, presentation, reducedMotion, compact = false }: WinPresentationProps): React.JSX.Element {
-  const plan = feedbackPlan(presentation.summary.tier, reducedMotion);
-  const lineCount = presentation.summary.lines.length;
-  const partCount = presentation.summary.partTriggers.length;
+  const wager = state.spinHistory.at(-1)?.wager ?? state.pendingSpin?.wager ?? getCurrentBet(state);
+  const tier = payoutTier(presentation.visiblePayoutTarget, wager, getCurrentBet(state));
+  const plan = feedbackPlan(tier, reducedMotion);
+  const through = presentation.currentEvent?.sequence ?? 0;
+  const lineCount = presentation.summary.lines.filter(line => line.sequence <= through).length;
+  const partCount = presentation.summary.partTriggers.filter(part => part.sequence <= through).length;
   const eventLabel = stagedEventLabel(
     state,
     presentation.currentEvent,
@@ -127,7 +136,7 @@ export function WinPresentation({ state, presentation, reducedMotion, compact = 
       style={{ "--cabinet-shake": `${plan.shakePx}px` } as React.CSSProperties}
     >
       <header>
-        <strong>{presentation.summary.tier === "runaway" ? "机器失控" : presentation.summary.tier === "chain" ? "构筑连锁" : presentation.summary.tier === "win" ? "中奖" : "本转结果"}</strong>
+        <strong>{tier === "runaway" ? "大额奖金" : tier === "chain" ? "丰厚奖金" : tier === "win" ? "本转盈利" : tier === "return" ? "奖金到账 · 尚未盈利" : "本转结果"}</strong>
         <span data-testid="presentation-progress">事件 {presentation.eventTotal > 0 ? Math.max(1, presentation.eventIndex) : 0}/{presentation.eventTotal}</span>
       </header>
       <div className={`payout-stage${presentation.awardDelta > 0 ? " is-money-moving" : ""}`}>
@@ -155,10 +164,10 @@ export function WinPresentation({ state, presentation, reducedMotion, compact = 
           本转累计 ¥{presentation.visiblePayoutTarget}，余额 ¥{presentation.visibleBankrollTarget}
         </span>
       </div>
-      <p className="cause-summary">{lineCount} 条中奖线 · {partCount} 次部件触发 · 因果链 {presentation.summary.chainLength}</p>
+      <p className="cause-summary">{lineCount} 条中奖线 · {partCount} 次部件触发</p>
       {compact && <HelpButton title="当前结算" trigger="说明" className="console-event-help"><p>{eventLabel}</p>{explanationLabels.map((label, index) => <p key={index}>{label}</p>)}<p>已入账 ¥{presentation.visiblePayoutTarget}；完整记录可在结算后的账本中查看。</p></HelpButton>}
       <div className={`event-card${explanationLabels.length > 0 ? " explanation-frame" : ""}`}>{
-        presentation.summary.tier === "none"
+        presentation.currentEvent === null ? "逐项结算中…" : presentation.summary.total === 0 && explanationLabels.length === 0 && presentation.currentEvent.type === "PAYOUT_COMPLETE"
           ? `空手而归 / 本转支出 ¥${state.pendingSpin?.wager ?? 0}`
           : explanationLabels.length > 0
             ? explanationLabels.map((label, index) => (

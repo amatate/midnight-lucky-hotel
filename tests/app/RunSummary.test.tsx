@@ -84,7 +84,7 @@ describe("RunSummary", () => {
     );
 
     expect(screen.getByRole("heading", { name: "本班完成" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "结账离开" }));
+    await user.click(screen.getByRole("button", { name: "结账看报告" }));
     await user.click(screen.getByRole("button", { name: "继续加班" }));
     expect(onCommand).toHaveBeenNthCalledWith(1, { type: "CASH_OUT" });
     expect(onCommand).toHaveBeenNthCalledWith(2, { type: "CONTINUE" });

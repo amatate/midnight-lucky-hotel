@@ -13,6 +13,7 @@ import {
 export interface GameController {
   readonly state: RunState;
   readonly events: readonly GameEvent[];
+  readonly settlementBefore: RunState | null;
   readonly error: CommandError | null;
   readonly wasRecovered: boolean;
   readonly archive: RunArchive | null;
@@ -53,6 +54,7 @@ export function useGame(seed: number, initialState?: RunState): GameController {
     return next;
   });
   const stateRef = useRef(state);
+  const settlementBefore = useRef<RunState | null>(null);
   const [events, setEvents] = useState<readonly GameEvent[]>([]);
   const [error, setError] = useState<CommandError | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(initializationWarning.current);
@@ -93,6 +95,7 @@ export function useGame(seed: number, initialState?: RunState): GameController {
       setState(next);
     } else return;
     setEvents([]);
+    settlementBefore.current = null;
     setError(null);
   }, [initialState]);
 
@@ -111,6 +114,7 @@ export function useGame(seed: number, initialState?: RunState): GameController {
       setEvents([]);
       return;
     }
+    if (result.state.phase === "RESOLVING_EFFECTS" && before.phase !== "RESOLVING_EFFECTS") settlementBefore.current = before;
     stateRef.current = result.state;
     setState(result.state);
     setEvents(result.events);
@@ -127,6 +131,6 @@ export function useGame(seed: number, initialState?: RunState): GameController {
   const restartSameSeed = useCallback(() => replaceRun(stateRef.current.initialSeed), [replaceRun]);
   const restartNextSeed = useCallback(() => replaceRun(nextSeed(stateRef.current.initialSeed)), [replaceRun]);
 
-  return { state, events, error, wasRecovered: recovered.current === true, archive: archiveRef.current?.record ?? null,
+  return { state, events, settlementBefore: settlementBefore.current, error, wasRecovered: recovered.current === true, archive: archiveRef.current?.record ?? null,
     storageWarning, send, sendAutomatic, retrySave, backup, restartSameSeed, restartNextSeed };
 }

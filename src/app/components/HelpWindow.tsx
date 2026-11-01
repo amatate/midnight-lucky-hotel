@@ -4,9 +4,11 @@ import { createPortal } from "react-dom";
 /** Reading help is presentation-only: pause automatic commands, never mutate the run. */
 export const HelpPauseContext = createContext<(open: boolean) => void>(() => {});
 
-export function HelpWindow({ title, children, onClose, interactive = false }: {
+export function HelpWindow({ title, children, onClose, interactive = false, closeLabel = "关闭说明", footnote }: {
   readonly title: string; readonly children: ReactNode; readonly onClose: () => void;
   readonly interactive?: boolean;
+  readonly closeLabel?: string;
+  readonly footnote?: string;
 }): React.JSX.Element {
   const id = useId();
   const panel = useRef<HTMLElement>(null);
@@ -44,9 +46,9 @@ export function HelpWindow({ title, children, onClose, interactive = false }: {
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
         }}>
         <header className="help-heading"><div><p className="eyebrow">{interactive ? "酒店控制台" : "酒店便笺 · 只读说明"}</p><h2 id={id}>{title}</h2></div>
-          <button type="button" className="help-close" onClick={onClose} aria-label="关闭说明">×</button></header>
+          <button type="button" className="help-close" onClick={onClose} aria-label={closeLabel}>×</button></header>
         <div className="help-content">{children}</div>
-        <p className="help-footnote">{interactive ? "打开不收费；操作的费用以按钮和说明为准。" : "查看不消耗资源。"}自动停轮与结算暂停，关闭后继续。</p>
+        <p className="help-footnote">{footnote ?? <>{interactive ? "打开不收费；操作的费用以按钮和说明为准。" : "查看不消耗资源。"}自动停轮与结算暂停，关闭后继续。</>}</p>
       </section>
     </div>, document.body
   );

@@ -5,6 +5,7 @@ import type { BoardInterventionController } from "@/app/useBoardIntervention";
 import type { Grid, LineWin, ReelIndex, RowIndex, RunState, SymbolId } from "@/core/types";
 import type { ReelMotionPlan } from "@/presentation/reel-timeline";
 import { playSfx } from "@/presentation/audio";
+import "@/app/drums.css";
 
 export interface SlotMachineProps {
   readonly state: RunState;
@@ -34,12 +35,6 @@ interface StableObservation {
 
 const REEL_INDICES = [0, 1, 2] as const;
 
-const FILLER_TAPES: readonly (readonly SymbolId[])[] = [
-  ["bell", "blank", "cherry", "lemon", "seven", "food"],
-  ["lemon", "wild", "blank", "bell", "cherry", "crack"],
-  ["seven", "food", "lemon", "blank", "bell", "wild"]
-];
-
 function stripPreview(state: RunState): Grid {
   return REEL_INDICES.map((reel) => REEL_INDICES.map((row) => state.reels[reel][row] ?? "blank")) as unknown as Grid;
 }
@@ -58,11 +53,13 @@ function highlightedCells(lineIds: readonly LineWin["lineId"][]): ReadonlySet<st
   return cells;
 }
 
-function FillerTape({ reel }: { readonly reel: ReelIndex }): React.JSX.Element {
+function FillerTape({ reel, strip }: { readonly reel: ReelIndex; readonly strip: readonly SymbolId[] }): React.JSX.Element {
+  // Decorative motion samples the real strip; it never draws or predicts a result.
+  const tape = Array.from({ length: 6 }, (_, index) => strip[Math.floor(index * strip.length / 6)] ?? "blank");
   return (
     <div className="reel-filler" data-testid="filler-tape" aria-hidden="true">
       <div className="reel-filler-strip">
-        {FILLER_TAPES[reel]!.map((symbol, index) => (
+        {[...tape, ...tape].map((symbol, index) => (
           <SymbolFace symbol={symbol} decorative key={`${reel}-${index}-${symbol}`} />
         ))}
       </div>
@@ -183,7 +180,7 @@ export function SlotMachine({
 
   return (
     <section
-      className={`slot-machine${activePlan !== null || pausedSpinning ? " is-spinning" : ""}${reducedMotion ? " is-reduced" : ""}${safeShakePx > 0 ? " is-feedback-shaking" : ""}`}
+      className={`slot-machine continuous-drums${activePlan !== null || pausedSpinning ? " is-spinning" : ""}${reducedMotion ? " is-reduced" : ""}${safeShakePx > 0 ? " is-feedback-shaking" : ""}`}
       aria-label="老虎机转轮"
       data-motion-kind={activePlan?.kind ?? (pausedSpinning ? "paused" : "none")}
       data-coin-source="true"
@@ -235,7 +232,7 @@ export function SlotMachine({
                       : activePlan.revealAtMs[reel] ?? activePlan.completeAtMs}
                     key={timerKey ?? "paused"}
                   />
-                : <FillerTape reel={reel} />
+                : <FillerTape reel={reel} strip={state.pendingSpin?.draw.strips[reel] ?? state.reels[reel]} />
               : grid[reel].map((symbol, row) => {
                   const typedRow = row as RowIndex;
                   const key = cellKey(reel, typedRow);
@@ -264,6 +261,10 @@ export function SlotMachine({
           </div>
         );
       })}
+      {activePlan === null && !pausedSpinning && highlightedLineIds.length > 0 && <svg className="drum-paylines" viewBox="0 0 300 300" preserveAspectRatio="none" aria-hidden="true">
+        {PAYLINES.filter((line) => highlightedLineIds.includes(line.lineId)).map((line) => <polyline key={line.lineId}
+          points={line.cells.map(([reel, row]) => `${reel * 100 + 50},${row * 100 + 50}`).join(" ")} />)}
+      </svg>}
     </section>
   );
 }

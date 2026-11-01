@@ -18,6 +18,9 @@ const PRE_BUILD_DIVERSITY_RULES = "rules-b692b1c641f44aad";
 const PRE_GARDEN_ROUNDS_RULES = "rules-56d5bd9d4b54c3c4";
 const PRE_JOURNEY_RULES = "rules-b5bc23b088249f53";
 const PRE_ROUTE_KITS_RULES = "rules-1f79cf61a16111a4";
+// Unpublished UI-copy build. Its tool explanation accidentally lived in content/.
+// Keep the public rule fingerprint intact and offer an explicit, lossless fork.
+const LOCAL_TOOL_COPY_RULES = "rules-26033f2e5a3a637b";
 const LOG_FIELDS = [
   "hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "expenses", "blockReelAdditions",
   "phase", "shift", "afterHoursLevel", "baseSpinsInShift", "bankroll", "shiftWager", "shiftPayout",
@@ -212,6 +215,7 @@ export function restoreArchive(library: ArchiveLibrary, source: RunArchive): Arc
 /** Explicit opt-in checkpoint migration, never a replay of old commands under new rules. */
 export function canMigrateArchive(source: RunArchive): boolean {
   const state = source.snapshot;
+  if (source.rulesVersion === LOCAL_TOOL_COPY_RULES && source.rulesVersion !== RULES_VERSION && state.hotel !== undefined) return true;
   if (!["rules-76b3ccda2416e7f9", "rules-705e0a792a2c3847", PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES, PRE_GARDEN_ROUNDS_RULES, PRE_JOURNEY_RULES, PRE_ROUTE_KITS_RULES].includes(source.rulesVersion)
     || source.rulesVersion === RULES_VERSION || state.hotel === undefined) return false;
   if ([PRE_JOURNEY_RULES, PRE_ROUTE_KITS_RULES].includes(source.rulesVersion) && state.phase === "CHOOSING_SERVICE") return true;
@@ -228,6 +232,11 @@ export function canMigrateArchive(source: RunArchive): boolean {
 
 export function migrateArchive(library: ArchiveLibrary, source: RunArchive): ArchiveLibrary {
   if (!isRecord(source) || !canMigrateArchive(source)) throw new Error("仅支持已知旧版本的安全检查点迁移；原档案没有改变。");
+  if (source.rulesVersion === LOCAL_TOOL_COPY_RULES) {
+    if (decodeRunStateV2(source.snapshot) === null) throw new Error("迁移检查点校验失败，原档案没有改变。");
+    const record: RunArchive = { ...makeRecord(source.snapshot, "restored", source.name.slice(0, 60) + " · 新版续玩"), parentId: source.id };
+    return writeLibrary({ ...replaceRecord(library, record), activeId: record.id });
+  }
   let bankroll = source.initialState.bankroll;
   let opening = source.initialState.blockStartBankroll;
   for (const entry of source.entries) {

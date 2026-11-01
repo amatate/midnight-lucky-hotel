@@ -62,7 +62,7 @@ it("selecting and cancelling a reel never changes the save, resource counters, o
   const original = cells();
   fireEvent.click(screen.getByRole("button", { name: "选择第2轮" }));
   expect(cells()).toEqual(original);
-  expect(screen.getByText(/当前 3 条基础中奖线可能被打散/)).toBeVisible();
+  expect(screen.getByText(/3 条中奖线有风险/)).toBeVisible();
   expect(document.querySelectorAll(".is-intervention-risk")).toHaveLength(9);
   expect(localStorage.getItem(RUN_STORAGE_KEY)).toBe(before);
   fireEvent.click(screen.getByRole("button", { name: "踹击" }));

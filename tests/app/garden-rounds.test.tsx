@@ -22,7 +22,7 @@ it("shows maintenance choices rather than a premature final report, then starts 
   expect(screen.getByRole("region", { name: "客房回合休息" })).toHaveTextContent("还剩 2 回合");
   expect(screen.getAllByTestId("upgrade-card")).toHaveLength(3);
   expect(screen.queryByRole("region", { name: "本局总结" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "结账离开" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "结账看报告" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "选择水果沙拉" }));
   fireEvent.click(screen.getByRole("button", { name: "获取水果沙拉" }));
   expect(screen.getByText("花园房 · 回合 2/3")).toBeVisible();

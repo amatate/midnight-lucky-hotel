@@ -13,7 +13,8 @@ import { ReelUpgradePreview } from "@/app/components/ReelUpgradePreview";
 import { UpgradeConsequences } from "@/app/components/UpgradeConsequences";
 import { describeUpgrade } from "@/app/player-copy";
 import { UPGRADES } from "@/content/upgrades";
-import { getBuildFit } from "@/content/build-fit";
+import { getBuildFit } from "@/app/build-fit";
+import { RouteBadge, UpgradeArt } from "@/app/components/UiArtwork";
 import { HOTEL_ROOMS, nextRoomTier } from "@/content/hotel";
 import { dispatchCommand } from "@/core/run";
 import type { GameCommand } from "@/core/commands";
@@ -23,7 +24,7 @@ import type { MachineEstimate } from "@/sim/types";
 const ROLE_LABELS = {
   synergy: "强化",
   pivot: "转向",
-  wildcard: "豪赌"
+  wildcard: "新选择"
 } as const;
 
 interface UpgradePickerProps {
@@ -94,7 +95,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
         <div>
           <p className="tray-kicker">凌晨维修票</p>
           <h2>{workshop === null ? "选择一项升级" : "金币整备 · 三选一"}</h2>
-          <p>{workshop === null ? "三张维修票，只取一张。选择后确认安装。" : `每项整备 ¥${workshop.cost}，确认才扣款；奉献箱另有 ¥10 自带消耗。本次结算限一次。`}</p>
+          <p>{workshop === null ? "三选一 · 先查看，再确认安装" : `每项整备 ¥${workshop.cost}，确认才扣款；奉献箱另有 ¥10 自带消耗。本次结算限一次。`}</p>
           {workshop !== null && <p>当前钱包 ¥{state.bankroll}；不购买离开不扣钱，也不返小费。</p>}
           {workshop !== null && selectedId !== null && <p>购买后余额 ¥{state.bankroll - workshop.cost - (selectedId === "tithe-box" ? 10 : 0)}；下一房备付金 ¥{nextReserve}（餐费另算）。{state.bankroll - workshop.cost - (selectedId === "tithe-box" ? 10 : 0) < nextReserve ? "购买后不足以立即入房。" : ""}</p>}
           {!compact && <p>花 1 小费重抽，至少换入 1 个不同选项；没有新选项不扣费。也可攒 3 枚精修核心。</p>}
@@ -104,7 +105,8 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
           type="button"
           disabled={!canReroll}
           onClick={() => onCommand({ type: "REROLL_CANDIDATES" })}
-        >重抽升级（1 小费）</button>
+          aria-label="重抽升级（1 小费）"
+        >换一批<small>1 小费</small></button>
       </header>
       <div className="upgrade-grid">
         {(Object.entries(offers) as [keyof typeof offers, UpgradeId][]).map(([role, id]) => {
@@ -115,32 +117,38 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
           return (
             <article className={`upgrade-card${selected ? " is-selected" : ""}${!compact && selectedId !== null && !selected ? " is-folded" : ""}`} data-testid="upgrade-card" key={role}>
               <div className="ticket-stub">
-                <span>{ROLE_LABELS[role]}</span>
-                <span>{presentation.kindLabel} · {presentation.routeLabel}</span>
+                <span>{definition.kind === "tool" ? "信息工具" : ROLE_LABELS[role]}</span>
+                <RouteBadge route={definition.route} label={presentation.routeLabel} />
               </div>
-              <h3>{presentation.name}</h3>
-              {(compact || selectedId === null || selected) && <p className="upgrade-fit" data-fit={getBuildFit(state, id).kind}>{getBuildFit(state, id).text}</p>}
+              <div className="upgrade-card-heading"><UpgradeArt id={id} /><div><small>{presentation.kindLabel}</small><h3>{presentation.name}</h3></div></div>
+              {!compact && (selectedId === null || selected) && <p className="upgrade-fit" data-fit={getBuildFit(state, id).kind}>{getBuildFit(state, id).text}</p>}
               {compact || selectedId === null || selected ? (
                 <>
                   <div className="upgrade-copy">
-                    <p className="decision-effect">{presentation.decisionEffect}</p>
+                    <p className="decision-effect">{ownedLevelOne ? presentation.levelTwoEffect ?? presentation.decisionEffect : presentation.decisionEffect}</p>
                     {!compact && presentation.triggerCondition !== null && <p><strong>条件</strong> {presentation.triggerCondition}</p>}
                     {presentation.immediateCost !== null && <p className="upgrade-warning"><strong>立即影响</strong> {presentation.immediateCost}</p>}
                     {ownedLevelOne && <p className="owned-level">已持有 L1 → 本次升为 L2</p>}
                   </div>
-                  <HelpButton title={presentation.name + "升级说明"} trigger="效果与代价" className="upgrade-help-button">
+                  {!compact && <HelpButton title={presentation.name + "升级说明"} trigger="效果与代价" className="upgrade-help-button">
                     <HelpFacts cost={workshop === null ? presentation.immediateCost ?? "占用本班一次三选一机会；无额外即时金钱支出。" : `整备费 ¥${workshop.cost}。${presentation.immediateCost ?? "无其他即时支出。"}`}
                       effect={ownedLevelOne ? presentation.levelTwoEffect ?? presentation.effect : presentation.effect}
                       limit={presentation.risk} current={presentation.currentImpact} />
                     <UpgradeStrategyDetails presentation={presentation} levelLabel={ownedLevelOne ? "L1 → L2" : "L2 效果"} />
-                  </HelpButton>
+                  </HelpButton>}
                 </>
               ) : null}
-              <button className="select-ticket" type="button" aria-pressed={selected} onClick={() => choose(id)}>选择{definition.name}</button>
+              <button className="select-ticket" type="button" aria-label={`选择${definition.name}`} aria-pressed={selected} onClick={() => choose(id)}>{compact ? "查看 ›" : `选择${definition.name}`}</button>
 
               {selected && selectedDefinition !== null && selectedPresentation !== null && (
                 <UpgradeConfirmationSurface compact={compact} title={`安装 · ${selectedDefinition.name}`} onClose={() => setSelectedId(null)}>
-                  <h4>确认 {selectedDefinition.name}</h4>
+                  <div className="upgrade-confirm-art"><UpgradeArt id={selectedId} /><h4>确认 {selectedDefinition.name}</h4></div>
+                  {compact && <>
+                    <p className="upgrade-fit" data-fit={getBuildFit(state, id).kind}>{getBuildFit(state, id).text}</p>
+                    <HelpFacts cost={workshop === null ? presentation.immediateCost ?? "占用本班一次三选一机会；无额外即时金钱支出。" : `整备费 ¥${workshop.cost}。${presentation.immediateCost ?? "无其他即时支出。"}`}
+                      effect={ownedLevelOne ? presentation.levelTwoEffect ?? presentation.effect : presentation.effect}
+                      limit={presentation.risk} />
+                  </>}
                   {selectedId === "lemon-crate" && (
                     <div className="field-row">
                       <label>第一目标转轮<select value={reel} onChange={(event) => setReel(Number(event.target.value) as ReelIndex)}>

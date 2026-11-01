@@ -27,9 +27,10 @@ interface RunSummaryProps {
   readonly onCommand: (command: GameCommand) => void;
   readonly onRestartSameSeed: () => void;
   readonly onRestartNextSeed: () => void;
+  readonly onHome?: (() => void) | undefined;
 }
 
-export function RunSummary({ state, trajectory, onCommand, onRestartSameSeed, onRestartNextSeed }: RunSummaryProps): React.JSX.Element {
+export function RunSummary({ state, trajectory, onCommand, onRestartSameSeed, onRestartNextSeed, onHome }: RunSummaryProps): React.JSX.Element {
   const summary = buildRunSummary(state, trajectory);
   const title = state.phase === "RUN_LOST"
     ? "本局失败"
@@ -46,7 +47,7 @@ export function RunSummary({ state, trajectory, onCommand, onRestartSameSeed, on
 
   return (
     <section className="run-summary" aria-label="本局总结">
-      <p className="eyebrow">运行报告</p>
+      <p className="eyebrow">本局账单</p>
       <h2>{title}</h2>
       <RoomResult state={state} />
       <strong>{ended ? "最终余额" : "当前钱包"} {money(state.bankroll)}</strong>
@@ -71,20 +72,20 @@ export function RunSummary({ state, trajectory, onCommand, onRestartSameSeed, on
       </details>
       {summary.partContributions.length > 0 && <section aria-label="部件收入贡献"><h3>机器靠什么赚钱</h3>
         {summary.partContributions.slice(0, 3).map((part) => <p key={part.id}>{UPGRADES[part.id].name}：+{money(part.amount)} · {part.payingSpins} 转产生收入</p>)}
-        <p className="fine-print">按留存转账统计直接赔付；改轮、重转与倍率的间接贡献不在此重复归因。</p>
+        <p className="fine-print">这里只列部件直接发的奖金。改图案、重转或加成间接带来的收益，不会重复算给部件。</p>
       </section>}
       {!ended && summary.buildSuggestion !== null && <p>补强方向：{UPGRADES[summary.buildSuggestion].name}。可在整备或后续升级中寻找，不保证本次出现。</p>}
       <WorkshopChoice state={state} onCommand={onCommand} />
       {summary.currentRtp !== null && <p>当前模拟 RTP {(summary.currentRtp * 100).toFixed(0)}% · 仅为估算</p>}
       {state.phase === "SHIFT_COMPLETE" && state.exitUnlocked && (
         <div className="summary-actions">
-          <button className="primary-button" type="button" onClick={() => onCommand({ type: "CASH_OUT" })}>结账离开</button>
+          <button className="primary-button" type="button" onClick={() => onCommand({ type: "CASH_OUT" })}>结账看报告</button>
           <button type="button" aria-description={`下一转下注 ${money(nextBet)}；完成三转后有一次免费升级`} onClick={() => onCommand({ type: "CONTINUE" })}>继续加班</button>
         </div>
       )}
       {state.phase === "AFTER_HOURS" && state.currentCandidates === null && (
         <div className="summary-actions">
-          {state.exitUnlocked && <button className="primary-button" type="button" onClick={() => onCommand({ type: "CASH_OUT" })}>结账离开</button>}
+          {state.exitUnlocked && <button className="primary-button" type="button" onClick={() => onCommand({ type: "CASH_OUT" })}>结账看报告</button>}
           <button type="button" aria-description={`下一转下注 ${money(nextBet)}；完成三转后有一次免费升级`} onClick={() => onCommand({ type: "CONTINUE" })}>继续加班</button>
         </div>
       )}
@@ -92,7 +93,8 @@ export function RunSummary({ state, trajectory, onCommand, onRestartSameSeed, on
       <RoomChoices state={state} onCommand={onCommand} />
       {ended && (
         <div className="summary-actions">
-          <button className="primary-button" type="button" onClick={onRestartSameSeed}>同种子重开</button>
+          {onHome && <button className="primary-button" type="button" onClick={onHome}>返回前台</button>}
+          <button type="button" onClick={onRestartSameSeed}>同种子重开</button>
           <button type="button" onClick={onRestartNextSeed}>下一种子重开</button>
         </div>
       )}

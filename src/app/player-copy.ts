@@ -6,6 +6,7 @@ import {
 } from "@/content/player-copy";
 
 export type { UpgradePresentation } from "@/content/player-copy";
+import { UPGRADE_COPY_REFINEMENTS } from "@/app/copy-refinements";
 
 // Display language stays outside the rules fingerprint. No stored identifiers,
 // amounts, availability checks or probability visibility rules are changed here.
@@ -16,7 +17,7 @@ function plainTerms<T extends object>(copy: T): T {
 }
 
 function clarify(copy: UpgradePresentation): UpgradePresentation {
-  const result = plainTerms(copy);
+  const result = { ...plainTerms(copy), ...UPGRADE_COPY_REFINEMENTS[copy.id] };
   if (copy.id !== "triple-blessing") return result;
   return {
     ...result,

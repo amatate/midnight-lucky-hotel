@@ -146,14 +146,14 @@ export function commandSound(command: GameCommand): SfxId | null {
   }
 }
 export function playCommandSound(command: GameCommand): void { const id = commandSound(command); if (id) playSfx(id); }
-export function eventSound(event: GameEvent, tone: FeedbackPlan["tone"] = "none"): SfxId | null {
+export function eventSound(event: GameEvent, tone: FeedbackPlan["tone"] = "win"): SfxId | null {
   if (tone === "runaway" && event.type === "PAYOUT_COMPLETE" && event.total > 0) return "big-win";
   switch (event.type) {
-    case "LINE_WIN": case "PATTERN_LINE_WIN": return "win";
+    case "LINE_WIN": case "PATTERN_LINE_WIN": return tone === "none" ? "coin" : "win";
     case "PART_TRIGGERED": case "SYMBOL_CHANGED": return "part";
     case "PAYOUT_ADDED": return event.amount > 0 ? "coin" : null;
     case "FOOD_CONSUMED": return "meal";
-    case "PAYOUT_COMPLETE": return event.total > 0 ? "coin" : null;
+    case "PAYOUT_COMPLETE": return event.total > 0 ? tone === "none" ? "coin" : "win" : null;
     case "ROOM_COMPLETED": return event.cleared ? "room-clear" : "run-end";
     case "RUN_ENDED": return event.outcome === "won" ? "room-clear" : "run-end";
     default: return null;

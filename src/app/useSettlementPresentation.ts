@@ -9,7 +9,8 @@ import { eventSound, playEventTone, unlockAudio } from "@/presentation/audio";
 import { feedbackPlan } from "@/presentation/feedback";
 import { vibrateSettlement } from "@/presentation/haptics";
 import { buildGridReplay, type GridReplay } from "@/presentation/replay";
-import { summarizePresentation, type PresentationSummary } from "@/presentation/summary";
+import { payoutTier, summarizePresentation, type PresentationSummary } from "@/presentation/summary";
+import { eventPart } from "@/presentation/part-feedback";
 
 export interface SettlementPresentationState {
   readonly summary: PresentationSummary;
@@ -112,8 +113,9 @@ function awardAtSequence(awards: readonly ReceiptAward[], sequence: number): Rec
 
 function scaleTimeline(steps: readonly PresentationStep[], tier: PresentationSummary["tier"]): readonly PresentationStep[] {
   if (tier === "none") return steps;
-  const minimum = tier === "win" ? 700 : 1_200;
-  const maximum = tier === "win" ? 1_000 : 2_200;
+  const simple = tier === "win" || tier === "return";
+  const minimum = simple ? 700 : 1_200;
+  const maximum = simple ? 1_000 : 2_200;
   const natural = steps.reduce((total, step) => total + step.durationMs, 0);
   if (natural > maximum) {
     const factor = (maximum - 120) / (natural - 120);
@@ -152,7 +154,7 @@ function buildSteps(
   settlementStartBankroll: number,
   wager: number
 ): readonly PresentationStep[] {
-  if (summary.tier === "none") {
+  if (summary.total === 0 && !events.some(event => ["PART_TRIGGERED", "PART_DISABLED", "SYMBOL_CHANGED", "RESOURCE_CHANGED"].includes(event.type))) {
     return [{
       kind: "empty", event: events.find((event) => event.type === "PAYOUT_COMPLETE") ?? null, eventIndex: events.length,
       durationMs: 350, payoutTarget: 0, bankrollTarget: settlementStartBankroll, awardDelta: 0, moneyAnimationKey: `${key}:empty`
@@ -208,7 +210,7 @@ function buildSteps(
         event: finalExplanation.event,
         explanationEvents: run.map(({ event: explanation }) => explanation),
         eventIndex: finalExplanation.eventIndex,
-        durationMs: 160,
+        durationMs: run.some(({ event }) => event.type === "PART_TRIGGERED" && ["harvest-vat", "votive-candle", "blank-capacitor"].includes(event.partId)) ? 400 : 160,
         payoutTarget,
         bankrollTarget: safeMoney(settlementStartBankroll + payoutTarget),
         awardDelta: 0,
@@ -276,7 +278,7 @@ function createCycle(state: RunState, key: string): PresentationCycle {
   const events = [...state.pendingEvents].sort((left, right) => left.sequence - right.sequence);
   const receipt = state.spinHistory.at(-1) ?? null;
   const wager = receipt?.wager ?? state.pendingSpin?.wager ?? getCurrentBet(state);
-  const summary = summarizePresentation(events, wager);
+  const summary = summarizePresentation(events, Math.max(wager, getCurrentBet(state)), wager);
   const replay = buildGridReplay(events);
   const resolvedGrid = state.pendingSpin?.draw.grid ?? receipt?.finalGrid ?? replay.finalGrid;
   const bankrollBefore = receipt?.bankrollBefore ?? state.pendingSpin?.bankrollBefore ?? safeMoney(state.bankroll + wager - summary.total);
@@ -359,12 +361,12 @@ export function useSettlementPresentation(options: SettlementPresentationOptions
     const feedbackKey = `${key}:${view.currentEvent.sequence}`;
     if (presentedSteps.current.has(feedbackKey)) return;
     presentedSteps.current.add(feedbackKey);
-    const plan = feedbackPlan(cycle.summary.tier, reducedMotion);
+    const plan = feedbackPlan(payoutTier(view.visiblePayoutTarget, cycle.receipt?.wager ?? 0, getCurrentBet(state)), reducedMotion);
     const soundEvent = eventSound(view.currentEvent) !== null ? view.currentEvent
       : [...view.explanationEvents].reverse().find((event) => eventSound(event) !== null) ?? view.currentEvent;
-    playEventTone(soundEvent, soundEvent.type === "PAYOUT_COMPLETE" ? plan.tone : "none");
-    vibrateSettlement(view.eventIndex === 1 ? plan.hapticPattern : eventHaptic(view.currentEvent));
-  }, [cycle, key, paused, reducedMotion, view.currentEvent, view.done, view.eventIndex, view.key, view.stepIndex]);
+    playEventTone(soundEvent, plan.tone);
+    if (!reducedMotion) vibrateSettlement(soundEvent.type === "PAYOUT_COMPLETE" ? plan.hapticPattern : eventHaptic(view.currentEvent));
+  }, [cycle, key, paused, reducedMotion, state, view.currentEvent, view.done, view.eventIndex, view.key, view.stepIndex]);
 
   useEffect(() => {
     if (key === null || paused || view.key !== key || view.done || cycle === null) return;
@@ -411,8 +413,8 @@ export function useSettlementPresentation(options: SettlementPresentationOptions
     eventIndex: visible.eventIndex,
     eventTotal: cycle.eventTotal,
     activeLineIds: activeLineIds(visible.currentEvent),
-    activePartId: [...visible.explanationEvents].reverse().find((event) => event.type === "PART_TRIGGERED")?.partId
-      ?? (visible.currentEvent?.type === "PART_TRIGGERED" ? visible.currentEvent.partId : null),
+    activePartId: eventPart(visible.currentEvent)
+      ?? eventPart([...visible.explanationEvents].reverse().find(event => event.type === "PART_TRIGGERED") ?? null),
     changedCells: visible.changedCells,
     displayGrid: visible.displayGrid,
     done: visible.done,

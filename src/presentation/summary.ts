@@ -2,7 +2,16 @@ import type { GameEvent } from "@/core/events";
 import { PAYLINES } from "@/core/paylines";
 import type { AttributionSource, LineWin, PartId, SymbolId } from "@/core/types";
 
-export type FeedbackTier = "none" | "win" | "chain" | "runaway";
+export type FeedbackTier = "none" | "return" | "win" | "chain" | "runaway";
+
+/** Intensity is money-based; rule complexity never upgrades a loss into a win.
+ * Free spins use the ordinary stake as a scale, not their zero paid wager. */
+export function payoutTier(total: number, wager: number, referenceBet: number): FeedbackTier {
+  if (total <= 0) return "none";
+  if (total <= wager) return "return";
+  const scale = Math.max(1, referenceBet, wager);
+  return total >= 8 * scale ? "runaway" : total >= 3 * scale ? "chain" : "win";
+}
 
 interface PresentationLineBase {
   readonly sequence: number;
@@ -81,7 +90,8 @@ function presentationTotal(events: readonly GameEvent[]): number {
 
 export function summarizePresentation(
   events: readonly GameEvent[],
-  currentBet: number
+  currentBet: number,
+  wager = currentBet
 ): PresentationSummary {
   const total = presentationTotal(events);
   const lines = presentationLines(events);
@@ -94,25 +104,7 @@ export function summarizePresentation(
       : totalGranted,
     0
   );
-  const overloaded = events.some((event) => event.type === "OVERLOAD");
-
-  let tier: FeedbackTier;
-  if (overloaded) {
-    tier = "runaway";
-  } else if (total <= 0) {
-    tier = "none";
-  } else if (effectCount >= 6 || total >= 8 * currentBet) {
-    tier = "runaway";
-  } else if (
-    lines.length >= 2 ||
-    partTriggers.length >= 2 ||
-    freeSpinsGranted > 0 ||
-    total >= 3 * currentBet
-  ) {
-    tier = "chain";
-  } else {
-    tier = "win";
-  }
+  const tier = payoutTier(total, wager, currentBet);
 
   return { total, lines, partTriggers, effectCount, chainLength, freeSpinsGranted, tier };
 }

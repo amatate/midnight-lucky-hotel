@@ -18,7 +18,7 @@ it("opens the hotel front desk and starts a game without discarding history", ()
   expect(screen.getByRole("heading", { name: "午夜好运酒店" })).toBeVisible();
   expect(screen.getByRole("navigation", { name: "主菜单" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
-  fireEvent.click(screen.getByRole("button", { name: "继续游戏" }));
+  expect(screen.queryByRole("dialog", { name: "恢复上次进度" })).not.toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "午夜好运老虎机" })).not.toBeInTheDocument();
   fireEvent.click(within(screen.getByRole("group", { name: "选择服务" })).getAllByRole("button")[0]!);
   expect(screen.getByRole("region", { name: "午夜好运老虎机" })).toBeVisible();

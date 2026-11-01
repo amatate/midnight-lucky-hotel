@@ -49,7 +49,7 @@ it("switches a paused in-game menu without mutating the saved run", () => {
   setLanguage("en", false);
   render(<App seed={8} />);
   fireEvent.click(screen.getByRole("button", { name: "New game" }));
-  fireEvent.click(screen.getByRole("button", { name: "Continue game" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   fireEvent.click(within(screen.getByRole("group", { name: "Choose a service" })).getAllByRole("button")[0]!);
   expect(screen.getByRole("button", { name: "Pull the lever" })).toBeEnabled();
   const saved = localStorage.getItem(ARCHIVE_KEY);

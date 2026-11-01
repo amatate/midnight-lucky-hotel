@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-31",
+  "character": {
+    "name": "Mio / 澪",
+    "age": 27,
+    "role": "Night receptionist"
+  },
+  "method": "Built-in imagegen; welcome generated first, reviewed, then used as the image reference for three expression-only edits.",
+  "dimensions": [
+    887,
+    1774
+  ],
+  "transparent_background": true,
+  "animation": "None; four static dialogue portraits with shared composition.",
+  "runtime_conversion": "cwebp -lossless -z 9; no resize, no generative postprocessing. PNG masters retained here.",
+  "assets": [
+    {
+      "expression": "welcome",
+      "generation": "exec-e52f790d-e481-4ed9-9318-8e036d308042.png",
+      "source": "docs/media/concierge-2026-10-31/mio-welcome-v1.png",
+      "runtime": "public/art/concierge/mio-welcome-v1.webp",
+      "reference": null,
+      "prompt": "Use case: stylized-concept. Asset type: transparent static character standing portrait for a Japanese pixel-art hotel game, not a poster. Create ONE original adult woman receptionist, Mio, age about 27, sophisticated and kind, at a midnight Art Deco hotel. Full body head to shoes entirely visible, frontal three-quarter view looking toward the viewer, centered, generous transparent padding, no desk or scenery. Short dark espresso bob haircut with one small brass crescent hairclip, warm brown eyes, ivory blouse with neat collar, forest-green tailored waistcoat and below-knee straight skirt, slim burgundy ribbon tie, brass key brooch, dark stockings and simple closed shoes. Natural adult proportions about 6.5 heads tall, elegant and modest, NOT childlike chibi. Hands gently clasped around a small room-key tag at her waist. Expression: composed welcoming neutral, very slight smile, open eyes. Art direction: exquisite handcrafted 16/32-bit Japanese adventure RPG pixel-art standing portrait, native-looking crisp square pixel clusters, low resolution pixel logic around 180x360 character pixels upscaled nearest-neighbor, no vector smooth curves, no painterly blending, no glossy anime rendering, no 3D. Restrained palette of deep green #183c32, charcoal #10221d, champagne gold #ddc895, warm ivory #f2e7cc, muted burgundy #783c48. Warm readable face, careful cloth highlights, coherent pixel scale across face and body. Clean actual alpha-transparent background, no shadow plate, no text, no logos, no frame. This is the identity anchor for future expression variants; make the face clearly readable at mobile dialogue size."
+    },
+    {
+      "expression": "smile",
+      "generation": "exec-d0f336b0-8288-42d1-a88c-98b3cd60e627.png",
+      "source": "docs/media/concierge-2026-10-31/mio-smile-v1.png",
+      "runtime": "public/art/concierge/mio-smile-v1.webp",
+      "reference": "mio-welcome-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: the supplied transparent pixel-art standing portrait of adult hotel receptionist Mio. Create ONE expression variant. Change ONLY her facial expression: A clearly happy, warm smile with gently closed crescent-shaped eyes and a relaxed smiling mouth. This is her greeting-an-old-friend and completed-task expression. Keep the exact same character identity, short espresso bob, crescent hairclip, facial proportions, green-and-ivory receptionist outfit, burgundy ribbon, brass key, hairstyle, body pose, hand pose, canvas framing, silhouette, apparent scale, feet position and crisp pixel-art rendering. Same full-body figure centered head to shoes, no cropping, no scene, no labels, no extra figures, no text. Actual alpha-transparent background. All body/costume pixels should stay as close to the reference as possible. Match the reference pixel-cluster scale rather than smoothing into painted anime. This is a static dialogue expression asset, not an animation strip."
+    },
+    {
+      "expression": "thinking",
+      "generation": "exec-9dbc236e-5e8d-4ef3-a185-15d8097a6a93.png",
+      "source": "docs/media/concierge-2026-10-31/mio-thinking-v1.png",
+      "runtime": "public/art/concierge/mio-thinking-v1.webp",
+      "reference": "mio-welcome-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: the supplied transparent pixel-art standing portrait of adult hotel receptionist Mio. Create ONE expression variant. Change ONLY her facial expression: A thoughtful, attentive expression: eyes open glancing slightly to the side, gently raised one eyebrow, small closed contemplative mouth. She is explaining a rule patiently, not sad or angry. Keep the exact same character identity, short espresso bob, crescent hairclip, facial proportions, green-and-ivory receptionist outfit, burgundy ribbon, brass key, hairstyle, body pose, hand pose, canvas framing, silhouette, apparent scale, feet position and crisp pixel-art rendering. Same full-body figure centered head to shoes, no cropping, no scene, no labels, no extra figures, no text. Actual alpha-transparent background. All body/costume pixels should stay as close to the reference as possible. Match the reference pixel-cluster scale rather than smoothing into painted anime. This is a static dialogue expression asset, not an animation strip."
+    },
+    {
+      "expression": "delighted",
+      "generation": "exec-34dd331e-6d48-4d77-b236-49e1f244f435.png",
+      "source": "docs/media/concierge-2026-10-31/mio-delighted-v1.png",
+      "runtime": "public/art/concierge/mio-delighted-v1.webp",
+      "reference": "mio-welcome-v1.png",
+      "prompt": "Use case: identity-preserve. Edit target: the supplied transparent pixel-art standing portrait of adult hotel receptionist Mio. Create ONE expression variant. Change ONLY her facial expression: A delighted surprised expression: brighter widened eyes, softly raised eyebrows, small open happy smile. This celebrates a new hotel stamp or collection milestone, not seductive. Keep the exact same character identity, short espresso bob, crescent hairclip, facial proportions, green-and-ivory receptionist outfit, burgundy ribbon, brass key, hairstyle, body pose, hand pose, canvas framing, silhouette, apparent scale, feet position and crisp pixel-art rendering. Same full-body figure centered head to shoes, no cropping, no scene, no labels, no extra figures, no text. Actual alpha-transparent background. All body/costume pixels should stay as close to the reference as possible. Match the reference pixel-cluster scale rather than smoothing into painted anime. This is a static dialogue expression asset, not an animation strip."
+    }
+  ],
+  "ui_reference": "https://developer.apple.com/design/human-interface-guidelines/designing-for-games",
+  "acceptance": "Generated images inspected; source alpha checked. Responsive browser QA is not physical iOS acceptance. The NPC and cosmetic guestbook do not alter gameplay rules."
+}

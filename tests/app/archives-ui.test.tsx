@@ -9,7 +9,6 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 function start(): void {
   fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
-  fireEvent.click(screen.getByRole("button", { name: "继续游戏" }));
   fireEvent.click(within(screen.getByRole("group", { name: "选择服务" })).getAllByRole("button")[0]!);
 }
 
@@ -35,7 +34,7 @@ it("saves a named checkpoint and restores it as a separate branch", () => {
   fireEvent.change(screen.getByLabelText("备份名称"), { target: { value: "水果测试存档" } });
   fireEvent.click(screen.getByRole("button", { name: "保存手动备份" }));
   expect(readLibrary().runs).toHaveLength(2);
-  fireEvent.click(screen.getByRole("button", { name: "返回前台" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "酒店菜单" })).getByRole("button", { name: "返回前台" }));
   fireEvent.click(screen.getByRole("button", { name: "历史与存档" }));
   const checkpoint = screen.getByRole("heading", { name: "水果测试存档" }).closest("article")!;
   fireEvent.click(within(checkpoint).getByRole("button", { name: "恢复为续玩分支" }));
@@ -53,7 +52,7 @@ it("validates seeds and keeps the previous game when starting a new one", () => 
   fireEvent.change(screen.getByLabelText("游戏种子"), { target: { value: "42" } });
   start();
   fireEvent.click(screen.getByRole("button", { name: "菜单" }));
-  fireEvent.click(screen.getByRole("button", { name: "返回前台" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "酒店菜单" })).getByRole("button", { name: "返回前台" }));
   fireEvent.change(screen.getByLabelText("游戏种子"), { target: { value: "43" } });
   fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
   expect(readLibrary().runs.map((run) => run.snapshot.initialSeed)).toEqual([42, 43]);
@@ -64,7 +63,7 @@ it("lets players browse route explanations and favorite parts without altering a
   start();
   const before = activeRecord(readLibrary())!.snapshot;
   fireEvent.click(screen.getByRole("button", { name: "菜单" }));
-  fireEvent.click(screen.getByRole("button", { name: "返回前台" }));
+  fireEvent.click(within(screen.getByRole("dialog", { name: "酒店菜单" })).getByRole("button", { name: "返回前台" }));
   fireEvent.click(screen.getByRole("button", { name: "收藏图鉴" }));
   fireEvent.change(screen.getByLabelText("搜索部件"), { target: { value: "柠檬感染" } });
   fireEvent.click(screen.getByRole("button", { name: "收藏部件" }));

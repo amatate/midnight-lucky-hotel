@@ -2,7 +2,8 @@ import { HelpButton } from "@/app/components/HelpWindow";
 import { CabinetPartArt } from "@/app/components/CabinetArtwork";
 import { PartReadout } from "@/app/components/PartReadout";
 import { describeEquippedPart } from "@/app/player-copy";
-import type { PartId, RunState } from "@/core/types";
+import type { PartCounters, PartId, RunState } from "@/core/types";
+import { chargeValue } from "@/presentation/part-feedback";
 import { translate } from "@/i18n/translate";
 
 const PART_GLYPHS: Readonly<Record<PartId, string>> = {
@@ -31,6 +32,7 @@ export interface PartsBarProps {
   readonly state: RunState;
   readonly activePartId?: PartId | null;
   readonly presentedThroughSequence?: number | null | undefined;
+  readonly visibleCounters?: Partial<PartCounters> | undefined;
 }
 
 function PartGlyph({ id }: { readonly id: PartId }): React.JSX.Element {
@@ -45,7 +47,7 @@ function currentPartStatus(currentImpact: string): string {
   return currentImpact.match(/(?:本转状态|当前状态)：[^。]+。/)?.[0] ?? "";
 }
 
-export function PartsBar({ state, activePartId = null, presentedThroughSequence }: PartsBarProps): React.JSX.Element {
+export function PartsBar({ state, activePartId = null, presentedThroughSequence, visibleCounters }: PartsBarProps): React.JSX.Element {
   const orderedEvents = [...state.pendingEvents].sort((left, right) => left.sequence - right.sequence);
   const visibleEvents = presentedThroughSequence === undefined
     ? orderedEvents
@@ -73,6 +75,7 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
           const presentation = part === null ? null : describeEquippedPart(visibleState, part);
           const active = slot === activeSlot;
           const disabled = disabledSlots.has(slot);
+          const charge = part ? chargeValue(part, state.phase === "RESOLVING_EFFECTS" ? visibleCounters ?? {} : state.counters) : undefined;
           return (
             <div
               className={`part-slot ${part === null ? "is-empty" : "is-loaded"}${active ? " is-triggered" : ""}${disabled ? " is-disabled" : ""}`}
@@ -80,6 +83,8 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
               data-part-id={part?.id}
               data-active={active ? "true" : undefined}
               data-disabled={disabled ? "true" : undefined}
+              data-charge={charge}
+              data-charged={charge !== undefined && charge > 0 && !disabled ? "true" : undefined}
               key={slot}
             >
               <span className="part-slot-number" aria-hidden="true">{slot + 1}</span>
@@ -95,7 +100,7 @@ export function PartsBar({ state, activePartId = null, presentedThroughSequence 
                   <CabinetPartArt id={part.id} fallback={<PartGlyph id={part.id} />} />
                   <span className="part-socket-name">{presentation.name}<span className="sr-only"> · L{part.level}</span></span>
                   <span className="part-level-ring" aria-hidden="true">L{part.level}</span>
-                  <PartReadout part={part} state={state} disabled={disabled} />
+                  <PartReadout part={part} state={state} disabled={disabled} visibleCounters={visibleCounters} />
                   <span className="sr-only">{currentPartStatus(presentation.currentImpact)}</span>
                   </>}>
                   <div className="part-detail" role="group" aria-label={presentation.name + "部件详情"}>

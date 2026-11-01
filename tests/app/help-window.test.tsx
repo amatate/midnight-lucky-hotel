@@ -61,7 +61,7 @@ it("opens part details as a read-only floating window, with capped jam progress"
   fireEvent.click(screen.getByRole("button", { name: /果酱罐 · L2/ }));
   const dialog = screen.getByRole("dialog", { name: "果酱罐 · L2" });
   expect(within(dialog).getByRole("group", { name: "果酱罐部件详情" })).toHaveTextContent("下一条额外奖金 ¥60");
-  expect(dialog).toHaveTextContent("最多计 6 层");
+  expect(dialog).toHaveTextContent("最高多奖6倍");
   fireEvent.click(dialog.parentElement!);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(activeRecord(readLibrary())).toEqual(before);
@@ -122,7 +122,7 @@ it("puts route choices, glossary, public room targets and estimate limitations i
   fireEvent.click(screen.getByText("升级、合同、加班和客房目标"));
   expect(screen.getByText(/顶层套房：3 回合 × 3 次付费转，每转 ¥100；本房累计奖金 ¥6000/)).toBeVisible();
   fireEvent.click(screen.getByText("RTP、报告、种子与日志怎么看"));
-  expect(screen.getByText(/不是实时胜率/)).toBeVisible();
+  expect(screen.getByText(/不是在预测下一转能赚多少/)).toBeVisible();
 });
 
 it("starts with the short play loop and reveals payout math only when requested", () => {

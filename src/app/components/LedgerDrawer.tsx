@@ -6,9 +6,12 @@ import { UPGRADES } from "@/content/upgrades";
 import { safeMoney } from "@/core/money";
 import { isSpinReceipt } from "@/core/receipts";
 import type { LineWin, ReceiptAward, SpinReceipt } from "@/core/types";
+import type { ActionEntry } from "@/persistence/archives";
+import { ReceiptPartStory } from "@/app/components/ReceiptPartStory";
 
 interface LedgerDrawerProps {
   readonly receipts: readonly SpinReceipt[];
+  readonly entries?: readonly ActionEntry[] | undefined;
 }
 
 const LINE_LABELS: Readonly<Record<LineWin["lineId"], string>> = {
@@ -95,7 +98,7 @@ function focusableElements(container: HTMLElement): readonly HTMLElement[] {
   ));
 }
 
-export function LedgerDrawer({ receipts }: LedgerDrawerProps): React.JSX.Element {
+export function LedgerDrawer({ receipts, entries }: LedgerDrawerProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const onOpenChange = useContext(HelpPauseContext);
   const [expandedOrdinal, setExpandedOrdinal] = useState<number | null>(null);
@@ -186,7 +189,7 @@ export function LedgerDrawer({ receipts }: LedgerDrawerProps): React.JSX.Element
                     <span>{receiptLabel(receipt)}</span>
                     <strong>{wagerMoney(receipt.wager)} → {positiveMoney(receipt.totalPayout)} · 净 {signedMoney(safeMoney(receipt.totalPayout - receipt.wager))}</strong>
                   </button>
-                  {expanded && <div id={detailsId}><ReceiptDetails receipt={receipt} /></div>}
+                  {expanded && <div id={detailsId}><ReceiptPartStory receipt={receipt} entries={entries} /><ReceiptDetails receipt={receipt} /></div>}
                 </article>
               );
             })}

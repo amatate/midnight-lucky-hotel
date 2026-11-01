@@ -591,7 +591,9 @@ describe("GameScreen", () => {
     });
     render(<GameScreen seed={62} initialState={state} />);
 
+    await user.click(screen.getByRole("button", { name: "整备工具" }));
     await user.click(screen.getByRole("button", { name: "修复第1轮裂纹（1 小费）" }));
+    await user.click(screen.getByRole("button", { name: "关闭说明" }));
 
     expect(screen.queryByRole("button", { name: /修复第1轮裂纹/ })).not.toBeInTheDocument();
     expect(screen.getAllByTestId("upgrade-card")).toHaveLength(3);
@@ -634,14 +636,14 @@ describe("GameScreen", () => {
     const decision = screen.getByRole("region", { name: "当前决策" });
     expect(within(decision).getByRole("heading", { name: "加班边界" })).toBeVisible();
     expect(within(decision).getByRole("button", { name: "修复第1轮裂纹（1 小费）" })).toBeVisible();
-    expect(within(decision).getByRole("button", { name: "结账离开" })).toBeVisible();
+    expect(within(decision).getByRole("button", { name: "结账看报告" })).toBeVisible();
     expect(within(decision).getByRole("button", { name: "继续加班" })).toBeVisible();
 
     await user.click(within(decision).getByRole("button", { name: "修复第1轮裂纹（1 小费）" }));
 
     expect(screen.queryByRole("button", { name: /修复第1轮裂纹/ })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "本次挑战收支" })).toHaveTextContent("本段下注−¥0");
-    expect(screen.getByRole("button", { name: "结账离开" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "结账看报告" })).toBeVisible();
     expect(screen.getByRole("button", { name: "继续加班" })).toBeVisible();
   });
 
@@ -651,7 +653,7 @@ describe("GameScreen", () => {
       ...createRun(64), phase: "SHIFT_COMPLETE", service: "repair", bankroll: 220, exitUnlocked: true
     }} />);
 
-    await user.click(screen.getByRole("button", { name: "结账离开" }));
+    await user.click(screen.getByRole("button", { name: "结账看报告" }));
     expect(screen.getByRole("heading", { name: "本局胜利 · 已结账" })).toBeVisible();
     unmount();
 

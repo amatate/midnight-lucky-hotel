@@ -17,10 +17,15 @@ import { renderClassicMotor } from "./motor";
 import { CoinDemo } from "./CoinDemo";
 import { PayoutTray } from "./PayoutTray";
 import { payoutCoinCue, type CoinCue } from "./coin-plan";
+import { autoBoundary, autoGap, cancelAutoReservation, recordAuto, startAuto, stopAuto, type AutoOptions, type AutoRun } from "./autoplay";
+import { AutoPlayControls, AutoPlaySetup } from "./AutoPlayControls";
+import { TutorialBubble, rememberTutorial, tutorialSeen, type TutorialStep } from "./TutorialBubble";
+import { noteGuestActivity } from "@/meta/guestbook";
 import "./classic.css";
 import "./family.css";
+import "./guidance.css";
 
-type Panel = "payouts" | "history" | "settings" | "reset" | "machines" | null;
+type Panel = "payouts" | "history" | "settings" | "reset" | "machines" | "autoplay" | null;
 const math = classicMath();
 const format = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const signed = (value: number) => (value > 0 ? "+" : value < 0 ? "−" : "") + format(Math.abs(value));
@@ -92,33 +97,55 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
   const [celebrating, setCelebrating] = useState(false);
   const [coinCue, setCoinCue] = useState<CoinCue | null>(null);
   const [threeCoins, setThreeCoins] = useState(() => { try { return localStorage.getItem("midnight-lucky-hotel.classic.coins-3d") !== "0"; } catch { return false; } });
+  const [tutorial, setTutorial] = useState<TutorialStep | null>(null);
+  const [autoRun, setAutoRun] = useState<AutoRun | null>(null);
+  const autoRef = useRef<AutoRun | null>(null);
+  const updateAuto = useCallback((change: (current: AutoRun | null) => AutoRun | null) => {
+    const next = change(autoRef.current); autoRef.current = next; setAutoRun(next);
+  }, []);
+  const endAuto = useCallback(() => updateAuto(run => run ? stopAuto(run, "manual") : null), [updateAuto]);
+  const dismissTutorial = () => { rememberTutorial(); setTutorial(null); };
+  const openPanel = (value: Panel) => { endAuto(); setPanel(value); if (value === "history") noteGuestActivity("ledger"); };
   const state = snapshot?.state;
   const busy = working || motion !== null || counting || (wheelReady && !error) || wheelMotion !== null;
   const canSpin = state !== undefined && state.credits >= state.bet && state.pending === null && !busy && !error && panel === null;
+  const autoActive = autoRun !== null && autoRun.status !== "stopped";
+  const tutorialActive = tutorial !== null && tutorial !== "offer";
+  const manualCanSpin = canSpin && !autoActive && (!tutorialActive || tutorial === "spin");
 
   const accept = useCallback((next: MachineSnapshot) => { source.current = next; setSnapshot(next); }, []);
   const fail = useCallback((cause: unknown) => {
+    updateAuto(run => run ? { ...run, status: "stopped", pending: false, reason: "error" } : null);
     setError(cause instanceof Error && cause.message === "classic-conflict" ? "conflict" : cause instanceof Error && cause.message === "classic-invalid" ? "invalid" : "storage");
-  }, []);
+  }, [updateAuto]);
   useEffect(() => {
     let cancelled = false;
     setWorking(true); setError("");
+    updateAuto(() => null); setTutorial(null);
     setWheelReady(false); setWheelMotion(null); setCoinCue(null);
     void locked(machine, () => openMachine(machine)).then((next) => {
       if (!cancelled) {
         accept(next); const last = next.state.history[0];
         setAward(last ?? null); setCount(last?.payout ?? 0);
+        const welcome = new URLSearchParams(location.search).get("welcome");
+        if (welcome === "ledger") { setPanel("history"); noteGuestActivity("ledger"); }
+        else if (machine === "original" && welcome === "lesson") setTutorial("bet");
+        else if (machine === "original" && next.state.spins === 0 && !tutorialSeen()) setTutorial("offer");
+        if (welcome) { const url = new URL(location.href); url.searchParams.delete("welcome"); history.replaceState(history.state, "", url); }
       }
     }).catch((cause: unknown) => { if (!cancelled) fail(cause); }).finally(() => { if (!cancelled) setWorking(false); });
     return () => { cancelled = true; };
-  }, [accept, fail, reload, machine]);
+  }, [accept, fail, reload, machine, updateAuto]);
 
-  const commit = useCallback(async (transform: (current: MachineState) => MachineState): Promise<MachineSnapshot | null> => {
+  const commit = useCallback(async (transform: (current: MachineState) => MachineState | null): Promise<MachineSnapshot | null> => {
     if (operation.current || source.current === null) return null;
     operation.current = true; setWorking(true);
     try {
-      const next = await locked(machine, () => { const previous = source.current!; return saveMachine(machine, previous, transform(previous.state)); });
-      accept(next); return next;
+      const next = await locked(machine, () => {
+        const previous = source.current!; const changed = transform(previous.state);
+        return changed === null ? null : saveMachine(machine, previous, changed);
+      });
+      if (next) accept(next); return next;
     } catch (cause) { fail(cause); return null; }
     finally { operation.current = false; setWorking(false); }
   }, [accept, fail, machine]);
@@ -127,6 +154,9 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
     const next = await commit(settleMachineSpin);
     setMotion(null); setStopped(3); setWheelReady(false); setWheelMotion(null);
     const last = next?.state.history[0]; if (!last) return;
+    noteGuestActivity(machine);
+    updateAuto(run => run ? recordAuto(run, last, next.state.credits) : null);
+    setTutorial(step => step === "spin" ? "result" : step);
     setAward(last);
     setCoinCue(payoutCoinCue(last));
     if (last.payout > 0) { setCount(0); setCounting(true); }
@@ -136,17 +166,53 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
       else if (last.payout > last.bet) playSfx("win");
       else if (last.payout > 0) playSfx("coin", .85);
     }
-  }, [commit]);
+  }, [commit, updateAuto, machine]);
 
-  const spin = async () => {
-    if (!canSpin || operation.current || state === undefined) return;
+  const spin = async (automatic = false) => {
+    if (!(automatic ? canSpin : manualCanSpin) || operation.current || state === undefined || document.hidden) return;
+    if (automatic && autoRef.current?.status !== "running") return;
+    if (!automatic && tutorial === "offer") dismissTutorial();
     unlockAudio();
-    const next = await commit((current) => beginMachineSpin(current, Date.now()));
-    if (!next?.state.pending) return;
+    if (automatic) updateAuto(run => run ? { ...run, pending: true } : null);
+    const next = await commit((current) => {
+      // A user can stop (or background the page) while a cross-tab lock is queued.
+      if (automatic && (autoRef.current?.status !== "running" || document.hidden)) return null;
+      return beginMachineSpin(current, Date.now());
+    });
+    if (!next?.state.pending) { if (automatic) updateAuto(run => run ? cancelAutoReservation(run) : null); return; }
     setAward(null); setCount(0); setCelebrating(false); setStopped(0); setCoinCue(null);
     setMotion({ from: next.state.stops, to: next.state.pending.stops, startedAt: performance.now(), reduced });
     playSfx("lever"); playSfx("spin", .86);
   };
+
+  const spinRef = useRef(spin); spinRef.current = spin;
+  useEffect(() => {
+    if (machine !== "original" || !autoRun || autoRun.status !== "running" || autoRun.pending || !state) return;
+    const reason = autoBoundary(autoRun, state.credits);
+    if (reason) { updateAuto(run => run ? stopAuto(run, reason) : null); return; }
+    if (!canSpin || tutorialActive || document.hidden) return;
+    const timer = window.setTimeout(() => { void spinRef.current(true); }, autoGap(autoRun.completed > 0 ? award : null));
+    return () => clearTimeout(timer);
+  }, [machine, autoRun, state, canSpin, tutorialActive, award, updateAuto]);
+  useEffect(() => {
+    const stop = () => updateAuto(run => run ? stopAuto(run, "background") : null);
+    const visibility = () => { if (document.hidden) stop(); };
+    document.addEventListener("visibilitychange", visibility); window.addEventListener("pagehide", stop);
+    return () => { document.removeEventListener("visibilitychange", visibility); window.removeEventListener("pagehide", stop); autoRef.current = null; };
+  }, [updateAuto]);
+  const beginAutomatic = (options: AutoOptions) => {
+    const current = source.current?.state;
+    if (machine !== "original" || !current || current.pending || busy || error || (autoRef.current && autoRef.current.status !== "stopped") || document.hidden) return;
+    unlockAudio(); dismissTutorial(); setPanel(null);
+    updateAuto(() => startAuto(options, current.bet, current.spins));
+  };
+  const chooseBet = async (bet: number) => {
+    const next = await commit(current => changeMachineBet(current, bet));
+    if (next) setTutorial(step => step === "bet" ? "spin" : step);
+  };
+  const guide = (step: TutorialStep) => <TutorialBubble step={step} english={language === "en"} bet={state?.bet ?? 10} award={award}
+    onNext={() => { rememberTutorial(); setTutorial(step === "offer" ? "bet" : "auto"); }} onSkip={() => { if (step === "auto") noteGuestActivity("lesson"); dismissTutorial(); }}
+    onAuto={() => { noteGuestActivity("lesson"); dismissTutorial(); openPanel("autoplay"); }} />;
 
   useEffect(() => {
     if (motion === null) return;
@@ -202,10 +268,10 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
   }, [celebrating]);
   useEffect(() => {
     const changed = (event: StorageEvent) => {
-      if ((event.key === machineKey(machine) || event.key === null) && source.current !== null && event.newValue !== source.current.raw) setError("conflict");
+      if ((event.key === machineKey(machine) || event.key === null) && source.current !== null && event.newValue !== source.current.raw) fail(new Error("classic-conflict"));
     };
     window.addEventListener("storage", changed); return () => window.removeEventListener("storage", changed);
-  }, [machine]);
+  }, [machine, fail]);
 
   const net = award === null ? 0 : award.payout - award.bet;
   const big = award !== null && award.payout >= award.bet * 12;
@@ -221,6 +287,7 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
       const previousRaw = source.current?.raw ?? localStorage.getItem(machineKey(machine));
       const next = await locked(machine, () => resetMachine(machine, previousRaw));
       accept(next); setError(""); setAward(null); setCount(0); setPanel(null); setCelebrating(false); setCoinCue(null);
+      updateAuto(() => null); setTutorial(null);
     } catch (cause) { fail(cause); }
     finally { operation.current = false; setWorking(false); }
   };
@@ -228,11 +295,11 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
   const info = MACHINE_INFO[machine];
   const visibleStops = motion === null && state?.pending ? state.pending.stops : state?.stops ?? [0, 0, 0];
   const lastWheel = state?.history.find((spin) => isFeatureSpin(spin) && spin.feature === "wheel");
-  return <section className="classic-page" data-machine={machine} data-reduced={reduced} data-phase={motion ? "spinning" : wheelReady ? "wheel-ready" : wheelMotion ? "wheel-spinning" : counting ? "paying" : "idle"}>
+  return <section className="classic-page" data-machine={machine} data-reduced={reduced} data-tutorial={tutorial ?? undefined} data-phase={motion ? "spinning" : wheelReady ? "wheel-ready" : wheelMotion ? "wheel-spinning" : counting ? "paying" : "idle"}>
     <nav className="classic-navigation" aria-label={t("经典模式菜单", "Classic mode menu")}>
-      <button type="button" disabled={busy} onClick={onHome}>‹ {t("酒店前台", "LOBBY")}</button>
-      <button type="button" className="family-choose" disabled={busy} onClick={() => setPanel("machines")}>{t("换机台", "MACHINES")} <span>· {info.number} ▾</span></button>
-      <button type="button" disabled={busy} onClick={() => setPanel("settings")}>{t("设置", "SETTINGS")}</button>
+      <button type="button" disabled={busy} onClick={() => { endAuto(); onHome(); }}>‹ {t("酒店前台", "LOBBY")}</button>
+      <button type="button" className="family-choose" disabled={busy} onClick={() => openPanel("machines")}>{t("换机台", "MACHINES")} <span>· {info.number} ▾</span></button>
+      <button type="button" disabled={busy} onClick={() => openPanel("settings")}>{t("设置", "SETTINGS")}</button>
     </nav>
     <div className={"classic-cabinet" + (celebrating && !reduced ? " is-winning" : "") + (big && celebrating ? " is-big-win" : "")}>
       <MachineHead machine={machine} state={state} english={language === "en"} multiplier={award && isFeatureSpin(award) ? award.multiplier : 1}
@@ -246,11 +313,11 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
       <div className="classic-line-label"><span>◈</span><span>{machine === "original" ? t("只有中间一条线计奖", "CENTER LINE PAYS") : info.hint[language === "en" ? 1 : 0]}</span><span>◈</span></div>
       <div className="classic-stage">
         <Reels stops={visibleStops} motion={motion} stopped={stopped} onRenderer={setRenderer} machine={machine} />
-        <button type="button" className="classic-lever" data-own-sound disabled={!canSpin} aria-label={t("下拉拉杆，转一次", "Pull lever to spin")}
+        <button type="button" className="classic-lever" data-own-sound disabled={!manualCanSpin} aria-label={t("下拉拉杆，转一次", "Pull lever to spin")}
           style={{ "--pull": pull } as CSSProperties}
           onClick={(event) => { if (event.detail === 0) void spin(); }}
           onPointerDown={(event) => {
-            if (!canSpin) return; event.preventDefault(); unlockAudio(); event.currentTarget.setPointerCapture(event.pointerId);
+            if (!manualCanSpin) return; event.preventDefault(); unlockAudio(); event.currentTarget.setPointerCapture(event.pointerId);
             drag.current = { pointer: event.pointerId, y: event.clientY, progress: 0 };
           }}
           onPointerMove={(event) => {
@@ -274,16 +341,20 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
       {machine !== "original" && <p className="family-breakdown" data-testid="feature-breakdown">{wheelReady && state?.pending && isFeatureSpin(state.pending)
         ? t("基础赔付 ", "Base ") + format(state.pending.basePayout) + t(" · 等待轮盘加奖", " · bonus wheel pending")
         : award ? awardDescription(award, language === "en") : t("只计中央线 · 赔付含本转下注", "CENTER LINE ONLY · PAYOUT INCLUDES STAKE")}</p>}
+      {tutorial && tutorial !== "auto" && !busy && !error && state && panel === null && guide(tutorial)}
       <div className="classic-controls">
-        <fieldset disabled={busy || !!error || !state}><legend>{t("注额 / 每转", "BET / SPIN")}</legend>
-          <div>{BETS.map((bet) => <button type="button" key={bet} aria-pressed={state?.bet === bet} onClick={() => void commit((current) => changeMachineBet(current, bet))}>{bet}</button>)}</div>
+        <fieldset disabled={busy || !!error || !state || autoActive || tutorial === "result" || tutorial === "auto"}><legend>{t("注额 / 每转", "BET / SPIN")}</legend>
+          <div>{BETS.map((bet) => <button type="button" key={bet} aria-pressed={state?.bet === bet} onClick={() => void chooseBet(bet)}>{bet}</button>)}</div>
         </fieldset>
-        <button type="button" className={"classic-spin" + (wheelReady ? " is-bonus-ready" : "")} data-own-sound disabled={wheelReady ? !!error || working : !canSpin} onClick={() => wheelReady ? startWheel() : void spin()}>
+        <button type="button" className={"classic-spin" + (wheelReady ? " is-bonus-ready" : "")} data-own-sound disabled={wheelReady ? !!error || working : !manualCanSpin} onClick={() => wheelReady ? startWheel() : void spin()}>
           <strong>{wheelReady ? t("启动轮盘", "BONUS") : wheelMotion ? t("轮盘转动", "BONUS SPIN") : motion ? t("转动中", "SPINNING") : counting ? t("派奖中", "PAYING") : t("转一转", "SPIN")}</strong><span>{wheelReady || wheelMotion ? t("免费奖励转", "NO EXTRA BET") : state ? t("花费 ", "BET ") + state.bet : "…"}</span>
         </button>
       </div>
+      {tutorial === "auto" && !busy && !error && panel === null && guide(tutorial)}
+      {machine === "original" && <AutoPlayControls run={autoRun} english={language === "en"} disabled={!canSpin || tutorialActive} busy={busy}
+        onOpen={() => { dismissTutorial(); openPanel("autoplay"); }} onStop={endAuto} />}
       <PayoutTray cue={coinCue} three={threeCoins} reduced={reduced} />
-      <div className="classic-service-row"><button type="button" disabled={busy} onClick={() => setPanel("payouts")}>{t("赔付表 / 玩法", "PAYTABLE / RULES")}</button><span>✦</span><button type="button" disabled={busy} onClick={() => setPanel("history")}>{t("机台账本", "LEDGER")}{state && state.spins > 0 ? " · " + state.spins : ""}</button></div>
+      <div className="classic-service-row"><button type="button" disabled={busy} onClick={() => openPanel("payouts")}>{t("赔付表 / 玩法", "PAYTABLE / RULES")}</button><span>✦</span><button type="button" disabled={busy} onClick={() => openPanel("history")}>{t("机台账本", "LEDGER")}{state && state.spins > 0 ? " · " + state.spins : ""}</button></div>
       <span className="classic-tray-serial" aria-hidden="true">MIDNIGHT · No. {info.number}</span>
     </div>
     {error && <div className="classic-notice" role="alert"><p>{error === "conflict" ? t("另一标签页修改了这台机的记录，已停止操作以免覆盖。请关闭另一页后重新读取。", "Another tab changed this machine. Close that tab and reload its latest record.")
@@ -294,7 +365,8 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
     {!error && state && state.credits >= Math.min(...BETS) && state.credits < state.bet && !busy && <p className="classic-fine">{t("筹码不足当前注额，请选择更低的下注。", "Choose a smaller bet to keep playing.")}</p>}
     <footer className="classic-caption"><span>{t("仅虚拟筹码 · 无充值、无提现", "VIRTUAL CREDITS · NO PURCHASES OR CASHOUT")}</span><small>{renderer === "3d" ? t("3D 机械转鼓", "3D MECHANICAL REELS") : renderer === "2d" ? t("兼容机台 · 规则相同", "COMPATIBILITY DISPLAY · SAME RULES") : t("机台准备中", "WARMING UP")}</small></footer>
 
-    {panel !== null && <Sheet title={panel === "machines" ? t("机械机台俱乐部", "Mechanical Reel Club") : panel === "payouts" ? t("赔付表与玩法", "Paytable & rules") : panel === "history" ? t("机台账本", "Machine ledger") : panel === "reset" ? t("重新开台？", "Reset this machine?") : t("机台设置", "Machine settings")} close={() => setPanel(null)}>
+    {panel !== null && <Sheet title={panel === "autoplay" ? t("自动游玩", "Automatic play") : panel === "machines" ? t("机械机台俱乐部", "Mechanical Reel Club") : panel === "payouts" ? t("赔付表与玩法", "Paytable & rules") : panel === "history" ? t("机台账本", "Machine ledger") : panel === "reset" ? t("重新开台？", "Reset this machine?") : t("机台设置", "Machine settings")} close={() => setPanel(null)}>
+      {panel === "autoplay" && state && machine === "original" && <AutoPlaySetup english={language === "en"} bet={state.bet} onStart={beginAutomatic} />}
       {panel === "machines" && <><p>{t("每台独立保存筹码与账本。换台不重开，随时回来继续。", "Each machine keeps its own credits and ledger. Switching never resets your progress.")}</p><div className="family-selector">{MACHINE_IDS.map((id) => <button type="button" key={id} aria-pressed={id === machine} onClick={() => { if (id !== machine) onChoose(id); else setPanel(null); }}>
         <span className={"family-selector-emblem " + id} aria-hidden="true">{id === "diamond" ? <img src={DIAMOND_CREST} alt="" /> : id === "wheel" ? "◉" : id === "vault" ? "777" : "7"}</span>
         <span><strong>{language === "en" ? MACHINE_INFO[id].en : MACHINE_INFO[id].zh}</strong><small>{MACHINE_INFO[id].hint[language === "en" ? 1 : 0]}</small></span><span>{id === machine ? "✓" : "›"}</span>
@@ -322,6 +394,7 @@ function MachineScreen({ machine, onHome, onChoose, onDemo }: { readonly machine
       </>}
       {panel === "settings" && <>
         <LanguageSelector /><AudioSettings />
+        {machine === "original" && <button type="button" className="classic-tutorial-replay" disabled={!state || !!error || state.credits < Math.min(...BETS)} onClick={() => { endAuto(); setPanel(null); setTutorial("bet"); }}>{t("跟澪学一轮 · 新手教学", "Learn one spin with Mio")}</button>}
         <label className="classic-reduce"><input type="checkbox" checked={reduced} onChange={(event) => {
           const value = event.target.checked; setReduced(value);
           try { localStorage.setItem("midnight-lucky-hotel.reduce-flash", value ? "1" : "0"); } catch { /* Keep the accessible session preference even if storage is blocked. */ }

@@ -23,7 +23,7 @@ export default defineConfig({
   // These are local source modules, not dependencies. Prebundling them would
   // create a second language store and make dev mode ignore the UI preference.
   optimizeDeps: { exclude: ["@/i18n/jsx-runtime", "@/i18n/jsx-dev-runtime"] },
-  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.10.14-coin-tray") },
+  define: { __RULES_FINGERPRINT__: JSON.stringify("rules-" + rulesFingerprint), __BUILD_VERSION__: JSON.stringify("playtest-2026.11.01-build-feedback") },
   plugins: [
     {
       name: "restart-on-rule-change",
@@ -58,7 +58,12 @@ export default defineConfig({
         "assets/classic/diamond-crest-v1.webp",
         "art/cabinet-frame-v1.png",
         "art/hotel-lobby-v1.png",
+        "art/concierge/mio-welcome-v1.webp",
+        "art/concierge/mio-smile-v1.webp",
+        "art/concierge/mio-thinking-v1.webp",
+        "art/concierge/mio-delighted-v1.webp",
         "art/installed-parts-v1.png",
+        "art/hotel-icons-v1.webp",
         "art/room-crowns-v1.png",
         "art/hotel-rooms-v1.png",
         "audio/after-hours-v1.wav"

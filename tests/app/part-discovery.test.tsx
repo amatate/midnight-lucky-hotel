@@ -47,7 +47,7 @@ it("does not misattribute base winnings to a transforming part", () => {
   ] };
   render(<PartDiscovery state={run} presentedThroughSequence={3} />);
   const note = screen.getByRole("region", { name: "初次发现" });
-  expect(note).toHaveTextContent("改造");
+  expect(note).toHaveTextContent("改图案后连线中奖的钱，仍算连线奖金");
   expect(note).not.toHaveTextContent("+¥90");
 });
 

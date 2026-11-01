@@ -4,6 +4,7 @@ import { coinBurstPaths, feedbackPlan } from "@/presentation/feedback";
 describe("feedbackPlan", () => {
   it.each([
     ["none", { coinCount: 0, shakePx: 0, hapticPattern: 0, tone: "none" }],
+    ["return", { coinCount: 0, shakePx: 0, hapticPattern: 0, tone: "none" }],
     ["win", { coinCount: 8, shakePx: 0, hapticPattern: 12, tone: "win" }],
     ["chain", { coinCount: 24, shakePx: 3, hapticPattern: [10, 40, 10, 40, 22], tone: "chain" }],
     ["runaway", { coinCount: 48, shakePx: 6, hapticPattern: [22, 24, 12, 24, 30], tone: "runaway" }]

@@ -169,9 +169,9 @@ export function Hud({
       </section>
       <details className="tool-panel">
         <summary>会计工具</summary>
-        <HelpButton title="会计估算"><HelpFacts cost="只读估算，不消耗真实随机数。" effect="RTP 是赔付 ÷ 下注，不扣服务费；符号概率是每轮占比，不是连线中奖率。"
-          limit="当前是简化自动拉动基线，不含当前食物、恶兆、献祭或干预策略，也未按三转重置全部计数。不能当成实时胜率；95% 区间不是下转奖金范围。" /></HelpButton>
-        {state.toolLevel >= 2 && <p className="muted">以下为简化自动拉动基线，非本局实时胜率；点 ? 查看未纳入的因素。</p>}
+        <HelpButton title="会计估算"><HelpFacts cost="查看不花钱，也不会改变下一转的结果。" effect="RTP 是赔付 ÷ 下注，不扣服务费；符号概率是每轮占比，不是连线中奖率。"
+          limit="模拟没有算入当前食物、恶兆、献祭和你的干预操作，部分计数也不会每3转重置。这里只能作参考；95%区间表示估算范围，不是下一转的奖金范围。" /></HelpButton>
+        {state.toolLevel >= 2 && <p className="muted">以下是简化试转的估算，不是你下一转的胜率。点 ? 看哪些因素还没算进去。</p>}
         {state.toolLevel === 0 && <p>尚未购入计算器；不会显示概率、回报估算或风险带。</p>}
         {isWaiting && <p>{estimateStatus === "unavailable" ? "会计估算暂不可用" : "会计仍在计算"}</p>}
         {state.toolLevel >= 1 && estimate?.symbolProbabilities !== null && estimate?.symbolProbabilities !== undefined && (

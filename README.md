@@ -33,7 +33,37 @@ curved 3D reels and a physical coin tray, without upgrades or hotel goals.
 Designed for portrait touch play, also playable on desktop. This is a Web/PWA
 game, not a native mobile app. Use Add to Home Screen where your browser supports it.
 
-## Latest playtest · Classic cabinets (October 14, 2026)
+## November 1, 2026 update · See your build work
+
+- **Install → charge → trigger → payout:** acquired parts travel into their slots, the Vat and Candle show their stored charge, and active parts light up when their own effects are presented. Existing generated art is reused.
+- **Honest reward intensity:** returning less than or equal to the bet is not celebrated as profit. Medium/large feedback begins at 3×/8× the reference bet; free spins use the normal bet as their scale, never zero. More effect events alone no longer mean a bigger win.
+- **Follow the money:** part coins travel from the part toward the balance; the last-spin display shows the change after its bet. Open a receipt for a persistent “What the parts did” breakdown. Service expenses remain on the shift receipt.
+- **Clearer, consistent UI:** shorter explanations, shared navigation and a 24-icon generated atlas for services, tools, tags and keepsakes. The reception, guestbook, Classic tutorial and autoplay below are included in this release.
+- **Rules unchanged:** no new odds, paytables, room targets or RNG changes. Published saves retain their rules fingerprint. A known local copy-only version can create a new continuation branch without changing its saved result or deleting the original.
+
+[Implementation and validation boundaries](docs/implementation/2026-11-01-build-feedback.md). Browser checks do not replace real-phone performance or player feedback.
+
+## Meet Mio at reception · included November 1 (developed October 31, 2026)
+
+Return to the lobby (`/?lang=en`) to meet **Mio**, the hotel's adult night receptionist, with four matching Japanese pixel-art portraits: welcome, smile, thinking and delighted.
+
+- **Tonight:** learn a real first spin, read a ledger, try two cabinets and discover a hotel upgrade. Losing a spin still counts; there are no daily or winning-streak requirements.
+- **Long stay:** visit all four cabinets, discover eight upgrades, clear Garden, Penthouse and eventually all six rooms. Guestbook → Keepsakes holds collected stamps, Mio's notes and the full portrait gallery.
+- **Cosmetic rewards only:** nine keepsakes never alter credits, paytables, RNG or room difficulty. Existing saved achievements are read without modifying game saves. Guestbook progress has its own browser-local key; it is included in the raw diagnostic backup, not the single-run import package.
+- **Mobile reception:** one next goal, clear Classic / hotel-run choices, bottom navigation, safe-area spacing, readable dialogue and keyboard-accessible reward dialogs. The accepted cabinet/reel/lever presentation is unchanged. This is a Web/PWA pass, not a native iOS release; real-device acceptance is still pending.
+
+[Portrait sources and generation record](docs/media/concierge-2026-10-31/provenance.json). Lossless WebP assets retain transparency and are included in the PWA's next installed offline cache.
+
+## First-spin tutorial and automatic play · included November 1 (developed October 25, 2026)
+
+On the original Classic cabinet (`?mode=classic`):
+
+- Mio's dialogue bubbles guide one real spin: choose a bet, pull, read the center-line result and net change, then discover automatic play. Skip anytime, or replay from Settings. The lesson uses current virtual credits and normal odds, including losing results.
+- Choose 10 / 25 / 50 / 100 automatic spins, a net-loss limit and an optional 12×-payout stop. Bets stay fixed; there are no automatic refills. Stop remains available while spinning, and an already reserved spin settles once.
+- Backgrounding stops the session. Returning or reloading never resumes automation. A session summary shows settled bets, payouts and net change; the normal ledger and existing saves are preserved.
+- The other three cabinets and hotel mode are unchanged. Real-phone testing remains pending.
+
+## Classic cabinets (October 14, 2026)
 
 A separate **Classic machine** is available from the lobby, or
 [play Classic directly](https://amatate.github.io/midnight-lucky-hotel/?mode=classic&lang=en).
