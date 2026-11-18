@@ -25,7 +25,9 @@ const PART_GLYPHS: Readonly<Record<PartId, string>> = {
   "blank-capacitor": "M8 4v16m8-16v16M4 8h4m8 0h4M4 16h4m8 0h4",
   "warranty-fraud": "M12 3 19 6v6c0 5-3 8-7 9-4-1-7-4-7-9V6l7-3m-3 6 6 6m0-6-6 6",
   "overload-motor": "M13 2 6 13h5l-1 9 8-12h-5V2",
-  "safety-fuse": "M7 5h10v4l-2 2 2 2v6H7v-6l2-2-2-2V5"
+  "safety-fuse": "M7 5h10v4l-2 2 2 2v6H7v-6l2-2-2-2V5",
+  "intervention-relay": "M4 6h5v12H4V6m11 0h5v12h-5V6M9 12h6m-3-4 3 4-3 4",
+  "blank-dividend": "M4 5h10v14H4V5m3 7h4m8-4v12m-3-3h6m-7-6h6"
 };
 
 export interface PartsBarProps {

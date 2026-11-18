@@ -1,6 +1,7 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SlotMachine } from "@/app/components/SlotMachine";
+import { openingDisplay } from "@/app/hotel-opening";
 import { createRun, dispatchCommand } from "@/core/run";
 import type { Grid, RunPhase, RunState, SymbolId } from "@/core/types";
 import type { ReelMotionPlan } from "@/presentation/reel-timeline";
@@ -406,8 +407,7 @@ describe("SlotMachine", () => {
     expect(labelsIn(machine)).toEqual(expectedSettledLabels);
 
     const restarted = createRun(resolving.initialSeed);
-    const expectedRestartLabels = restarted.reels.flatMap((strip) =>
-      [0, 1, 2].map((row) => TEST_SYMBOL_LABELS[strip[row] ?? "blank"]));
+    const expectedRestartLabels = openingDisplay(restarted).flat().map(s => TEST_SYMBOL_LABELS[s]);
     rerender(<SlotMachine state={restarted} motionPlan={null} reducedMotion={false} />);
     expect(labelsIn(machine)).toEqual(expectedRestartLabels);
   });

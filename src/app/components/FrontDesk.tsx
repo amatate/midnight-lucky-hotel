@@ -24,11 +24,14 @@ import { ConciergeDesk, GuestbookPage, GuestReward } from "@/meta/ConciergeDesk"
 import { GUESTBOOK_KEY, QUESTS, claimQuest, emptyGuestbook, noteGuestActivity, questProgress, syncGuestbook, type GuestQuest } from "@/meta/guestbook";
 import "@/meta/reception.css";
 import { KeepsakeArt, RouteBadge, UpgradeArt } from "@/app/components/UiArtwork";
+import { StayPanel } from "@/story/StayPanel";
+import { stayLocation } from "@/story/stay-copy";
+import { freshHotelSeed } from "@/app/hotel-opening";
 
 interface FrontDeskProps {
   readonly library: ArchiveLibrary | null;
   readonly error: string | null;
-  readonly defaultSeed: number;
+  readonly defaultSeed: number | null;
   readonly onLibrary: (library: ArchiveLibrary) => void;
   readonly onPlay: (entry: "new" | "resume") => void;
   readonly onClassic?: (options?: { machine?: MachineId; welcome?: "lesson" | "ledger" }) => void;
@@ -39,7 +42,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onCl
   const english = getLanguage() === "en";
   const t = (zh: string, en: string) => english ? en : zh;
   const [section, setSection] = useState<keyof typeof SECTION_LABELS>("lobby");
-  const [seed, setSeed] = useState(String(defaultSeed));
+  const [seed, setSeed] = useState(defaultSeed === null ? "" : String(defaultSeed));
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<RunArchive | null>(null);
   const [route, setRoute] = useState("all");
@@ -76,7 +79,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onCl
     catch (cause) { setNotice(cause instanceof Error ? cause.message : "操作失败，原始数据未覆盖。"); return false; }
   };
   const begin = (chosenSeed: number) => {
-    if (library !== null && perform(() => startArchivedRun(library, chosenSeed), "新局已保存，旧局仍保留在历史中。")) onPlay("new");
+    if (library !== null && perform(() => startArchivedRun(library, chosenSeed, true), "入住旅程已保存，旧局仍保留在历史中。")) onPlay("new");
   };
   const toggleSeed = (chosenSeed: number) => {
     if (library === null || !validSeed(chosenSeed)) { setNotice("请输入有效整数种子。"); return; }
@@ -118,9 +121,10 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onCl
       <p className="frontdesk-notice" role="status">{notice}</p>
 
       {section === "lobby" && <div className="lobby-arrival">
-        <ConciergeDesk book={guestbook} hasRun={active !== null} onTasks={() => goSection("quests")} onMeet={() => { if (!noteGuestActivity("met")) setGuestError("storage"); }} />
+        <ConciergeDesk book={guestbook} hasRun={active !== null} state={active?.snapshot} onTasks={() => goSection("quests")} onMeet={() => { if (!noteGuestActivity("met")) setGuestError("storage"); }} />
         {guestError && <p className="archive-warning" role="alert">{guestWarning}</p>}
-        {nextQuest && <button type="button" className="reception-next-goal" onClick={() => goSection("quests")}><span className="reception-goal-mark" aria-hidden="true"><KeepsakeArt id={nextQuest.id} /></span><span><small>{nextQuest.kind === "short" ? t("今夜小目标", "TONIGHT'S GOAL") : t("长住心愿", "YOUR NEXT CHAPTER")}</small><strong>{nextQuest.title[english ? 1 : 0]}</strong></span><span>{questProgress(nextQuest, guestbook)}/{nextQuest.target} <b aria-hidden="true">›</b></span></button>}
+        {active === null || active.snapshot.stay ? <button type="button" className="reception-next-goal" onClick={() => goSection("quests")}><span className="reception-goal-mark" aria-hidden="true">☾</span><span><small>{t("长住心愿", "YOUR HOTEL JOURNEY")}</small><strong>{t("住进长夜皇家套房", "Reach the Royal Midnight Suite")}</strong></span><span>{guestbook.roomCards?.length ?? 0}/7 <b aria-hidden="true">›</b></span></button>
+          : nextQuest && <button type="button" className="reception-next-goal" onClick={() => goSection("quests")}><span className="reception-goal-mark" aria-hidden="true"><KeepsakeArt id={nextQuest.id} /></span><span><small>{nextQuest.kind === "short" ? t("今夜小目标", "TONIGHT'S GOAL") : t("长住心愿", "YOUR NEXT CHAPTER")}</small><strong>{nextQuest.title[english ? 1 : 0]}</strong></span><span>{questProgress(nextQuest, guestbook)}/{nextQuest.target} <b aria-hidden="true">›</b></span></button>}
         <div className="lobby-playdesk">
         {onClassic && <button type="button" className="lobby-classic-entry" onClick={() => onClassic()}>
           <strong>{t("经典机台", "Classic machine")}</strong>
@@ -128,7 +132,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onCl
         </button>}
         <div className="reception-hotel-run">
         <section className="frontdesk-hero"><p className="eyebrow">{active === null ? "THE NIGHT IS YOURS" : "YOUR ROOM IS WAITING"}</p><h2>{active === null ? "好运，等待开场" : "接着玩，机器还热着"}</h2>
-          {active !== null ? <><div className="lobby-current-run"><span>{active.snapshot.hotel?.challenge != null
+          {active !== null ? <><div className="lobby-current-run"><span>{active.snapshot.stay ? stayLocation(active.snapshot, english) : active.snapshot.hotel?.challenge != null
             ? HOTEL_ROOMS[active.snapshot.hotel.challenge.tier].name + (active.snapshot.hotel.challenge.rounds ? ` · 回合 ${active.snapshot.hotel.challenge.rounds.current}/3` : "")
             : active.snapshot.afterHoursLevel > 0 ? "加班第 " + active.snapshot.afterHoursLevel + " 段" : "第 " + active.snapshot.shift + " 班"} · 已转 {active.snapshot.nextSpinOrdinal - 1} 次</span><strong className="frontdesk-balance">{money(active.snapshot.bankroll)}</strong></div>
             {active.rulesVersion !== RULES_VERSION && <p className="archive-notice">旧局原档案只读保留，不自动套用新规则。支持迁移时可按新版续玩：保留钱包和构筑，旧成绩不重算，新日志从此处开始核验。</p>}
@@ -137,13 +141,14 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onCl
             }}>按新版续玩（保留旧局）</button>}
             <button className="primary-button lobby-enter-button" type="button" disabled={active.rulesVersion !== RULES_VERSION} onClick={() => onPlay("resume")}>继续游戏<span aria-hidden="true">↗</span></button>
             <details className="lobby-run-details"><summary>本局档案 · 种子 {active.snapshot.initialSeed}</summary><p translate="no">{active.name}</p><div className="frontdesk-actions"><button type="button" onClick={() => setSelected(active)}>查看本局日志</button><button type="button" onClick={() => void copySeed(active.snapshot.initialSeed)}>复制当前种子</button></div></details>
-          </> : <p className="lobby-premise">¥100 入场。转动、改造，让好运站在你这边。</p>}
+          </> : <p className="lobby-premise">{t("¥100 入住。玩房内的机台，完成任务，付房费、收房卡，一层层住上去。", "Check in with ¥100. Play each room's cabinet, finish its task, pay the room fee and collect its keycard on your way upstairs.")}</p>}
         </section>
-        <form className={"new-run-form" + (active !== null ? " has-current-run" : "")} onSubmit={(event) => { event.preventDefault(); if (seed.trim() === "" || !validSeed(Number(seed))) { setNotice("种子必须是 0 到 4294967295 之间的整数。"); return; } begin(Number(seed)); }}>
+        <form className={"new-run-form" + (active !== null ? " has-current-run" : "")} onSubmit={(event) => { event.preventDefault(); if (seed.trim() === "") { begin(freshHotelSeed(active?.snapshot.initialSeed)); return; } if (!validSeed(Number(seed))) { setNotice("种子必须是 0 到 4294967295 之间的整数。"); return; } begin(Number(seed)); }}>
           <button className={active === null ? "primary-button lobby-enter-button" : "lobby-new-night"} type="submit" disabled={library === null}>开始新局{active === null && <span aria-hidden="true">↗</span>}</button>
-          {active === null && <p className="lobby-goal">三班内达到 ¥150 · 再入住客房，边转边强化</p>}
-          <details className="lobby-seed-options"><summary>自选种子与收藏</summary>
-            <label>游戏种子<input inputMode="numeric" value={seed} onChange={(event) => setSeed(event.target.value)} /></label>
+          <p className="lobby-goal">{t("新局从标准房开始：3 回合后留有 ¥150 → 交 ¥50 房费 → 领取第一张房卡", "New stays begin in the Standard Room: keep ¥150 after 3 rounds → pay ¥50 → collect your first keycard")}</p>
+          <details className="lobby-seed-options"><summary>{seed.trim() ? t("指定种子", "Chosen seed") + " · " + seed : t("每次随机 · 自选种子与收藏", "Random each stay · choose a seed")}</summary>
+            <label>游戏种子<input inputMode="numeric" placeholder={t("留空，每次开新局都不同", "Leave blank for a fresh night")} value={seed} onChange={(event) => setSeed(event.target.value)} /></label>
+            {active && <button type="button" onClick={() => begin(active.snapshot.initialSeed)}>{t("用本局种子重新入住", "Replay this stay from the beginning")}</button>}
             <div className="frontdesk-actions"><button type="button" onClick={() => setSeed(String(crypto.getRandomValues(new Uint32Array(1))[0]))}>随机种子</button><button type="button" disabled={library === null || seed.trim() === ""} onClick={() => toggleSeed(Number(seed))}>{library?.favoriteSeeds.includes(Number(seed)) ? "取消收藏种子" : "收藏种子"}</button></div>
             <p className="fine-print">旧局自动留在历史中。种子决定随机序列，但选择也会改变后续结果；同版本、同起点、同操作才可复现。</p>
             {(library?.favoriteSeeds.length ?? 0) > 0 && <div className="lobby-favorite-seeds"><h3>收藏的种子</h3><div className="seed-list">{library!.favoriteSeeds.map((value) => <button type="button" key={value} onClick={() => setSeed(String(value))}>{value}</button>)}</div></div>}
@@ -152,7 +157,10 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onCl
         </div>
         </div>
       </div>}
-      {section === "quests" && <GuestbookPage book={guestbook} onClaim={collect} onGo={goQuest} error={guestError ? guestWarning : ""} />}
+      {section === "quests" && <>
+        {active?.snapshot.stay && <><StayPanel state={active.snapshot} guidanceOnly /><button type="button" className="primary-button" disabled={active.rulesVersion !== RULES_VERSION} onClick={() => onPlay("resume")}>{t("回房处理任务与房费", "Return to your room")}</button></>}
+        <GuestbookPage book={guestbook} onClaim={collect} onGo={goQuest} error={guestError ? guestWarning : ""} />
+      </>}
 
       {section === "history" && <>
         <div className="frontdesk-actions"><h2>历史与存档</h2><label className="file-import">导入复盘包<input aria-label="导入复盘包" type="file" accept=".json,application/json" disabled={library === null} onChange={async (event) => {
@@ -184,7 +192,7 @@ export function FrontDesk({ library, error, defaultSeed, onLibrary, onPlay, onCl
         <div className="archive-filters"><label>搜索部件<input value={search} onChange={(event) => setSearch(event.target.value)} /></label><label>路线<select value={route} onChange={(event) => setRoute(event.target.value)}><option value="all">全部路线</option><option value="fruit">水果自助餐</option><option value="chapel">小教堂</option><option value="violent">故障利用</option><option value="neutral">稳定维修</option><option value="information">会计工具</option></select></label></div>
         <label className="inline-check"><input type="checkbox" checked={favoritePartsOnly} onChange={(event) => setFavoritePartsOnly(event.target.checked)} />只看收藏的部件</label>
         <div className="collection-grid">{UPGRADE_IDS.filter((id) => (!favoritePartsOnly || library?.favoriteUpgrades.includes(id)) && (route === "all" || UPGRADES[id].route === route) && (UPGRADES[id].name.toLowerCase().includes(search.toLowerCase()) || translate(UPGRADES[id].name).toLowerCase().includes(search.toLowerCase()))).map((id) => {
-          const copy = describeUpgrade(active?.snapshot ?? createRun(defaultSeed), id);
+          const copy = describeUpgrade(active?.snapshot ?? createRun(defaultSeed ?? 0), id);
           return <article className="archive-card collection-item" key={id} data-discovered={library?.discovered.includes(id) || undefined}>
             <header className="collection-card-head">
               <div className="collection-art-display"><UpgradeArt id={id} /><span className="collection-index" aria-hidden="true">{String(UPGRADE_IDS.indexOf(id) + 1).padStart(2, "0")}</span></div>

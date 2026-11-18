@@ -127,7 +127,9 @@ it("puts route choices, glossary, public room targets and estimate limitations i
 
 it("starts with the short play loop and reveals payout math only when requested", () => {
   render(<GameGuide />);
-  expect(screen.getByText("先玩一班：只需记住这三步").closest("details")).toHaveAttribute("open");
+  expect(screen.getByRole("heading", { name: "你的入住旅程" })).toBeVisible();
+  expect(screen.getByText(/标准房：带着 ¥100 入住/)).toBeVisible();
+  expect(screen.getByText("操作说明与旧局规则").closest("details")).not.toHaveAttribute("open");
   const payout = screen.getByText("奖金怎么算？为什么中奖不等于净赚？");
   expect(payout.closest("details")).not.toHaveAttribute("open");
   fireEvent.click(payout);

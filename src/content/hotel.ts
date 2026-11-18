@@ -97,7 +97,7 @@ export function getRoomProgress(state: RunState, visibleSpinPayout?: number): Ro
 
 export function canOpenWorkshop(state: RunState): boolean {
   return state.phase === "AFTER_HOURS" && state.hotel?.challenge != null
-    && state.hotel.challenge.status !== "playing" && state.currentCandidates === null
+    && state.hotel.challenge.status !== "playing" && state.hotel.challenge.status !== "billing" && state.currentCandidates === null
     && state.workshop == null;
 }
 

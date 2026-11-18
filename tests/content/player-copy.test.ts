@@ -39,6 +39,8 @@ const DECISION_COPY: Readonly<Record<UpgradeId, readonly [string, string | null,
   "pruning-shears": ["从长轮删除 1 个非百搭图案", "轮长必须大于 6", "所选图案永久减少"],
   "carbon-copy": ["向一轮加入 2 个指定基础图案", "只能复制基础图案", "转轮永久变长"],
   "safety-fuse": ["余额不足时补 1 次最低下注，至少 ¥20", "低于最低下注自动触发", "一次性部件"],
+  "intervention-relay": ["手动干预后中奖，额外 +1×下注", "只计付费转，每转一次；祈祷不算", null],
+  "blank-dividend": ["付费转露出至少2个空白，额外 +1×下注", "只计实体空白，每转一次", null],
   calculator: ["显示每轮精确符号概率", null, null],
   ledger: ["显示模拟 RTP 和风险带", "信息是模拟估算", null],
   "statistics-terminal": ["显示破产概率、波动和可承受转数", "信息是模拟估算", null]
@@ -71,6 +73,8 @@ const STATIC_FACTS: Readonly<Record<UpgradeId, readonly string[]>> = {
   "pruning-shears": ["长度大于 6", "移除 1 个选定的非百搭", "不会短于 6"],
   "carbon-copy": ["选定转轮", "永久加入 2 个", "基础符号"],
   "safety-fuse": ["低于最低下注", "消耗", "¥20"],
+  "intervention-relay": ["付费转", "1 × 当前下注", "水果沙拉", "每转只奖一次"],
+  "blank-dividend": ["付费转", "2 个实体空白", "1 × 当前下注", "每转只奖一次"],
   calculator: ["每个转轮", "精确符号概率"],
   ledger: ["保留符号概率", "估算 RTP", "95% 区间"],
   "statistics-terminal": ["波动", "破产概率", "可承受转动次数"]
@@ -95,7 +99,9 @@ const LEVEL_TWO_FACTS: Readonly<Record<PartId, readonly string[]>> = {
   "blank-capacitor": ["降低为 2 个", "上限不变"],
   "warranty-fraud": ["6 × 当前下注"],
   "overload-motor": ["0.5 × 当前下注"],
-  "safety-fuse": ["¥40"]
+  "safety-fuse": ["¥40"],
+  "intervention-relay": ["2 × 当前下注", "每转只奖一次"],
+  "blank-dividend": ["2 × 当前下注", "空白要求不变"]
 };
 
 function upgradeState(patch: Partial<RunState> = {}): RunState {
@@ -144,9 +150,9 @@ describe("player-facing content", () => {
     expect(SERVICE_PRESENTATIONS.security.action).toContain("永久裂纹");
   });
 
-  it("gives all 29 upgrades complete factual copy and every part a numerical L2 delta", () => {
-    expect(UPGRADE_IDS).toHaveLength(29);
-    expect(PART_IDS).toHaveLength(19);
+  it("gives all 31 upgrades complete factual copy and every part a numerical L2 delta", () => {
+    expect(UPGRADE_IDS).toHaveLength(31);
+    expect(PART_IDS).toHaveLength(21);
     const state = upgradeState();
 
     for (const id of UPGRADE_IDS) {

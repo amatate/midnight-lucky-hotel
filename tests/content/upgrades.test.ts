@@ -32,6 +32,8 @@ const EXPECTED_NAMES = {
   "pruning-shears": "修枝剪",
   "carbon-copy": "复写纸",
   "safety-fuse": "安全保险丝",
+  "intervention-relay": "干预继电器",
+  "blank-dividend": "空白股息",
   calculator: "计算器",
   ledger: "会计账本",
   "statistics-terminal": "统计终端"
@@ -66,12 +68,12 @@ function expectAccepted(result: ReturnType<typeof applyUpgrade>): RunState {
 }
 
 describe("UPGRADES", () => {
-  it("publishes the 29 design IDs with unique exact Chinese names and complete metadata", () => {
-    expect(UPGRADE_IDS).toHaveLength(29);
-    expect(new Set(UPGRADE_IDS).size).toBe(29);
+  it("publishes the 31 design IDs including legacy tools with unique exact names", () => {
+    expect(UPGRADE_IDS).toHaveLength(31);
+    expect(new Set(UPGRADE_IDS).size).toBe(31);
     expect(Object.keys(UPGRADES)).toEqual(UPGRADE_IDS);
     expect(Object.fromEntries(UPGRADE_IDS.map((id) => [id, UPGRADES[id].name]))).toEqual(EXPECTED_NAMES);
-    expect(new Set(UPGRADE_IDS.map((id) => UPGRADES[id].name)).size).toBe(29);
+    expect(new Set(UPGRADE_IDS.map((id) => UPGRADES[id].name)).size).toBe(31);
 
     for (const id of UPGRADE_IDS) {
       expect(UPGRADES[id].id).toBe(id);
@@ -255,7 +257,7 @@ describe("applyUpgrade", () => {
     });
   });
 
-  it("requires replace or decline for a new part when all five slots are full", () => {
+  it("uses spare reserve capacity and preserves displaced hardware when all five working slots are full", () => {
     const full = [
       { id: "jam-jar", level: 1 },
       { id: "fruit-salad", level: 1 },
@@ -265,15 +267,14 @@ describe("applyUpgrade", () => {
     ] as const satisfies RunState["partSlots"];
     const state = choosing("overload-motor", { partSlots: full });
 
-    expect(applyUpgrade(state, { id: "overload-motor", action: "apply" })).toEqual({
-      ok: false,
-      state,
-      error: { code: "RESOURCE_EXHAUSTED", message: "part inventory is full" }
-    });
+    const stored = expectAccepted(applyUpgrade(state, { id: "overload-motor", action: "apply" }));
+    expect(stored.partSlots).toEqual(full);
+    expect(stored.workbench?.reserve).toEqual([{ id: "overload-motor", level: 1 }, null]);
     const replaced = expectAccepted(
       applyUpgrade(state, { id: "overload-motor", action: "replace", replaceSlot: 2 })
     );
     expect(replaced.partSlots[2]).toEqual({ id: "overload-motor", level: 1 });
+    expect(replaced.workbench?.reserve).toEqual([full[2], null]);
     expect(applyUpgrade(state, { id: "overload-motor", action: "replace", replaceSlot: 5 })).toEqual({
       ok: false,
       state,

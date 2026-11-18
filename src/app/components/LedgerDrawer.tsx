@@ -5,11 +5,18 @@ import { SYMBOL_LABELS } from "@/app/labels";
 import { UPGRADES } from "@/content/upgrades";
 import { safeMoney } from "@/core/money";
 import { isSpinReceipt } from "@/core/receipts";
-import type { LineWin, ReceiptAward, SpinReceipt } from "@/core/types";
+import type { LineWin, ReceiptAward, RoomTier, RunState, SpinReceipt } from "@/core/types";
+import { stayName } from "@/story/stay-copy";
 import type { ActionEntry } from "@/persistence/archives";
 import { ReceiptPartStory } from "@/app/components/ReceiptPartStory";
+import type { UpgradeNote } from "@/app/first-upgrade";
+import { getLanguage } from "@/i18n/language";
+import { mealExtra, refilledReels } from "@/app/meal-receipt";
+import { settlementEntry } from "@/presentation/part-feedback";
 
 interface LedgerDrawerProps {
+  readonly state?: RunState;
+  readonly firstNote?: UpgradeNote | null | undefined;
   readonly receipts: readonly SpinReceipt[];
   readonly entries?: readonly ActionEntry[] | undefined;
 }
@@ -47,7 +54,27 @@ function signedMoney(value: number): string {
   return money(0);
 }
 
-function receiptLabel(receipt: SpinReceipt): string {
+function roomBlocks(entries: readonly ActionEntry[], state?: RunState) {
+  const rooms = new Map<number, RoomTier>();
+  for (const entry of entries) {
+    if (!entry.ok) continue;
+    for (const event of entry.events) {
+      if (event.type === 'ROOM_ENTERED') rooms.set(entry.afterHoursLevel + 1, event.tier);
+      if (event.type === 'ROOM_ROUND_STARTED') {
+        const tier = rooms.get(entry.afterHoursLevel);
+        if (tier) rooms.set(entry.afterHoursLevel + 1, tier);
+      }
+    }
+  }
+  if (state?.hotel?.challenge) rooms.set(state.afterHoursLevel, state.hotel.challenge.tier);
+  return rooms;
+}
+
+function receiptLabel(receipt: SpinReceipt, tier?: RoomTier): string {
+  if (tier) {
+    const en = getLanguage() === 'en';
+    return `${stayName(tier, en)} · ${receipt.isFree ? (en ? 'Free spin' : '免费转') + ` #${receipt.ordinal}` : en ? `Spin ${receipt.baseSpinIndex}` : `第 ${receipt.baseSpinIndex} 转`}`;
+  }
   if (receipt.isFree) return `免费转 · 小票 #${receipt.ordinal}`;
   if (receipt.afterHoursLevel > 0) return `加班第 ${receipt.afterHoursLevel} 段 · 第 ${receipt.baseSpinIndex} 转`;
   return `第 ${receipt.shift} 班 · 第 ${receipt.baseSpinIndex} 转`;
@@ -64,7 +91,9 @@ function awardLabel(award: ReceiptAward): string {
   }
 }
 
-function ReceiptDetails({ receipt }: { readonly receipt: SpinReceipt }): React.JSX.Element {
+function ReceiptDetails({ receipt, entries }: { readonly receipt: SpinReceipt; readonly entries: readonly ActionEntry[] }): React.JSX.Element {
+  const extra = mealExtra(receipt);
+  const reels = refilledReels(settlementEntry(entries, receipt)?.events ?? []).map(reel => reel + 1).join(" / ");
   return (
     <dl className="ledger-receipt-details">
       <dt>转前余额</dt>
@@ -86,6 +115,8 @@ function ReceiptDetails({ receipt }: { readonly receipt: SpinReceipt }): React.J
       ))}
       <dt className="ledger-total">总赔付</dt>
       <dd className="ledger-total">{positiveMoney(receipt.totalPayout)}</dd>
+      {extra !== null && extra > 0 && <><dt>{getLanguage() === "en" ? "Of which: meal bonus" : "其中：餐点多赚"}</dt><dd>{positiveMoney(extra)}</dd></>}
+      {reels && <div className="ledger-refill-note"><dt>{getLanguage() === "en" ? "Dish collected" : "收走餐盘"}</dt><dd>{getLanguage() === "en" ? `Reel ${reels} refilled after scoring. No second payout.` : `第 ${reels} 轮在算奖后补位；新图案不再判奖。`}</dd></div>}
       <dt>转后余额</dt>
       <dd>{money(receipt.bankrollAfter)}</dd>
     </dl>
@@ -98,7 +129,7 @@ function focusableElements(container: HTMLElement): readonly HTMLElement[] {
   ));
 }
 
-export function LedgerDrawer({ receipts, entries }: LedgerDrawerProps): React.JSX.Element {
+export function LedgerDrawer({ receipts, entries, firstNote, state }: LedgerDrawerProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const onOpenChange = useContext(HelpPauseContext);
   const [expandedOrdinal, setExpandedOrdinal] = useState<number | null>(null);
@@ -107,6 +138,7 @@ export function LedgerDrawer({ receipts, entries }: LedgerDrawerProps): React.JS
   const dialogRef = useRef<HTMLElement>(null);
   const titleId = useId();
   const trustedReceipts = receipts.filter(isSpinReceipt).toReversed();
+  const rooms = open ? roomBlocks(entries ?? [], state) : null;
 
   useEffect(() => {
     if (!open) return;
@@ -170,6 +202,7 @@ export function LedgerDrawer({ receipts, entries }: LedgerDrawerProps): React.JS
           </div>
           <button className="ledger-close" type="button" aria-label="关闭账本" ref={closeRef} onClick={closeDrawer}>关闭</button>
         </header>
+        {firstNote && <aside className="first-ticket-record"><strong>{firstNote.stamp} · {UPGRADES[firstNote.id].name}</strong><p>{firstNote.body}</p></aside>}
         {trustedReceipts.length === 0 ? (
           <p className="ledger-empty">拉动一次后，前台会在这里留下结算小票</p>
         ) : (
@@ -186,10 +219,10 @@ export function LedgerDrawer({ receipts, entries }: LedgerDrawerProps): React.JS
                     aria-controls={detailsId}
                     onClick={() => setExpandedOrdinal(expanded ? null : receipt.ordinal)}
                   >
-                    <span>{receiptLabel(receipt)}</span>
+                    <span>{receiptLabel(receipt, rooms?.get(receipt.afterHoursLevel))}</span>
                     <strong>{wagerMoney(receipt.wager)} → {positiveMoney(receipt.totalPayout)} · 净 {signedMoney(safeMoney(receipt.totalPayout - receipt.wager))}</strong>
                   </button>
-                  {expanded && <div id={detailsId}><ReceiptPartStory receipt={receipt} entries={entries} /><ReceiptDetails receipt={receipt} /></div>}
+                  {expanded && <div id={detailsId}><ReceiptPartStory receipt={receipt} entries={entries} /><ReceiptDetails receipt={receipt} entries={entries ?? []} /></div>}
                 </article>
               );
             })}

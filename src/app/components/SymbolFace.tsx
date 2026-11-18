@@ -1,5 +1,6 @@
 import { SYMBOL_LABELS } from "@/app/labels";
 import type { SymbolId } from "@/core/types";
+import { useState } from "react";
 
 export interface SymbolFaceProps {
   readonly symbol: SymbolId;
@@ -73,16 +74,22 @@ function SymbolArtwork({ symbol }: { readonly symbol: SymbolId }): React.JSX.Ele
   }
 }
 
-export function SymbolFace({ symbol, decorative = false }: SymbolFaceProps): React.JSX.Element {
+export function SymbolFace(props: SymbolFaceProps): React.JSX.Element {
+  return <ReelFace key={props.symbol} {...props} />;
+}
+
+function ReelFace({ symbol, decorative = false }: SymbolFaceProps): React.JSX.Element {
+  const [failed, setFailed] = useState(false);
   const accessibility = decorative
     ? { "aria-hidden": true as const }
     : { role: "img", "aria-label": SYMBOL_LABELS[symbol] };
 
   return (
     <span className={`symbol-face symbol-face-${symbol}`} data-symbol={symbol} {...accessibility}>
-      <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true" data-symbol-art={symbol}>
+      {failed ? <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true" data-symbol-art={symbol}>
         <SymbolArtwork symbol={symbol} />
-      </svg>
+      </svg> : <img className="reel-symbol-generated" src={`${import.meta.env.BASE_URL}art/reels/${symbol}-v2.webp`} alt="" aria-hidden="true" width="256" height="256" draggable={false}
+        onError={() => setFailed(true)} />}
     </span>
   );
 }

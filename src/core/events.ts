@@ -11,7 +11,9 @@ import type {
   PaidSpinLimit,
   ServiceId,
   LineWin,
-  SymbolId
+  SymbolId,
+  WorkbenchAddress,
+  CounterId
 } from "@/core/types";
 
 type FormulaFields = {
@@ -42,6 +44,11 @@ type PatternLineWinEvent = {
 } & FormulaFields;
 
 export type GameEvent =
+  | { readonly sequence: number; readonly type: "PARTS_MOVED"; readonly from: WorkbenchAddress; readonly to: WorkbenchAddress; readonly resetCounters: readonly CounterId[] }
+  | { readonly sequence: number; readonly type: "REEL_SYMBOLS_SWAPPED"; readonly reelIndex: ReelIndex; readonly firstIndex: number; readonly secondIndex: number; readonly firstSymbol: SymbolId; readonly secondSymbol: SymbolId }
+  | { readonly sequence: number; readonly type: "BUILD_NAMED"; readonly name: string }
+  | { readonly sequence: number; readonly type: "ROOM_BILL_READY"; readonly tier: RoomTier; readonly rent: number }
+  | { readonly sequence: number; readonly type: "ROOM_RENT_PAID"; readonly tier: 0 | RoomTier; readonly amount: number }
   | { readonly sequence: number; readonly type: "STARTER_GRANTED"; readonly partId: PartId; readonly tips: number; readonly omen: number; readonly cracks: number }
   | { readonly sequence: number; readonly type: "ROOM_ROUND_COMPLETED"; readonly round: number; readonly payout: number; readonly totalPayout: number; readonly reward: boolean }
   | { readonly sequence: number; readonly type: "ROOM_ROUND_STARTED"; readonly round: number }

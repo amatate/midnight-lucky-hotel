@@ -1,12 +1,19 @@
 import { HOTEL_ROOMS, HOTEL_ROOM_TIERS } from "@/content/hotel";
 import { roomGoalCopy } from "@/app/room-copy";
 import { SERVICE_PRESENTATIONS } from "@/app/player-copy";
+import { getLanguage } from "@/i18n/language";
 
 export function GameGuide(): React.JSX.Element {
+  const en = getLanguage() === "en", t = (zh: string, english: string) => en ? english : zh;
   return <section className="game-guide" aria-label="游戏介绍与术语">
-    <p>你带着 ¥100 来到酒店。先在3班内把余额攒到 ¥150，再带着改好的机器挑战客房。前三间房各有3个回合，中途还能升级。</p>
+    <section className="stay-guide"><h2>{t("你的入住旅程", "Your hotel journey")}</h2>
+      <p>{t("你是来酒店娱乐的住客。前台澪负责给任务、送强化、收房费和发房卡。短期目标是完成本房任务并付清房费；长期目标是住进最高层的长夜皇家套房。", "You are a guest here for entertainment. Mio at reception gives tasks, delivers upgrades, collects room fees and hands out keycards. Finish the current room's task and pay its fee; your long-term goal is the Royal Midnight Suite.")}</p>
+      <p>{t("标准房：带着 ¥100 入住，玩 3 回合，每回合 3 次付费转。结束时钱包至少 ¥150，再向澪交 ¥50 房费、领第一张房卡。达标不自动扣款；任务金额也不是房费。", "Standard Room: start with ¥100, play 3 rounds of 3 paid spins, and finish with at least ¥150. Then pay Mio ¥50 and collect your first keycard. Completing a task does not automatically charge you; its target is not the fee.")}</p>
+      <p>{t("以后每间房看本房奖金、单转大奖或达标转数，旧钱包不抵任务；房费则从钱包支付。每房房费只收一次。任务没过保留奖金，可整备、重试或回大堂。重试不重复发已领的中途强化。", "Later tasks track room payouts, one big spin or qualifying spins; old savings do not count. Fees come from your wallet, once per room. An unfinished task keeps its payouts: upgrade, retry, or return to the lounge. Retries do not repeat free rest-stop upgrades.")}</p>
+      <p>{t("房卡在「住客手册」跨局收藏，只作纪念。每次新旅程仍从标准房开始。经典机台是独立自由玩法，不收房费；旧存档继续旧规则，不补收房费。旧界面里的「班」就是一回合，「合同」是额外小费委托，不是客房主任务。", "Keycards stay in the Guestbook across runs as keepsakes. Each new journey begins in the Standard Room. Classic cabinets are independent free play with no room fees. Old saves keep their old rules. Older labels use 'shift' for a round and 'contract' for an optional tip task, not the room objective.")}</p>
+    </section>
     <p>不知道先选什么？维修间适合边玩边学；厨房靠水果攒大奖；小教堂追幸运7，也能把恶兆换钱；保安室让裂纹变得有用。新局会送对应的起步装备。</p>
-    <details open><summary>先玩一班：只需记住这三步</summary>
+    <details><summary>{t("操作说明与旧局规则", "Controls and legacy-run rules")}</summary>
       <ol>
         <li><strong>开局选服务。</strong>维修间帮你重转，厨房卖奖金加成，小教堂提供祈祷，保安室提供踹击。</li>
         <li><strong>拉动，再决定收不收。</strong>停轮后，选重转、锁轮或踹击，再点一列看预览，确认才消耗资源；也可以直接收下。普通夜班3次付费转，每转最多干预一次，免费转不占付费转名额；后续客房有不同转数。</li>
@@ -58,12 +65,12 @@ export function GameGuide(): React.JSX.Element {
       <p>磁铁每条裂纹线付 4 / 6 倍下注并移除裂纹。弹簧以相同损伤踹得更远；电容提供有上限的免费转；马达从第 2 个核心效果起付 0.25 / 0.5 倍下注，第 6 个仅向裂纹最少的一轮新增 1 裂纹。需要保护的非免疫核心靠左放；维修／修枝控制废符号。此路线仍依赖预览和管理，不能把每条裂纹都当成收益。</p>
       <h3>稳定维修：多一次挽救中奖的机会</h3><p>多一点干预点、锁轮救场、修枝剪提纯、保险丝兜底。不是独立高倍收入线，适合搭配水果或小教堂。保险丝低于最低下注时一次性补 1 / 2 次最低下注，至少 ¥20 / ¥40；保证再下注的机会，不保证中奖，也不保证凑足客房全部下注的备付金。</p>
       <p>减震飞轮让少量裂纹也有用：L1 抵消 1 个裂纹停工，按最多 1 个可见实体裂纹付 2 倍下注；L2 抵消 2 个，按最多 2 个各付 4 倍。自己免疫，不消除裂纹。它能护住其他部件，但停工变少，骗保触发也可能变少；裂纹太多仍要清理。</p>
-      <h3>会计工具：帮你看懂机器，不会让你更幸运</h3><p>计算器能看图案概率；账本能估算投入和奖金的比例；终端再估算余额能撑多久。这些工具不占部件槽，也不改变中奖结果。估算没有算进所有玩法，不能当作保证。</p>
+      <h3>免费工坊与旧版会计工具</h3><p>工坊免费查看每轮图案数量、概率与部件配合，还能用独立种子试转，不消耗正式局资源。旧存档里的会计工具仍保留高级估值功能，但新候选不再提供它们；试机结果不是长期回报率或下一转的保证。</p>
     </details>
     <details><summary>升级、合同、加班和客房目标</summary>
       <dl>
-        <dt>部件／L1、L2／转轮改造</dt><dd>最多装备 5 个部件，重复取得同部件升至 L2，不额外占槽；满槽拿新部件要替换。转轮改造永久改变符号或长度，不占槽。新班保留这些改造。</dd>
-        <dt>强化／转向／豪赌／协同</dt><dd>三选一按路线和标签分组，不代表强度排行或一定适合。强化偏当前路线或相关标签；转向偏另一条路线；豪赌来自较广的池子。“协同”是搭配提示，不是额外倍率。</dd>
+        <dt>部件／L1、L2／转轮改造</dt><dd>5 个工作槽、2 个备用槽；备用不触发，休息时可换装和排序，卸下蓄能部件会清空它的蓄能。重复取得同件升至 L2，包括备用件；替换时有空备用槽就保留旧件，备用也满了才移除。工坊每回合可交换一次同轮两格，不增减图案。</dd>
+        <dt>强化／转向／豪赌／协同</dt><dd>三选一参考现在的图案和工作部件，不会因为过去买过某条路线就一直绑定它。转向优先找能接上现有机器的跨路线选择，豪赌来自较广的池子；提示不是强度排行，也不是额外倍率。</dd>
         <dt>这张升级适不适合我？</dt><dd>升级说明会指出：缺什么图案、能帮到哪个部件，以及会不会破坏现有搭配。这些是选卡建议，不是收益保证。先看它怎样触发，再看奖金有多高。</dd>
         <dt>合同</dt><dd>可选支线，完成奖励 1 小费；没完成不额外扣钱。组合合同要求指定符号中奖；纪律合同要求整班不用干预且余额不低于班初；救场合同要求用停轮干预把原本无普通中奖的盘面变成普通中奖。</dd>
         <dt>结账／加班／标准下注</dt><dd>自由加班保留构筑，不增加过关目标；每段标准下注 ×1.25。保守 / 正常 / 激进是标准下注的 0.5 / 1 / 2 倍。餐费 = 标准下注 ×0.75，与当前档位无关，不能切保守档买便宜餐后再切激进。</dd>

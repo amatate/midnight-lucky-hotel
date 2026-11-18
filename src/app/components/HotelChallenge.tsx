@@ -3,6 +3,9 @@ import { roomGoalCopy, roomProgressCopy } from "@/app/room-copy";
 import type { GameCommand } from "@/core/commands";
 import type { RunState } from "@/core/types";
 import { getIntroShiftLimit } from "@/core/progression";
+import { ROOM_RENT } from "@/core/stay";
+import { getLanguage } from "@/i18n/language";
+import { STAY_ROOMS, stayName, stayTask } from "@/story/stay-copy";
 
 export function RoomIntermission({ state, onCommand }: {
   readonly state: RunState; readonly onCommand: (command: GameCommand) => void;
@@ -11,7 +14,7 @@ export function RoomIntermission({ state, onCommand }: {
   const rounds = state.hotel!.challenge!.rounds!;
   const room = HOTEL_ROOMS[state.hotel!.challenge!.tier];
   return <section className="room-rest-stop" aria-label="客房回合休息">
-    <p className="tray-kicker">{`${room.name} · 回合 ${rounds.current} / ${rounds.total}`}</p>
+    <p className="tray-kicker">{`${state.stay ? stayName(state.hotel!.challenge!.tier, getLanguage() === "en") : room.name} · 回合 ${rounds.current} / ${rounds.total}`}</p>
     <h2>稍作整备，再来三转</h2>
     <p>本回合 +¥{state.shiftPayout} · {roomProgressCopy(getRoomProgress(state)!)}</p>
     <p>还剩 {rounds.total - rounds.current} 回合。下一回合恢复干预点与服务次数；部件、改轮和剩余餐效保留。</p>
@@ -29,6 +32,15 @@ export function RoomResult({ state }: { readonly state: RunState }): React.JSX.E
   if (challenge == null || challenge.status === "playing") return null;
   const room = HOTEL_ROOMS[challenge.tier];
   const progress = getRoomProgress(state)!;
+  if (state.stay) {
+    const en = getLanguage() === "en";
+    return <section className="room-challenge-card" aria-label={en ? "Room task result" : "客房任务结果"}>
+      <h3>{stayName(challenge.tier, en)} · {challenge.status === "billing" ? en ? "Task complete · fee pending" : "任务完成 · 待交房费" : challenge.status === "cleared" ? en ? "Paid · keycard collected" : "已付房费 · 房卡已收藏" : en ? "Task unfinished" : "任务未完成"}</h3>
+      <p>{stayTask(state, en)}</p>
+      <p>{challenge.status === "failed" ? en ? "Keep your payouts. Mio can help you upgrade and retry. No room fee has been charged." : "已得奖金保留；可以找澪整备补强、再试本房。本房未收房费。"
+        : challenge.status === "billing" ? en ? "Pay the room fee below to collect the keycard and unlock the next room." : "向下方的澪交房费后，领取房卡并开放下一房。" : en ? "Mio has prepared a complimentary upgrade. Pick it before moving on." : "澪准备了一次免费强化，处理后就能继续申请下一房。"}</p>
+    </section>;
+  }
   return <section className="room-challenge-card" aria-label="客房挑战结果">
     <h3>{room.name} · {challenge.status === "cleared" ? "挑战成功" : "未达标"}</h3>
     <p>{roomProgressCopy(progress)} · 已通关 {state.hotel?.cleared}/{HOTEL_ROOM_TIERS.length} 间</p>
@@ -58,6 +70,24 @@ export function RoomChoices({ state, onCommand }: {
   if (!state.exitUnlocked || state.shift !== getIntroShiftLimit(state) || state.currentCandidates !== null || isRoomIntermission(state) || !["SHIFT_COMPLETE", "AFTER_HOURS"].includes(state.phase)) return null;
   const next = nextRoomTier(state);
   const room = next === null ? null : HOTEL_ROOMS[next];
+  if (state.stay) {
+    const en = getLanguage() === "en", t = (zh: string, english: string) => en ? english : zh;
+    if (!state.stay.paid.includes(0)) return null;
+    const retry = state.hotel?.challenge?.status === "failed" || state.hotel?.challenge?.status === "billing";
+    return <section className="room-challenge-card" aria-label={t("向澪申请客房", "Request a room from Mio")}>
+      <p className="eyebrow">{t("澪 · 下一站", "MIO · YOUR NEXT STOP")}</p>
+      {room && next !== null ? <>
+        <h3>{stayName(next, en)} · {STAY_ROOMS[next].machine[en ? 1 : 0]}</h3>
+        <p>{room.rounds ?? 1} {t("回合", "rounds")} × {room.paidSpins} {t("次付费转", "paid spins")} · {t("每转", "Each")} ¥{room.bet}</p>
+        <p>{roomGoalCopy(room.objective, room.target)} · {t("房费", "Room fee")} ¥{ROOM_RENT[next]}</p>
+        <p>{t(`入房时不扣房费，先备好首回合 ¥${room.bet * room.paidSpins} 下注。完成任务后，再确认支付房费。`, `No room fee at entry. Keep ¥${room.bet * room.paidSpins} for the first round's bets; pay the room fee after completing its task.`)}</p>
+        {state.hotel?.challenge?.status === "billing" && <p>{t("重新申请会放弃这次已完成但未交费的任务成绩；也可先在上方交费领卡。", "Reapplying discards this completed but unpaid task. You can pay above to keep it and collect the card instead.")}</p>}
+        <button type="button" className="primary-button" disabled={state.bankroll < room.bet * room.paidSpins} onClick={() => onCommand({ type: "ENTER_ROOM" })}>{retry ? t("重新申请 · ", "Retry · ") : t("请澪开房 · ", "Ask Mio for · ")}{stayName(next, en)}</button>
+        {state.bankroll < room.bet * room.paidSpins && <p role="status">{t(`下注准备金还差 ¥${room.bet * room.paidSpins - state.bankroll}，可先去大堂自由玩，或退房。`, `You need ¥${room.bet * room.paidSpins - state.bankroll} more for bets. Try the lounge, or check out.`)}</p>}
+      </> : <><h3>{t("皇家套房已入住", "The Royal Suite is yours")}</h3><p>{t("七张房卡已收齐。这一晚的主线完成了；随时退房留档，或回大堂继续玩。", "All seven keycards collected. Your hotel journey is complete. Check out and save the memory, or keep playing in the lounge.")}</p></>}
+      <details><summary>{t("查看全部房间与房费", "View every room and fee")}</summary><ol className="room-itinerary">{HOTEL_ROOM_TIERS.map(tier => <li key={tier}><strong>{stayName(tier, en)}{state.stay!.paid.includes(tier) ? " ✓" : ""}</strong><span>{STAY_ROOMS[tier].machine[en ? 1 : 0]} · {t("房费", "Room fee")} ¥{ROOM_RENT[tier]}</span><span>{roomGoalCopy(HOTEL_ROOMS[tier].objective, HOTEL_ROOMS[tier].target)}</span></li>)}</ol></details>
+    </section>;
+  }
   return <section className="room-challenge-card" aria-label="升房挑战">
     <p className="eyebrow">下一晚，由你决定</p>
     <h3>自由加班，或升房挑战</h3>

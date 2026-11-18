@@ -14,7 +14,10 @@ const VIOLENT_PART_IDS = new Set<PartId>([
   "loose-spring",
   "blank-capacitor",
   "warranty-fraud",
-  "overload-motor"
+  "overload-motor",
+  // These neutral bridge parts share the settlement-owned physical/once-only capabilities.
+  "intervention-relay",
+  "blank-dividend"
 ]);
 
 const PAYLINES = [
@@ -116,8 +119,27 @@ function reactOnePart(part: PartInstance, context: ResolveContext, signal: Resol
     ...scrapMagnet(part, context, signal),
     ...blankCapacitor(part, context, signal),
     ...warrantyFraud(part, context, signal),
-    ...overloadMotor(part, context, signal)
+    ...overloadMotor(part, context, signal),
+    ...bridgeBonus(part, context, signal)
   ];
+}
+
+function bridgeBonus(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {
+  if (!context.state.pendingSpin || context.state.pendingSpin.isFree) return [];
+  const authorized = readAuthorizedViolentPart(context);
+  if (!authorized) return [];
+  if (part.id === "blank-dividend") {
+    if (signal.type !== "GRID_ACCEPTED" || authorized.visiblePhysicalCount("blank") < 2
+      || !authorized.claimTrigger("blank-dividend")) return [];
+  } else if (part.id === "intervention-relay") {
+    const paidLine = signal.type === "LINE_AWARDED"
+      || (signal.type === "EFFECT_APPLIED" && signal.effect.type === "ADD_PATTERN_PAYOUT");
+    // pendingEvents is scoped to the current spin. Prayer uses a different kind.
+    const manuallyMoved = context.state.pendingEvents.some((event) => event.type === "INTERVENTION_USED"
+      && (event.kind === "respin" || event.kind === "repair-lock" || event.kind === "kick"));
+    if (!paidLine || !manuallyMoved || !authorized.claimTrigger("intervention-relay")) return [];
+  } else return [];
+  return [{ type: "ADD_PAYOUT", source: "part", amount: part.level * context.currentBet }];
 }
 
 function shockAbsorber(part: PartInstance, context: ResolveContext, signal: ResolveSignal): readonly Effect[] {

@@ -33,8 +33,8 @@
   background: linear-gradient(90deg, #b9aa84, var(--drum-paper) 14% 84%, #b5a781);
   animation: drum-travel 340ms linear infinite; filter: blur(.4px);
 }
-.continuous-drums .reel:nth-child(2) .reel-filler-strip { animation-duration: 300ms; }
-.continuous-drums .reel:nth-child(3) .reel-filler-strip { animation-duration: 370ms; }
+.continuous-drums .reel:nth-child(3) .reel-filler-strip { animation-duration: 300ms; }
+.continuous-drums .reel:nth-child(4) .reel-filler-strip { animation-duration: 370ms; }
 .continuous-drums .reel-filler .symbol-face { width: min(78%, 78px); }
 .continuous-drums .reel-settled .symbol { animation: drum-detent 220ms cubic-bezier(.16,.9,.24,1) both; }
 .drum-paylines { position: absolute; inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); z-index: 5; pointer-events: none; }
@@ -42,4 +42,11 @@
 @keyframes drum-travel { from { transform: translateY(-50%); } to { transform: translateY(0); } }
 @keyframes drum-detent { 0% { translate: 0 -18%; } 65% { translate: 0 5%; } 84% { translate: 0 -2%; } 100% { translate: 0 0; } }
 .continuous-drums.is-reduced .reel-settled .symbol { animation: none; }
+.hotel-drums-webgl { position: absolute; inset: 4px; z-index: 0; overflow: hidden; border-radius: 7px; pointer-events: none; }
+.hotel-drums-webgl canvas { display: block; width: 100%; height: 100%; }
+.continuous-drums[data-renderer="2d"] .hotel-drums-webgl { visibility: hidden; }
+.continuous-drums[data-renderer="3d"] .reel { background: none; z-index: 1; }
+.continuous-drums[data-renderer="3d"] .symbol-face { opacity: 0; }
+.continuous-drums[data-renderer="3d"] .reel-filler { visibility: hidden; }
+.continuous-drums[data-renderer="3d"] .reel-settled .symbol { animation: none; }
 @media (prefers-reduced-motion: reduce) { .continuous-drums .reel-settled .symbol, .continuous-drums .reel-filler-strip { animation: none; } }

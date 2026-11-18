@@ -1,7 +1,8 @@
 import type { RoomProgress } from "@/content/hotel";
 import type { RoomObjective } from "@/core/types";
+import { safeMoney } from "@/core/money";
 
-const amount = (value: number): string => `¥${value}`;
+const amount = (value: number): string => `¥${safeMoney(value)}`;
 
 export function roomObjectiveLabel(objective: RoomObjective): string {
   return objective.kind === "best-spin" ? "单转最高" : objective.kind === "scoring-spins" ? "达标转数" : "本段奖金";

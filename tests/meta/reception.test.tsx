@@ -43,14 +43,15 @@ it("reports guestbook errors without blocking play or overwriting the old record
   expect(screen.getByRole("button", { name: /经典机台/ })).toBeEnabled();
   expect(localStorage.getItem(GUESTBOOK_KEY)).toBe("bad record");
 });
-it("offers English goals and all four portrait expressions", () => {
+it("offers English goals and all six portrait expressions", () => {
   setLanguage("en", false); front();
   fireEvent.click(screen.getByRole("button", { name: "Guestbook" }));
   expect(screen.getByRole("heading", { name: "Your first spin" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Keepsakes" }));
-  fireEvent.click(screen.getByText("Meet Mio · four expression portraits"));
-  for (const [label, path] of [["Welcome", "welcome"], ["Smile", "smile"], ["Thinking", "thinking"], ["Delighted", "delighted"]] as const) {
+  expect(screen.getByRole("region", { name: "Room keycard collection" })).toBeVisible();
+  fireEvent.click(screen.getByText("Meet Mio · six expression portraits"));
+  for (const [label, path] of [["Welcome", "welcome"], ["Smile", "smile"], ["Thinking", "thinking"], ["Delighted", "delighted"], ["Concerned", "concerned"], ["Proud", "proud"]] as const) {
     fireEvent.click(screen.getByRole("button", { name: label }));
-    expect(document.querySelector(".mio-gallery img")?.getAttribute("src")).toContain(`mio-${path}-v1.webp`);
+    expect(document.querySelector(".mio-gallery img")?.getAttribute("src")).toContain(`mio-${path}-v2.webp`);
   }
 });

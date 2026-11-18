@@ -57,7 +57,8 @@ const PART_IDS = new Set<PartId>([
   "harvest-vat", "votive-candle", "shock-absorber",
   "cherry-press", "salad-dressing",
   "lemon-infection", "jam-jar", "fruit-salad", "leftovers", "omen-collector", "triple-blessing", "midnight-bell",
-  "martyr-coin", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud", "overload-motor", "safety-fuse"
+  "martyr-coin", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud", "overload-motor", "safety-fuse",
+  "intervention-relay", "blank-dividend"
 ]);
 const ATTRIBUTION_SOURCES = new Set<AttributionSource>(["base", "part", "intervention", "service", "agitation", "overload"]);
 

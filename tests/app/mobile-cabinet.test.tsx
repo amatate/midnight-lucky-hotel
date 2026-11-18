@@ -16,7 +16,7 @@ it("updates the thumb button's spending disclosure when the player changes the b
   render(<GameScreen seed={8} initialState={ready()} />);
   const pull = screen.getByRole("button", { name: "拉动老虎机" });
   expect(pull).toHaveAccessibleDescription("花费 ¥10");
-  fireEvent.click(screen.getByRole("button", { name: /准备 \/ 调注/ }));
+  fireEvent.click(screen.getByRole("button", { name: /准备 \/ 工坊/ }));
   fireEvent.click(screen.getByRole("button", { name: "激进" }));
   expect(pull).toHaveAccessibleDescription("花费 ¥20");
 });

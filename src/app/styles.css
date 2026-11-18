@@ -474,6 +474,10 @@ h3 {
   text-align: right;
 }
 
+.ledger-refill-note { grid-column: 1 / -1; }
+.ledger-refill-note dt { font-weight: 600; }
+.ledger-refill-note dd { text-align: start; }
+
 .ledger-award {
   grid-column: 1 / -1;
   display: grid;

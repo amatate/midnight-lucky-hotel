@@ -5,6 +5,7 @@ import { createRun, dispatchCommand } from "@/core/run";
 import type { CommandError, RunState } from "@/core/types";
 import { loadRun, saveRun } from "@/persistence/storage";
 import { playCommandSound, playEventTone } from "@/presentation/audio";
+import { freshHotelSeed } from "@/app/hotel-opening";
 import {
   activeRecord, backupSession, openArchiveSession, persistSession, readLibrary, recordAction, startArchivedRun,
   type ArchiveSession, type RunArchive
@@ -24,10 +25,6 @@ export interface GameController {
   readonly backup: (name: string) => boolean;
   readonly restartSameSeed: () => void;
   readonly restartNextSeed: () => void;
-}
-
-function nextSeed(seed: number): number {
-  return (Math.trunc(seed) + 0x9e37_79b9) >>> 0;
 }
 
 export function useGame(seed: number, initialState?: RunState): GameController {
@@ -82,14 +79,14 @@ export function useGame(seed: number, initialState?: RunState): GameController {
       persistSession(session);
       if (session.warning !== null) { setStorageWarning(session.warning); return; }
       try {
-        const library = startArchivedRun(session.library, runSeed);
+        const library = startArchivedRun(session.library, runSeed, stateRef.current.stay !== undefined);
         const record = activeRecord(library)!;
         archiveRef.current = { library, record, warning: null };
         stateRef.current = record.snapshot;
         setState(record.snapshot);
       } catch (cause) { setStorageWarning(cause instanceof Error ? cause.message : "新局保存失败。"); return; }
     } else if (initialState !== undefined) {
-      const next = createRun(runSeed);
+      const next = createRun(runSeed, stateRef.current.stay !== undefined);
       saveRun(next);
       stateRef.current = next;
       setState(next);
@@ -129,7 +126,7 @@ export function useGame(seed: number, initialState?: RunState): GameController {
   const send = useCallback((command: GameCommand) => dispatch(command, "player"), [dispatch]);
   const sendAutomatic = useCallback((command: GameCommand) => dispatch(command, "system"), [dispatch]);
   const restartSameSeed = useCallback(() => replaceRun(stateRef.current.initialSeed), [replaceRun]);
-  const restartNextSeed = useCallback(() => replaceRun(nextSeed(stateRef.current.initialSeed)), [replaceRun]);
+  const restartNextSeed = useCallback(() => replaceRun(freshHotelSeed(stateRef.current.initialSeed)), [replaceRun]);
 
   return { state, events, settlementBefore: settlementBefore.current, error, wasRecovered: recovered.current === true, archive: archiveRef.current?.record ?? null,
     storageWarning, send, sendAutomatic, retrySave, backup, restartSameSeed, restartNextSeed };

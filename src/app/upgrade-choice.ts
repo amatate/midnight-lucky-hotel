@@ -1,4 +1,5 @@
 import { UPGRADES } from "@/content/upgrades";
+import { getReserveParts } from "@/core/workbench";
 import type { ReelIndex, RunState, SymbolId, UpgradeChoice, UpgradeId } from "@/core/types";
 
 const BASE_SYMBOLS = new Set<SymbolId>(["cherry", "lemon", "bell", "seven"]);
@@ -45,8 +46,9 @@ export function needsUpgradeReelTarget(id: UpgradeId): boolean {
 
 function isCurrentLegalOffer(state: RunState, id: UpgradeId): boolean {
   if (state.currentCandidates === null || !Object.values(state.currentCandidates).includes(id)) return false;
-  if (!UPGRADES[id].requires(state)) return false;
-  return !(UPGRADES[id].kind === "part" && state.partSlots.some((part) => part?.id === id && part.level === 2));
+  const held = UPGRADES[id].kind === "part" && [...state.partSlots, ...getReserveParts(state)].some((part) => part?.id === id);
+  if (!held && !UPGRADES[id].requires(state)) return false;
+  return !(UPGRADES[id].kind === "part" && [...state.partSlots, ...getReserveParts(state)].some((part) => part?.id === id && part.level === 2));
 }
 
 export function buildUpgradeChoice(
@@ -57,7 +59,7 @@ export function buildUpgradeChoice(
   if (!isCurrentLegalOffer(state, id)) return null;
   const definition = UPGRADES[id];
   if (definition.kind === "part") {
-    const alreadyOwned = state.partSlots.some((part) => part?.id === id);
+    const alreadyOwned = [...state.partSlots, ...getReserveParts(state)].some((part) => part?.id === id);
     const inventoryFull = state.partSlots.every((part) => part !== null);
     return inventoryFull && !alreadyOwned
       ? { id, action: "replace", replaceSlot: selection.replaceSlot }

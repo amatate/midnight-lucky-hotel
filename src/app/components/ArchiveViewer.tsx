@@ -35,7 +35,7 @@ export function ArchiveViewer({ record, onClose, onHome }: { readonly record: Ru
         <div className="frontdesk-actions">
           <button type="button" onClick={() => downloadText("night-" + state.initialSeed + "-" + record.id + ".json", exportArchive(record))}>导出完整复盘包</button>
           <button type="button" disabled={record.rulesVersion !== RULES_VERSION} onClick={() => setVerification(verifyArchive(record))}>核验记录一致性</button>
-          <LedgerDrawer receipts={state.spinHistory} />
+          <LedgerDrawer receipts={state.spinHistory} entries={record.entries} state={state} />
         </div>
         <p role="status">{verification}</p>
         <details><summary>起始检查点与旧操作记录</summary><pre>{JSON.stringify(record.initialState, null, 2)}</pre></details>

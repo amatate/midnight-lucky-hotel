@@ -3,6 +3,7 @@ import { getPaidSpinLimit, MAX_ROOM_TIER } from "@/content/hotel";
 import { MAX_MONEY, safePayout } from "@/core/money";
 import type { GameCommand } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
+import { isWorkbenchAddress, validBuildName } from "@/core/workbench";
 import type {
   PartId,
   HotelProgress,
@@ -35,7 +36,7 @@ export const PARTS = new Set<PartId>([
   "cherry-press", "salad-dressing",
   "lemon-infection", "jam-jar", "fruit-salad", "leftovers", "omen-collector", "triple-blessing",
   "midnight-bell", "martyr-coin", "scrap-magnet", "loose-spring", "blank-capacitor", "warranty-fraud",
-  "overload-motor", "safety-fuse"
+  "overload-motor", "safety-fuse", "intervention-relay", "blank-dividend"
 ]);
 const UPGRADES = new Set<string>(UPGRADE_IDS);
 const SERVICES = new Set(["repair", "kitchen", "chapel", "security"]);
@@ -153,7 +154,7 @@ export function isReelDraw(value: unknown): value is ReelDraw {
   return true;
 }
 
-function isPart(value: unknown): boolean {
+export function isPart(value: unknown): boolean {
   return hasShape(value, ["id", "level"])
     && PARTS.has(value.id as PartId)
     && (value.level === 1 || value.level === 2);
@@ -231,6 +232,14 @@ function isUpgradeChoice(value: unknown): value is UpgradeChoice {
 export function isGameCommand(value: unknown): value is GameCommand {
   if (!isPlainRecord(value) || typeof value.type !== "string") return false;
   switch (value.type) {
+    case "MOVE_PART": return hasShape(value, ["type", "from", "to"])
+      && hasShape(value.from, ["area", "slot"]) && isWorkbenchAddress(value.from)
+      && hasShape(value.to, ["area", "slot"]) && isWorkbenchAddress(value.to);
+    case "SWAP_REEL_SYMBOLS": return hasShape(value, ["type", "reelIndex", "firstIndex", "secondIndex"])
+      && isReelIndex(value.reelIndex) && isSafeInteger(value.firstIndex, 0, MAX_REEL_SYMBOLS - 1)
+      && isSafeInteger(value.secondIndex, 0, MAX_REEL_SYMBOLS - 1);
+    case "SET_BUILD_NAME": return hasShape(value, ["type", "name"]) && typeof value.name === "string"
+      && value.name.length <= 32 && validBuildName(value.name.trim());
     case "SELECT_SERVICE": return hasShape(value, ["type", "serviceId"]) && isEnum(value.serviceId, SERVICES);
     case "SET_BET_MODE": return hasShape(value, ["type", "mode"]) && isEnum(value.mode, BET_MODES);
     case "BUY_FOOD": return hasShape(value, ["type", "reelIndex"]) && isReelIndex(value.reelIndex);
@@ -244,6 +253,7 @@ export function isGameCommand(value: unknown): value is GameCommand {
     case "ENABLE_MARTYR":
     case "LIGHT_CANDLE":
     case "ENTER_ROOM":
+    case "PAY_ROOM_RENT":
     case "NEXT_ROOM_ROUND":
     case "OPEN_WORKSHOP":
     case "SPIN":
@@ -307,6 +317,19 @@ function hasV2FormulaFields(value: PlainRecord): boolean {
 
 function commonEvent(value: PlainRecord, money: (candidate: unknown) => candidate is number): boolean | null {
   switch (value.type) {
+    case "PARTS_MOVED": return eventBase(value, ["from", "to", "resetCounters"])
+      && hasShape(value.from, ["area", "slot"]) && isWorkbenchAddress(value.from)
+      && hasShape(value.to, ["area", "slot"]) && isWorkbenchAddress(value.to)
+      && isDenseArray(value.resetCounters, 4) && value.resetCounters.every((key) =>
+        ["blankCharge", "cherryWinsThisShift", "harvestCharge", "votiveCharge"].includes(String(key)))
+      && new Set(value.resetCounters).size === value.resetCounters.length;
+    case "REEL_SYMBOLS_SWAPPED": return eventBase(value, ["reelIndex", "firstIndex", "secondIndex", "firstSymbol", "secondSymbol"])
+      && isReelIndex(value.reelIndex) && isSafeInteger(value.firstIndex, 0, MAX_REEL_SYMBOLS - 1)
+      && isSafeInteger(value.secondIndex, 0, MAX_REEL_SYMBOLS - 1) && value.firstIndex !== value.secondIndex
+      && isEnum(value.firstSymbol, SYMBOLS) && isEnum(value.secondSymbol, SYMBOLS) && value.firstSymbol !== value.secondSymbol;
+    case "BUILD_NAMED": return eventBase(value, ["name"]) && validBuildName(value.name);
+    case "ROOM_BILL_READY": return eventBase(value, ["tier", "rent"]) && isSafeInteger(value.tier, 1, MAX_ROOM_TIER) && money(value.rent) && Number(value.rent) > 0;
+    case "ROOM_RENT_PAID": return eventBase(value, ["tier", "amount"]) && isSafeInteger(value.tier, 0, MAX_ROOM_TIER) && money(value.amount) && Number(value.amount) > 0;
     case "ROOM_ROUND_STARTED": return eventBase(value, ["round"]) && isSafeInteger(value.round, 2, 3);
     case "ROOM_ROUND_COMPLETED": return eventBase(value, ["round", "payout", "totalPayout", "reward"])
       && isSafeInteger(value.round, 1, 3) && money(value.payout) && money(value.totalPayout)
@@ -487,7 +510,7 @@ export function validateCommonSnapshot(
     && value.acquiredUpgrades.every((id) => isEnum(id, UPGRADES))
     && isEventHistory(value.pendingEvents, eventValidator)
     && exactNumberRecord(value.attribution, ["base", "part", "intervention", "service", "agitation", "overload"])
-    && hasShape(value.expenses, ["wagers", "kitchen", "chapel", "repair"], ["workshop"])
+    && hasShape(value.expenses, ["wagers", "kitchen", "chapel", "repair"], ["workshop", "rent"])
     && Object.values(value.expenses).every(isBoundedMoney)
     && isDenseArray(value.shiftHistory, MAX_SHIFT_HISTORY) && value.shiftHistory.every(isShiftSnapshot)
     && isDenseArray(value.commandHistory, MAX_COMMANDS) && value.commandHistory.every(isGameCommand)

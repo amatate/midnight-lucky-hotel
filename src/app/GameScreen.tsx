@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GameMenu } from "@/app/components/GameMenu";
 import { ActionBar, selectedPaidBetIsUnaffordable } from "@/app/components/ActionBar";
 import { PresentedCoins } from "@/app/components/CoinBurst";
@@ -21,6 +21,7 @@ import { useBoardIntervention } from "@/app/useBoardIntervention";
 import { stoppedBoardBasis } from "@/app/board-intervention";
 import { getCurrentBet } from "@/core/progression";
 import { UpgradePicker } from "@/app/components/UpgradePicker";
+import { BuildWorkshopButton } from "@/app/components/BuildWorkshop";
 import { WinPresentation } from "@/app/components/WinPresentation";
 import { useEstimate } from "@/app/useEstimate";
 import { useGame } from "@/app/useGame";
@@ -35,6 +36,12 @@ import { payoutTier } from "@/presentation/summary";
 import { counterSnapshot, presentedCounters, settlementEntry } from "@/presentation/part-feedback";
 import { PartInstallFeedback, captureInstallOrigin, type InstallOrigin } from "@/app/components/PartInstallFeedback";
 import type { MachineEstimate } from "@/sim/types";
+import { StayPanel } from "@/story/StayPanel";
+import { stayLocation, stayPhaseLabel } from "@/story/stay-copy";
+import { getLanguage } from "@/i18n/language";
+import { firstUpgradeNote, isFirstTicket } from "@/app/first-upgrade";
+import { FirstUpgradeStamp } from "@/app/components/FirstUpgradeStamp";
+import { refilledReels } from "@/app/meal-receipt";
 
 const PHASE_LABELS = {
   CHOOSING_SERVICE: "选择服务",
@@ -124,6 +131,9 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
       ? Math.max(0, ...game.state.pendingEvents.map((event) => event.sequence))
       : settlementPresentation.currentEvent?.sequence ?? null;
   const currentEntry = settlementEntry(game.archive?.entries ?? [], game.state.spinHistory.at(-1));
+  const receipt = game.state.spinHistory.at(-1);
+  const refilled = game.state.phase === "READY_TO_SPIN" && receipt?.afterHoursLevel === game.state.afterHoursLevel && receipt.shift === game.state.shift
+    ? refilledReels(currentEntry?.events ?? []) : [];
   const beforeCounters = game.settlementBefore?.counters ?? counterSnapshot(currentEntry?.changes.counters?.before);
   const visibleCounters = settlementPresentation === null ? undefined : presentedCounters(game.state, presentedThroughSequence ?? null, beforeCounters);
 
@@ -167,7 +177,22 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
   const isUpgradeScene = game.state.phase === "CHOOSING_UPGRADE" ||
     (game.state.phase === "AFTER_HOURS" && game.state.currentCandidates !== null);
   const showCabinet = !isRoomRest && !isUpgradeScene && !isRunSummary && game.state.phase !== "CHOOSING_SERVICE";
+  useLayoutEffect(() => {
+    // A selected upgrade can be far down a long page; the next round starts at the HUD.
+    // Ordinary spins and help drawers do not reset the player's scroll position.
+    if (showCabinet && (window.scrollX || window.scrollY)) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [showCabinet]);
   const roomTier = game.state.hotel?.challenge?.tier;
+  const english = getLanguage() === "en";
+  const visibleReceipt = (game.state.phase === "RESOLVING_EFFECTS" && !settlementPresentation?.done
+    ? game.state.spinHistory.at(-2) : game.state.spinHistory.at(-1))?.ordinal ?? 0;
+  const entries = game.archive?.entries;
+  const note = useMemo(() => entries && game.state.stay ? firstUpgradeNote(entries, visibleReceipt, english) : null,
+    [entries, visibleReceipt, english, game.state.stay]);
+  const firstTicket = isFirstTicket(game.state);
+  const remainingSpins = Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift);
+  const navigationTitle = `${game.state.stay ? stayLocation(game.state, english) : roomTier !== undefined ? HOTEL_ROOMS[roomTier].name : game.state.afterHoursLevel > 0 ? `加班 ${game.state.afterHoursLevel}` : `第 ${game.state.shift} 班`}${roomRounds ? ` · 回合 ${roomRounds.current}/${roomRounds.total}` : game.state.stay && game.state.afterHoursLevel === 0 ? ` · 回合 ${game.state.shift}/3` : ` · 剩余 ${remainingSpins} 转`}`;
+  const navigationStatus = game.state.stay ? stayPhaseLabel(game.state, english) : isRoomRest ? "中途整备" : game.state.phase === "AFTER_HOURS" && roomTier !== undefined ? "客房结算" : PHASE_LABELS[game.state.phase];
   const returnHome = () => {
     // Every command is journaled first. Leaving never draws, accepts, or settles a spin.
     if (initialState !== undefined || game.retrySave()) onHome?.();
@@ -198,14 +223,16 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
           <svg aria-hidden="true" viewBox="0 0 120 48" fill="none">
             <path d="M1 47h10V36h10V29h78v7h10v11h10M6 47V41h10V31h10v-7h68v7h10v10h10v6M25 47V29h70v18M60 19V1M52 20 46 4M45 22 34 10M39 23 23 17M68 20 74 4M75 22 86 10M81 23 97 17" />
           </svg>
-          <span>{roomTier === undefined ? "ROOM 1313" : HOTEL_ROOMS[roomTier].name}</span>
+          <span>{game.state.stay ? stayLocation(game.state, getLanguage() === "en") : roomTier === undefined ? "ROOM 1313" : HOTEL_ROOMS[roomTier].name}</span>
         </div>
       </header>
       <nav className="console-navigation" aria-label="机台导航">
         {onHome && <button type="button" className="console-home-key" aria-label="返回前台" onClick={returnHome}>‹ 前台</button>}
         <div className="shift-plaque">
-          <strong>{game.state.hotel?.challenge != null ? HOTEL_ROOMS[game.state.hotel.challenge.tier].name : game.state.afterHoursLevel > 0 ? `加班 ${game.state.afterHoursLevel}` : `第 ${game.state.shift} 班`}{roomRounds ? ` · 回合 ${roomRounds.current}/${roomRounds.total}` : ` · 剩余 ${Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift)} 转`}</strong>
-          <span className={showCabinet && !roomRounds ? "sr-only" : undefined}>{showCabinet && roomRounds ? `余 ${Math.max(0, getPaidSpinLimit(game.state) - game.state.baseSpinsInShift)} 转` : isRoomRest ? "中途整备" : game.state.phase === "AFTER_HOURS" && roomTier !== undefined ? "客房结算" : PHASE_LABELS[game.state.phase]}</span>
+          {game.state.stay ? <HelpButton title={english ? "Ask Mio" : "问问澪"} label={english ? "Mio · room task ›" : "澪 · 看入住任务 ›"}
+            trigger={<><strong>{navigationTitle}</strong><span>{showCabinet ? english ? `${remainingSpins} paid spins left` : `余 ${remainingSpins} 次付费转` : navigationStatus} · {english ? "Mio ›" : "问澪 ›"}</span></>} className="stay-mio-help"><StayPanel state={game.state} /></HelpButton>
+            : <strong>{navigationTitle}</strong>}
+          <span className={game.state.stay || showCabinet && !roomRounds ? "sr-only" : undefined}>{showCabinet && roomRounds ? `余 ${remainingSpins} 转` : navigationStatus}</span>
         </div>
         <GameMenu game={game} onHome={onHome ? returnHome : undefined} onArchive={() => setArchiveOpen(true)} reduceFlash={reduceFlash} onReduceFlash={(checked) => {
           setReduceFlash(checked);
@@ -225,7 +252,7 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
           data-room-tier={roomTier ?? "house"}
         >
           {roomTier !== undefined && <RoomCrown tier={roomTier} />}
-          <div className="cabinet-marquee" aria-hidden="true">{roomTier === undefined ? <>MIDNIGHT LUCK <span>1313</span></> : HOTEL_ROOMS[roomTier].name}</div>
+          <div className="cabinet-marquee" aria-hidden="true">{game.state.stay ? stayLocation(game.state, getLanguage() === "en") : roomTier === undefined ? <>MIDNIGHT LUCK <span>1313</span></> : HOTEL_ROOMS[roomTier].name}</div>
           <Hud
             compact
             state={game.state}
@@ -236,7 +263,7 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
             reducedMotion={effectiveReducedMotion}
             presentedThroughSequence={presentedThroughSequence}
           />
-          <SpinPayoutPlaque state={game.state} presentation={settlementPresentation} reducedMotion={effectiveReducedMotion} previewing={boardIntervention.preview?.grid != null} entries={game.archive?.entries} />
+          <SpinPayoutPlaque state={game.state} presentation={settlementPresentation} reducedMotion={effectiveReducedMotion} previewing={boardIntervention.preview?.grid != null} entries={game.archive?.entries} firstNote={note} />
           <div className="cabinet-stage">
             <SlotMachine
               state={game.state}
@@ -259,7 +286,9 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
                 aria-pressed={activeFoodReel === reel || (game.state.phase === "AWAITING_INTERVENTION" && boardIntervention.selectedReel === reel)}
                 disabled={paused || (activeFoodReel === null && (!boardIntervention.enabled || !boardIntervention.selectableReels.includes(reel)))}
                 onClick={() => activeFoodReel !== null ? setFoodReel(reel) : boardIntervention.selectReel(reel)}
-              ><i aria-hidden="true" />第{reel + 1}轮</button>)}
+              ><i aria-hidden="true" />{activeFoodReel === null && refilled.includes(reel)
+                ? <small className="meal-refill-label">{getLanguage() === "en" ? "Refill · no win" : "补位 · 不判奖"}</small>
+                : <>第{reel + 1}轮</>}</button>)}
             </div>
           </div>
           {game.state.phase === "AWAITING_INTERVENTION" && <BoardInterventionControls
@@ -301,13 +330,17 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
       <PartInstallFeedback state={game.state} origin={installOrigin} reducedMotion={effectiveReducedMotion} paused={paused} />
 
       <PartDiscovery compact key={game.archive?.id ?? game.state.initialSeed} state={game.state} presentedThroughSequence={presentedThroughSequence} observedEvents={settlementPresentation === null ? game.events : undefined} />
+      {note && visibleReceipt <= note.through && game.state.phase !== "SPINNING" && game.state.phase !== "RESOLVING_EFFECTS" && game.state.phase !== "AWAITING_INTERVENTION" &&
+        <FirstUpgradeStamp key={(game.archive?.id ?? game.state.initialSeed) + note.key} note={note} />}
       {!showCabinet && !isUpgradeScene && game.state.phase !== "CHOOSING_SERVICE" && (
         <div className="page-ledger">
-          <LedgerDrawer receipts={game.state.spinHistory} entries={game.archive?.entries} />
+          <LedgerDrawer receipts={game.state.spinHistory} entries={game.archive?.entries} firstNote={note} state={game.state} />
         </div>
       )}
 
       {game.state.phase !== "READY_TO_SPIN" && game.state.phase !== "SPINNING" && game.state.phase !== "AWAITING_INTERVENTION" && game.state.phase !== "RESOLVING_EFFECTS" && <section className="context-tray" aria-label="当前决策" data-phase={game.state.phase}>
+        {game.state.phase !== "CHOOSING_SERVICE" && !firstTicket && <BuildWorkshopButton state={game.state} onCommand={game.send} />}
+        {!firstTicket && (game.state.phase === "CHOOSING_SERVICE" || isUpgradeScene || isRoomRest) && <StayPanel state={game.state} guidanceOnly />}
         {game.state.phase === "CHOOSING_SERVICE" && (
           <ServiceChoices state={game.state} onCommand={game.send} />
         )}
@@ -319,6 +352,7 @@ export function GameScreen({ seed, initialState, onHome, entry = "resume" }: Gam
               if (command.type === "CHOOSE_UPGRADE") installOrigin.current = captureInstallOrigin();
               game.send(command);
             }} currentEstimate={estimate} />
+            {firstTicket && <BuildWorkshopButton state={game.state} onCommand={game.send} />}
             <HelpButton title="本班小票" trigger="查看本班收支" className="console-receipt-key"><ShiftReceipt state={game.state} /></HelpButton>
             <HelpButton title="整备工具" trigger="整备工具" interactive><ActionBar state={game.state} onCommand={game.send} /></HelpButton>
             {game.state.exitUnlocked && !isRoomRest && <button className="cash-out-button" type="button" onClick={() => game.send({ type: "CASH_OUT" })}>结账看报告</button>}

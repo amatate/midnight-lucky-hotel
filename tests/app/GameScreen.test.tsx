@@ -170,7 +170,7 @@ describe("GameScreen", () => {
     }} />);
 
     expect(screen.getByRole("button", { name: "拉动老虎机" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: /准备 \/ 调注/ }));
+    await user.click(screen.getByRole("button", { name: /准备 \/ 工坊/ }));
     expect(screen.getByText("余额 ¥15 不足以支付当前激进下注 ¥20；可切换到保守下注 ¥5。")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "保守" }));

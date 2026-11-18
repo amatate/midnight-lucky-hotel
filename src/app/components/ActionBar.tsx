@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getLanguage } from "@/i18n/language";
 import { HelpButton, HelpFacts } from "@/app/components/HelpWindow";
 import { CabinetPartArt } from "@/app/components/CabinetArtwork";
 import { RouteBrief } from "@/app/components/RouteBrief";
@@ -96,7 +97,7 @@ export function ActionBar({ state, onCommand }: ActionBarProps): React.JSX.Eleme
               <button type="button" disabled={!foodIsLegal} onClick={() => onCommand(foodCommand)}>购买食物（¥{mealCost}）</button>
               <HelpButton title="购买食物"><HelpFacts cost={"立即支付 ¥" + mealCost + "（本关标准下注 ×0.75）。"}
                 effect={"接下来 3 转适用赔付 +50%；另向第" + (serviceReel + 1) + "轮加入食物，抽中后追加之后 3 转 +25%。"}
-                limit="每段限买一次，可在任意转动前购买；免费转也消耗加成次数。食物会暂时稀释原有图案；空转也扣次数，不退餐费。"
+                limit={getLanguage() === "en" ? "Once per round. Free spins and misses count. The dish blocks lines through it; other lines still pay." : "每段限买一次，免费转和空转也扣次数。餐盘占格不连线，其他线照算。"}
                 current={"余额 ¥" + state.bankroll + (foodIsLegal ? "，可购买。" : "，不足以支付餐费。")} /></HelpButton>
               <p className="action-hint">接下来 3 转 +50% · 本段还剩 {Math.max(0, getPaidSpinLimit(state) - state.baseSpinsInShift)} 次付费转。</p>
               {foodIsLegal && state.freeSpinQueue === 0 && state.bankroll - mealCost < getCurrentBet(state) && <p role="status">买餐后付不起当前下一注，请先留下注钱。</p>}

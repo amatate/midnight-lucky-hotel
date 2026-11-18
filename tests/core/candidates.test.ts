@@ -24,7 +24,7 @@ describe("generateCandidates", () => {
     expect(result).toEqual({
       candidates: {
         synergy: "fruit-salad",
-        pivot: "midnight-bell",
+        pivot: "blank-capacitor",
         wildcard: "martyr-coin"
       },
       rng: { value: 1199730266 }
@@ -62,7 +62,7 @@ describe("generateCandidates", () => {
     }
   });
 
-  it("counts equipped parts and repeated permanent reel modifications before service tie-breaking", () => {
+  it("uses equipped parts and present reel density rather than historical acquisitions", () => {
     const fruitDominant = candidateState({
       service: "chapel",
       partSlots: [
@@ -80,10 +80,15 @@ describe("generateCandidates", () => {
       partSlots: [{ id: "jam-jar", level: 1 }, null, null, null, null],
       acquiredUpgrades: ["seven-purification", "tithe-box"]
     });
-    expect(getDominantRoute(chapelDominant)).toBe("chapel");
+    expect(getDominantRoute(chapelDominant)).toBe("fruit");
+    expect(getDominantRoute({ ...chapelDominant, reels: [
+      ["seven", "seven", "seven", "wild", "blank", "bell"],
+      ["seven", "seven", "seven", "wild", "blank", "bell"],
+      ["seven", "seven", "seven", "wild", "blank", "bell"]
+    ] })).toBe("chapel");
   });
 
-  it("can use an acquired tag for synergy and falls back when the dominant route has no legal synergy", () => {
+  it("ignores obsolete acquired tags and falls back when the current route has no legal synergy", () => {
     const acquiredFruitTag = candidateState({
       service: "chapel",
       rng: { value: 0 },
@@ -97,7 +102,8 @@ describe("generateCandidates", () => {
       ]
     });
     expect(getDominantRoute(acquiredFruitTag)).toBe("chapel");
-    expect(UPGRADES[generateCandidates(acquiredFruitTag).candidates.synergy].route).toBe("fruit");
+    expect(UPGRADES[generateCandidates(acquiredFruitTag).candidates.synergy].route).toBe("chapel");
+    expect(generateCandidates(acquiredFruitTag)).toEqual(generateCandidates({ ...acquiredFruitTag, acquiredUpgrades: [] }));
 
     const blankReels = [
       ["blank", "blank", "blank", "blank", "blank", "blank"],
@@ -166,6 +172,17 @@ describe("generateCandidates", () => {
       expect(ids).not.toContain("tithe-box");
       expect(ids).not.toContain("ledger");
       expect(ids).not.toContain("statistics-terminal");
+      expect(ids).not.toContain("calculator");
+    }
+  });
+
+  it("does not re-offer max-level reserve parts and keeps information out of new offers", () => {
+    const state = candidateState({ workbench: { name: "Test", reserve: [{ id: "blank-dividend", level: 2 }, { id: "intervention-relay", level: 2 }] } });
+    for (let seed = 0; seed < 30; seed++) {
+      const ids = Object.values(generateCandidates({ ...state, rng: { value: seed } }).candidates);
+      expect(ids).not.toContain("blank-dividend");
+      expect(ids).not.toContain("intervention-relay");
+      expect((ids as UpgradeId[]).every((id) => UPGRADES[id].kind !== "tool")).toBe(true);
     }
   });
 });

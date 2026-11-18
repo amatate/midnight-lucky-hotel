@@ -4,6 +4,7 @@ import { LanguageSelector } from "@/app/components/LanguageSelector";
 import { AudioSettings } from "@/app/components/AudioSettings";
 import { GameGuide } from "@/app/components/GameGuide";
 import { FeedbackButton } from "@/app/components/FeedbackButton";
+import { BuildWorkshopButton } from "@/app/components/BuildWorkshop";
 import { downloadText } from "@/app/archive-copy";
 import { exportArchive } from "@/persistence/archives";
 import { UPGRADES } from "@/content/upgrades";
@@ -22,6 +23,7 @@ export function GameMenu({ game, onHome, onArchive, reduceFlash, onReduceFlash }
     <footer className="game-utilities">
       <nav className="game-guide-entry" aria-label="游戏工具">
         {onHome && <button type="button" onClick={onHome}>返回前台</button>}
+        <BuildWorkshopButton state={game.state} onCommand={game.send} />
         <HelpButton title="游戏介绍" trigger="玩法与术语" className="guide-open-button"><GameGuide /></HelpButton>
         <FeedbackButton seed={game.state.initialSeed} />
       </nav>

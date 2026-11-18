@@ -80,3 +80,19 @@ it("also translates L2 details after the UI strips the level prefix", () => {
     unmount();
   }
 });
+
+it("translates workshop entry and reserve replacement warnings, including dynamic part names", () => {
+  setLanguage("en", false);
+  for (const text of [
+    "准备 / 工坊", "服务 · 调注 · 试机", "（升级备用件，需换装才生效）",
+    "已持有 L1 → 本次升为 L2（升级备用件，需换装才生效）",
+    "将替换槽 2 的樱桃压榨机 L1；干预继电器会以 L1 装入该槽。旧件放入备用，自身蓄力清空；可在工坊换回来。",
+    "将替换槽 5 的空白股息 L2；水果沙拉会以 L1 装入该槽。两个备用槽都已满，旧件将移除，无法换回。",
+    "机台工坊（名称、备用槽、编排次数）"
+  ]) expect(translate(text), text).not.toMatch(/\p{Script=Han}/u);
+  const state: RunState = { ...createRun(8), workbench: { name: "Mine", reserve: [{ id: "salad-dressing", level: 1 }, null] } };
+  const copy = describeUpgrade(state, "salad-dressing");
+  expect(copy.available).toBe(true);
+  expect(copy.currentImpact).toContain("备用 L1");
+  expect(translate(copy.currentImpact)).not.toMatch(/\p{Script=Han}/u);
+});

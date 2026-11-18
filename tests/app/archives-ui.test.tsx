@@ -12,6 +12,36 @@ function start(): void {
   fireEvent.click(within(screen.getByRole("group", { name: "选择服务" })).getAllByRole("button")[0]!);
 }
 
+it("starts fresh nights, resumes the unchanged archive, and explicitly replays even seed zero", () => {
+  history.replaceState({}, "", "/?seed=0&lang=zh");
+  const home = () => fireEvent.click(within(screen.getByRole("navigation", { name: "机台导航" })).getByRole("button", { name: "返回前台" }));
+  try {
+    render(<App />);
+    start();
+    const original = activeRecord(readLibrary())!;
+    expect(original.snapshot.initialSeed).toBe(0);
+    home();
+    expect(location.search).toBe("?lang=zh");
+    fireEvent.click(screen.getByRole("button", { name: "继续游戏" }));
+    expect(activeRecord(readLibrary())!.snapshot).toEqual(original.snapshot);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "返回前台并保留进度" }));
+    fireEvent.click(screen.getByRole("button", { name: "用本局种子重新入住" }));
+    const replay = activeRecord(readLibrary())!;
+    expect(replay.snapshot.initialSeed).toBe(0);
+    expect(replay.id).not.toBe(original.id);
+    expect(replay.snapshot.spinHistory).toHaveLength(0);
+    home();
+    expect(screen.getByLabelText("游戏种子")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
+    const fresh = activeRecord(readLibrary())!;
+    expect(fresh.snapshot.initialSeed).not.toBe(0);
+    home();
+    fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
+    expect(activeRecord(readLibrary())!.snapshot.initialSeed).not.toBe(fresh.snapshot.initialSeed);
+    expect(readLibrary().runs.find(run => run.id === original.id)!.snapshot).toEqual(original.snapshot);
+  } finally { history.replaceState({}, "", "/"); }
+});
+
 it("shows gameplay choices in the full log and returns without advancing the game", () => {
   render(<App seed={12} />);
   start();

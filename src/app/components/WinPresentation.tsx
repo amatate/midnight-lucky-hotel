@@ -41,6 +41,9 @@ function totalTriggers(state: RunState, partId: Extract<GameEvent, { type: "PART
 export function settlementEventLabel(state: RunState, event: GameEvent | null): string {
   if (event === null) return "没有结算事件";
   switch (event.type) {
+    case "PARTS_MOVED":
+    case "REEL_SYMBOLS_SWAPPED":
+    case "BUILD_NAMED":
     case "STARTER_GRANTED":
     case "ROOM_ROUND_COMPLETED":
     case "ROOM_ROUND_STARTED":
@@ -48,6 +51,8 @@ export function settlementEventLabel(state: RunState, event: GameEvent | null): 
     case "MEAL_SERVED":
     case "PART_UPGRADED":
     case "ROOM_ENTERED":
+    case "ROOM_BILL_READY":
+    case "ROOM_RENT_PAID":
     case "ROOM_COMPLETED": return eventLabel(event);
     case "BET_PLACED": return `下注 ¥${event.amount}`;
     case "REELS_DRAWN": return "真实转轮结果已停稳";

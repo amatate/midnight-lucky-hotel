@@ -6,6 +6,7 @@ import { generateContract } from "@/core/contracts";
 import type { DispatchResult, GameCommand } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
 import { roundMoney } from "@/core/progression";
+import { clearedPartCounters, getReserveParts } from "@/core/workbench";
 import type {
   PartId,
   ReelIndex,
@@ -155,8 +156,23 @@ function acquirePart(state: RunState, id: PartId): DispatchResult | RunState {
     return { ...state, partSlots };
   }
 
+  const reserve = getReserveParts(state);
+  const reserveSlot = reserve.findIndex((part) => part?.id === id);
+  if (reserveSlot >= 0) {
+    if (reserve[reserveSlot]!.level === 2) return rejected(state, "RESOURCE_EXHAUSTED", "part is already level two");
+    const nextReserve = [...reserve] as [typeof reserve[0], typeof reserve[1]];
+    nextReserve[reserveSlot] = { id, level: 2 };
+    return { ...state, workbench: { name: "", ...state.workbench, reserve: nextReserve } };
+  }
+
   const emptySlot = state.partSlots.findIndex((part) => part === null);
-  if (emptySlot < 0) return rejected(state, "RESOURCE_EXHAUSTED", "part inventory is full");
+  if (emptySlot < 0) {
+    const emptyReserve = reserve.findIndex((part) => part === null);
+    if (emptyReserve < 0) return rejected(state, "RESOURCE_EXHAUSTED", "工作槽与备用槽都已满；请选择要替换的部件。");
+    const nextReserve = [...reserve] as [typeof reserve[0], typeof reserve[1]];
+    nextReserve[emptyReserve] = { id, level: 1 };
+    return { ...state, workbench: { name: "", ...state.workbench, reserve: nextReserve } };
+  }
   const partSlots = state.partSlots.map((part, slot) =>
     slot === emptySlot ? { id, level: 1 as const } : part
   ) as unknown as RunState["partSlots"];
@@ -170,17 +186,19 @@ function replacePart(state: RunState, id: PartId, replaceSlot: number): Dispatch
   if (state.partSlots.some((part) => part === null)) {
     return rejected(state, "INVALID_TARGET", "replacement requires a full part inventory");
   }
-  if (state.partSlots.some((part) => part?.id === id)) {
+  if ([...state.partSlots, ...getReserveParts(state)].some((part) => part?.id === id)) {
     return rejected(state, "INVALID_TARGET", "duplicate part must be upgraded in place");
   }
   const partSlots = state.partSlots.map((part, slot) =>
     slot === replaceSlot ? { id, level: 1 as const } : part
   ) as unknown as RunState["partSlots"];
-  const removed = state.partSlots[replaceSlot]?.id;
-  const counters = { ...state.counters,
-    ...(removed === "harvest-vat" ? { harvestCharge: 0 } : {}),
-    ...(removed === "votive-candle" ? { votiveCharge: 0 } : {}) };
-  return { ...state, partSlots, counters };
+  const removed = state.partSlots[replaceSlot]!;
+  const { counters } = clearedPartCounters(state, [removed.id]);
+  const reserve = [...getReserveParts(state)] as [typeof removed | null, typeof removed | null];
+  const emptyReserve = reserve.findIndex((part) => part === null);
+  if (emptyReserve >= 0) reserve[emptyReserve] = removed;
+  return { ...state, partSlots, counters,
+    ...(emptyReserve < 0 ? {} : { workbench: { name: "", ...state.workbench, reserve } }) };
 }
 
 function acquireTool(state: RunState, id: UpgradeId): DispatchResult | RunState {
@@ -295,12 +313,16 @@ function applyUpgradeCommand(state: RunState, choice: UpgradeChoice, command: Ga
   }
 
   const definition = UPGRADES[choice.id];
-  if (!definition.requires(state)) {
+  const heldPart = definition.kind === "part"
+    && [...state.partSlots, ...getReserveParts(state)].find((part) => part?.id === choice.id);
+  // Prerequisites gate discovering new hardware, not upgrading a part already
+  // owned in reserve after its companion was temporarily shelved.
+  if (!heldPart && !definition.requires(state)) {
     return rejected(state, "INVALID_TARGET", "upgrade prerequisites are not met");
   }
   if (
     definition.kind === "part" &&
-    state.partSlots.some((part) => part?.id === choice.id && part.level === 2)
+    [...state.partSlots, ...getReserveParts(state)].some((part) => part?.id === choice.id && part.level === 2)
   ) {
     return rejected(state, "RESOURCE_EXHAUSTED", "part is already level two");
   }

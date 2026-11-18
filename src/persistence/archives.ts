@@ -21,8 +21,10 @@ const PRE_ROUTE_KITS_RULES = "rules-1f79cf61a16111a4";
 // Unpublished UI-copy build. Its tool explanation accidentally lived in content/.
 // Keep the public rule fingerprint intact and offer an explicit, lossless fork.
 const LOCAL_TOOL_COPY_RULES = "rules-26033f2e5a3a637b";
+const PRE_STAY_RULES = "rules-a3d7519aafedd7f5";
+const PRE_WORKBENCH_RULES = "rules-845e52cdfe9b1204";
 const LOG_FIELDS = [
-  "hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "expenses", "blockReelAdditions",
+  "hotel", "stay", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "workbench", "expenses", "blockReelAdditions",
   "phase", "shift", "afterHoursLevel", "baseSpinsInShift", "bankroll", "shiftWager", "shiftPayout",
   "betMode", "rng", "tips", "interventionPoints", "agitation", "omen", "reels", "temporaryReelAdditions",
   "pendingSpin", "pendingPrayer", "freeSpinQueue", "service", "serviceCandidates", "currentCandidates",
@@ -198,9 +200,9 @@ function replaceRecord(library: ArchiveLibrary, record: RunArchive): ArchiveLibr
   };
 }
 
-export function startArchivedRun(library: ArchiveLibrary, seed: number): ArchiveLibrary {
+export function startArchivedRun(library: ArchiveLibrary, seed: number, stay = false): ArchiveLibrary {
   if (!validSeed(seed)) throw new Error("种子必须是 0 到 4294967295 之间的整数。");
-  const record = makeRecord(createRun(seed), "new", "新夜班 · " + seed);
+  const record = makeRecord(createRun(seed, stay), "new", (stay ? "入住旅程 · " : "新夜班 · ") + seed);
   return writeLibrary({ ...replaceRecord(library, record), activeId: record.id });
 }
 
@@ -215,7 +217,7 @@ export function restoreArchive(library: ArchiveLibrary, source: RunArchive): Arc
 /** Explicit opt-in checkpoint migration, never a replay of old commands under new rules. */
 export function canMigrateArchive(source: RunArchive): boolean {
   const state = source.snapshot;
-  if (source.rulesVersion === LOCAL_TOOL_COPY_RULES && source.rulesVersion !== RULES_VERSION && state.hotel !== undefined) return true;
+  if ([LOCAL_TOOL_COPY_RULES, PRE_STAY_RULES, PRE_WORKBENCH_RULES].includes(source.rulesVersion) && source.rulesVersion !== RULES_VERSION && state.hotel !== undefined) return true;
   if (!["rules-76b3ccda2416e7f9", "rules-705e0a792a2c3847", PRE_ROOM_EXPANSION_RULES, PRE_BUILD_DIVERSITY_RULES, PRE_GARDEN_ROUNDS_RULES, PRE_JOURNEY_RULES, PRE_ROUTE_KITS_RULES].includes(source.rulesVersion)
     || source.rulesVersion === RULES_VERSION || state.hotel === undefined) return false;
   if ([PRE_JOURNEY_RULES, PRE_ROUTE_KITS_RULES].includes(source.rulesVersion) && state.phase === "CHOOSING_SERVICE") return true;
@@ -232,7 +234,7 @@ export function canMigrateArchive(source: RunArchive): boolean {
 
 export function migrateArchive(library: ArchiveLibrary, source: RunArchive): ArchiveLibrary {
   if (!isRecord(source) || !canMigrateArchive(source)) throw new Error("仅支持已知旧版本的安全检查点迁移；原档案没有改变。");
-  if (source.rulesVersion === LOCAL_TOOL_COPY_RULES) {
+  if ([LOCAL_TOOL_COPY_RULES, PRE_STAY_RULES, PRE_WORKBENCH_RULES].includes(source.rulesVersion)) {
     if (decodeRunStateV2(source.snapshot) === null) throw new Error("迁移检查点校验失败，原档案没有改变。");
     const record: RunArchive = { ...makeRecord(source.snapshot, "restored", source.name.slice(0, 60) + " · 新版续玩"), parentId: source.id };
     return writeLibrary({ ...replaceRecord(library, record), activeId: record.id });

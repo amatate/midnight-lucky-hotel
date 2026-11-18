@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "@/app/App";
 
 const appStyles = readFileSync(resolve(process.cwd(), "src/app/styles.css"), "utf8");
@@ -9,7 +9,19 @@ beforeEach(() => localStorage.clear());
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   document.querySelectorAll("[data-task7-safe-area-style]").forEach((style) => style.remove());
+});
+
+it("starts a room at the top instead of retaining the reception's scroll", () => {
+  render(<App />);
+  const scroll = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  vi.spyOn(window, "scrollY", "get").mockReturnValue(400);
+  fireEvent.click(screen.getByRole("button", { name: "开始新局" }));
+  expect(scroll).toHaveBeenCalledWith({ top: 0, left: 0, behavior: "instant" });
+  scroll.mockClear();
+  fireEvent.click(within(screen.getByRole("group", { name: "选择服务" })).getAllByRole("button")[0]!);
+  expect(scroll).toHaveBeenCalledWith({ top: 0, left: 0, behavior: "instant" });
 });
 
 it("opens the hotel front desk and starts a game without discarding history", () => {

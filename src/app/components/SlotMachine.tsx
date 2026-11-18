@@ -1,11 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SymbolFace } from "@/app/components/SymbolFace";
+import { HotelDrums } from "@/app/components/HotelDrums";
 import { PAYLINES } from "@/core/paylines";
 import type { BoardInterventionController } from "@/app/useBoardIntervention";
 import type { Grid, LineWin, ReelIndex, RowIndex, RunState, SymbolId } from "@/core/types";
 import type { ReelMotionPlan } from "@/presentation/reel-timeline";
 import { playSfx } from "@/presentation/audio";
 import "@/app/drums.css";
+import { openingDisplay } from "@/app/hotel-opening";
 
 export interface SlotMachineProps {
   readonly state: RunState;
@@ -34,10 +36,6 @@ interface StableObservation {
 }
 
 const REEL_INDICES = [0, 1, 2] as const;
-
-function stripPreview(state: RunState): Grid {
-  return REEL_INDICES.map((reel) => REEL_INDICES.map((row) => state.reels[reel][row] ?? "blank")) as unknown as Grid;
-}
 
 function cellKey(reel: ReelIndex, row: RowIndex): string {
   return `${reel}-${row}`;
@@ -111,8 +109,12 @@ export function SlotMachine({
   const explicitReplay = displayGrid !== null && displayGrid !== undefined;
   const activePlan = state.phase === "SPINNING" && !explicitReplay ? motionPlan : null;
   const timerKey = motionTimerIdentity(activePlan, reducedMotion);
+  const startedAt = useMemo(() => performance.now(), [timerKey]);
+  const [drumsReady, setDrumsReady] = useState(false);
   const immediateGrid = explicitReplay ? displayGrid : state.pendingSpin?.draw.grid;
-  const [stableGrid, setStableGrid] = useState<Grid>(() => immediateGrid ?? idleGrid ?? stripPreview(state));
+  const idle = useMemo(() => idleGrid ?? state.spinHistory.at(-1)?.finalGrid ?? openingDisplay(state),
+    [idleGrid, state.spinHistory, state.reels, state.initialSeed]);
+  const [stableGrid, setStableGrid] = useState<Grid>(() => immediateGrid ?? idle);
   const observation = useRef<StableObservation>({
     initialSeed: state.initialSeed,
     commandHistoryLength: state.commandHistory.length,
@@ -133,11 +135,11 @@ export function SlotMachine({
     if (explicitReplay) {
       nextStable = displayGrid;
     } else if (resetRun) {
-      nextStable = state.pendingSpin?.draw.grid ?? idleGrid ?? stripPreview(state);
+      nextStable = state.pendingSpin?.draw.grid ?? idle;
     } else if (activePlan === null && state.pendingSpin !== null) {
       nextStable = state.pendingSpin.draw.grid;
     } else if (state.pendingSpin === null && !previous.hadPendingSpin && state.reels !== previous.reels) {
-      nextStable = stripPreview(state);
+      nextStable = idle;
     }
 
     if (nextStable !== null && nextStable !== stableGrid) setStableGrid(nextStable);
@@ -147,7 +149,7 @@ export function SlotMachine({
       hadPendingSpin: state.pendingSpin !== null,
       reels: state.reels
     };
-  }, [activePlan, displayGrid, explicitReplay, idleGrid, stableGrid, state]);
+  }, [activePlan, displayGrid, explicitReplay, idle, stableGrid, state]);
 
   useEffect(() => {
     if (activePlan === null || timerKey === null) {
@@ -177,16 +179,22 @@ export function SlotMachine({
   const visibleGrid = immediateGrid ?? stableGrid;
   const targetGrid = state.pendingSpin?.draw.grid ?? visibleGrid;
   const pausedSpinning = state.phase === "SPINNING" && activePlan === null && !explicitReplay;
+  const shownGrid = REEL_INDICES.map(reel => (board?.preview?.grid ?? (explicitReplay ? visibleGrid
+    : currentCycleReveals.has(reel) || cycleComplete ? targetGrid : activePlan === null ? visibleGrid : stableGrid))[reel]) as unknown as Grid;
 
   return (
     <section
       className={`slot-machine continuous-drums${activePlan !== null || pausedSpinning ? " is-spinning" : ""}${reducedMotion ? " is-reduced" : ""}${safeShakePx > 0 ? " is-feedback-shaking" : ""}`}
       aria-label="老虎机转轮"
       data-motion-kind={activePlan?.kind ?? (pausedSpinning ? "paused" : "none")}
+      data-renderer={drumsReady && !reducedMotion ? "3d" : "2d"}
       data-coin-source="true"
       data-board-preview={board?.preview?.grid != null ? "kick" : undefined}
       style={{ "--cabinet-shake": `${safeShakePx}px` } as React.CSSProperties}
     >
+      <HotelDrums frame={{ grid: shownGrid, startGrid: idle, target: targetGrid,
+        strips: state.pendingSpin?.draw.strips ?? state.reels, plan: activePlan, paused: pausedSpinning, startedAt }}
+        reducedMotion={reducedMotion} onReady={setDrumsReady} />
       {REEL_INDICES.map((reel) => {
         const isMoving = activePlan?.spinningReels.includes(reel) === true;
         const isRevealed = isMoving && currentCycleReveals.has(reel);

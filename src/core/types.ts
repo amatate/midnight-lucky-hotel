@@ -92,6 +92,8 @@ export type PartId =
   | "blank-capacitor"
   | "warranty-fraud"
   | "overload-motor"
+  | "intervention-relay"
+  | "blank-dividend"
   | "safety-fuse";
 
 export type ReceiptFormula =
@@ -191,6 +193,8 @@ export type UpgradeId =
   | "blank-capacitor"
   | "warranty-fraud"
   | "overload-motor"
+  | "intervention-relay"
+  | "blank-dividend"
   | "pruning-shears"
   | "carbon-copy"
   | "safety-fuse"
@@ -364,7 +368,7 @@ export interface HotelProgress {
   readonly roomRewardsGranted?: { readonly 2: 0 | 1 | 2; readonly 3: 0 | 1 | 2 };
   readonly challenge: {
     readonly tier: RoomTier;
-    readonly status: "playing" | "cleared" | "failed";
+    readonly status: "playing" | "cleared" | "failed" | "billing";
     /** Captured rules preserve the meaning of a historical room result. */
     readonly target?: Money;
     readonly paidSpins?: PaidSpinLimit;
@@ -375,8 +379,22 @@ export interface HotelProgress {
   } | null;
 }
 
+export interface WorkbenchAddress {
+  readonly area: "machine" | "reserve";
+  readonly slot: number;
+}
+
+export interface WorkbenchState {
+  readonly reserve: readonly [PartInstance | null, PartInstance | null];
+  readonly name: string;
+  /** The upcoming/current paid block for which the free reel edit has been used. */
+  readonly reelEditStamp?: string;
+}
+
 export interface RunState {
   readonly schemaVersion: 2;
+  /** Opt-in narrative journey. Absent on old saves; never retrofit rent onto them. */
+  readonly stay?: { readonly version: 1; readonly paid: readonly (0 | RoomTier)[] };
   readonly initialSeed: number;
   readonly rng: RngState;
   readonly phase: RunPhase;
@@ -427,6 +445,8 @@ export interface RunState {
   readonly freeAfterHoursLevel?: number;
   readonly blockStartBankroll?: Money;
   readonly workshop?: { readonly cost: Money; readonly status: "shopping" | "finished" } | null;
+  /** Absent on historical snapshots; initialized only by an explicit workbench action. */
+  readonly workbench?: WorkbenchState;
   readonly exitUnlocked: boolean;
   readonly currentCandidates: CandidateSet | null;
   readonly acquiredUpgrades: readonly UpgradeId[];
@@ -434,7 +454,7 @@ export interface RunState {
   readonly spinHistory: readonly SpinReceipt[];
   readonly nextSpinOrdinal: number;
   readonly attribution: Readonly<Record<AttributionSource, number>>;
-  readonly expenses: Readonly<Record<ExpenseSource, Money>> & { readonly workshop?: Money };
+  readonly expenses: Readonly<Record<ExpenseSource, Money>> & { readonly workshop?: Money; readonly rent?: Money };
   readonly shiftHistory: readonly ShiftSnapshot[];
   readonly commandHistory: readonly GameCommand[];
 }

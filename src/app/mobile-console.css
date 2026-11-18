@@ -35,6 +35,7 @@
 .fixed-console .cabinet-shell:not([data-room-tier="house"])::before { border-top-width: 1px; border-inline-width: 1px; border-bottom-width: 6px; }
 .fixed-console .cabinet-marquee, .fixed-console .cabinet-shell:not([data-room-tier="house"]) > .cabinet-marquee { top: 12px; inset-inline: 10%; font: 600 .75rem "Barlow Condensed", "Smiley Sans", sans-serif; }
 .fixed-console .room-crown-art { top: -8px; height: 52px; opacity: 1; }
+.console-reel-keys .meal-refill-label { color: #e6cb90; font-size: .6875rem; white-space: nowrap; }
 .fixed-console .cabinet-shell:not([data-room-tier="house"]) > .cabinet-marquee { top: 25px; font-style: oblique; font-size: .75rem; }
 .fixed-console .hud { grid-row: 1; position: relative; min-width: 0; display: grid; grid-template-rows: minmax(0, 1fr); gap: 0; }
 .console-resource-key { position: absolute; top: calc(100% + 4px); left: 0; width: 52%; height: 44px; min-height: 44px; z-index: 2; padding: 2px 4px; color: #f2e3c0; border: 0; background: transparent; text-align: left; font: .8125rem "PingFang SC", sans-serif; }
@@ -131,7 +132,10 @@
 .console-single-mode { height: 44px; padding: 3px 48px 3px 4px; display: flex; align-items: center; gap: 12px; color: #f2e1b4; font: oblique 400 1rem "Smiley Sans", sans-serif; }
 .console-single-mode span { font: .75rem "PingFang SC", sans-serif; color: #d1c4a4; }
 .console-event-help { position: absolute; top: 3px; right: 0; padding: 4px; min-width: 44px; color: #e6d6b3; background: #13291f; border-color: #796b4b; font: oblique 400 .8125rem "Smiley Sans", sans-serif; }
-.console-discovery { position: absolute; bottom: calc(var(--console-deck) + var(--console-parts) + 28px); left: 22px; max-width: calc(100% - 100px); display: flex; align-items: center; background: #1d392c; border: 1px solid #d8c48f; box-shadow: 0 3px 10px #0009; z-index: 9; }
+.fixed-console[data-playfield="true"]:has(> .console-discovery) { grid-template-rows:44px minmax(0,1fr) auto; }
+/* Discoveries have their own row, never cover reel keys or intervention controls. */
+.console-discovery { position: relative; grid-column:1; grid-row:3; margin:0 12px; min-width:0; display: flex; align-items: center; background: #1d392c; border: 1px solid #d8c48f; box-shadow: 0 3px 10px #0009; z-index: 9; }
+.console-discovery > button:first-child { flex:1; min-width:0; text-align:left; }
 .console-discovery button { font-size: .8125rem; padding: 5px; color: #fff0cb; min-height: 44px; background: transparent; border: 0; }
 .console-discovery > button { min-width: 44px; }
 .fixed-console[data-playfield="false"] .console-discovery { position: relative; inset: auto; width: fit-content; max-width: 100%; margin: 6px 0; box-shadow: none; }

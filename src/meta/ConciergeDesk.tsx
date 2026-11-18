@@ -4,21 +4,23 @@ import { useLanguage } from "@/i18n/language";
 import { MioPortrait, MIO_EXPRESSIONS, type MioExpression } from "./MioPortrait";
 import { QUESTS, questProgress, type Guestbook, type GuestQuest } from "./guestbook";
 import { KeepsakeArt } from "@/app/components/UiArtwork";
+import type { RunState } from "@/core/types";
+import { mioBrief } from "@/story/stay-copy";
+import { RoomCardCollection } from "@/story/StayPanel";
+import { MIO_BIO, MIO_CHAT } from "@/story/mio-character";
 
-export function ConciergeDesk({ book, onTasks, onMeet, hasRun }: { readonly book: Guestbook; readonly onTasks: () => void; readonly onMeet: () => void; readonly hasRun: boolean }): React.JSX.Element {
+export function ConciergeDesk({ book, onTasks, onMeet, hasRun, state }: { readonly book: Guestbook; readonly onTasks: () => void; readonly onMeet: () => void; readonly hasRun: boolean; readonly state?: RunState | undefined }): React.JSX.Element {
   const english = useLanguage() === "en"; const t = (zh: string, en: string) => english ? en : zh;
   const [topic, setTopic] = useState(0);
   const ready = QUESTS.filter(q => !book.claimed.includes(q.id) && questProgress(q, book) >= q.target).length;
   const lines = [
-    ready ? t(`你有 ${ready} 枚纪念章可以领取。我替你留在前台了。`, `You have ${ready} keepsakes ready. I have kept them here for you.`)
-      : hasRun ? t("欢迎回来。房间还为你留着，今晚想接着改造，还是只听听转轮的声音？", "Welcome back. Your room is waiting. More tinkering tonight, or just the sound of the reels?")
-      : book.played.length > 0 ? t("欢迎回来。手册里记着你的下一站；想换台机器，还是开始第一次酒店之旅？", "Welcome back. Your guestbook has the next stop. Another cabinet, or your first hotel adventure?")
-      : t("我是澪，负责这里的夜班。先转一轮，学会看账；不必中奖，也能带走第一枚印章。", "I am Mio, your night receptionist. Try a spin and learn the ledger. Your first stamp does not need a win."),
-    t("经典机台只享受转动；酒店闯关可以改造转轮、搭配部件。两边的筹码各自保存。", "Classic cabinets are about the reels. Hotel runs let you rebuild them and combine parts. They keep separate credits."),
-    t("赔付包含下注。本转收到 10、也花了 10，就是回本。手气不顺时，随时回来坐坐。", "Payout includes your stake. Spend 10 and receive 10: that is break-even. You can always come back here for a rest."),
-    t("这串钥匙只开房门，不开好运。收藏册里的每一页，才是你在这里留下的故事。", "These keys open rooms, not good luck. Every page of your guestbook is a story you made here.")
+    state?.stay ? mioBrief(state, english).text : ready ? t(`客人，有 ${ready} 枚纪念章等你领取。我把印章都摆好了，就差你来伸手啦。`, `Dear guest, ${ready} keepsakes are ready! I have the stamps lined up; just hold out your hand.`)
+      : hasRun ? t("客人回来啦！房间还留着。今晚想继续改造，还是来听我讲讲楼上的好房间？我保证只介绍，不乱收钱。", "Welcome back, dear guest! Your room is waiting. More tinkering, or a little talk about the finer rooms upstairs? An introduction is free, I promise.")
+      : book.played.length > 0 ? t("客人，又见面啦。换台机器，还是试试酒店旅程？房卡经过我手时，可都是擦亮了的。", "Back again, dear guest! Another cabinet, or a hotel adventure? Every keycard that passes through my hands gets a polish.")
+      : t("客人，欢迎！我是前台澪，房卡和账本都归我管。带着 ¥100 从标准房开始，完成任务、交好房费就能领房卡。皇家套房的水晶灯可漂亮了——咳，先看今晚的任务。", "Welcome, dear guest! I am Mio; keycards and accounts are my department. Start with ¥100 in the Standard Room, complete the task and pay the fee for its card. The Royal Suite has lovely chandeliers—ahem. Tonight's task first."),
+    ...MIO_CHAT.map(line => line.text[english ? 1 : 0])
   ];
-  const expression: MioExpression = topic === 1 || topic === 2 ? "thinking" : topic === 3 ? "smile" : ready ? "delighted" : "welcome";
+  const expression: MioExpression = topic === 0 && state?.stay ? mioBrief(state, english).expression : topic > 0 ? MIO_CHAT[topic - 1]!.expression : ready ? "delighted" : "welcome";
   return <section className="concierge-scene" aria-label={t("与前台澪交谈", "Talk to Mio at reception")}>
     <div className="concierge-stage">
       <div className="concierge-scene-copy"><p>AFTER HOURS · 1313</p><h2>{t("深夜好。", "Good evening.")}<br />{t("这里总有一盏灯。", "The light is still on.")}</h2><span>{t("澪 · 夜班接待员", "MIO · NIGHT RECEPTION")}</span></div>
@@ -45,6 +47,7 @@ export function GuestbookPage({ book, onClaim, onGo, error }: {
   return <section className="guestbook-page" aria-label={t("住客手册", "Guestbook")}>
     <header className="guestbook-heading"><p>THE MIDNIGHT GUESTBOOK</p><h2 tabIndex={-1}>{t("把今晚，留成一页故事。", "A little story to take home.")}</h2><span>{t("已珍藏", "Collected")} {book.claimed.length} / {QUESTS.length}</span></header>
     <p className="guestbook-principle">{t("没有每日打卡，没有连胜要求。进度跨局保留，奖励只作纪念，不增加中奖概率。", "No daily streaks. No winning streaks. Progress carries across runs; keepsakes never change the odds.")}</p>
+    <RoomCardCollection cards={book.roomCards ?? []} />
     <div className="guestbook-segments" role="group" aria-label={t("手册分类", "Guestbook sections")}>
       {(["short", "long", "keepsakes"] as const).map(key => <button type="button" key={key} aria-pressed={view === key} onClick={() => { setView(key); setSelected(null); }}>{key === "short" ? t("今夜小目标", "Tonight") : key === "long" ? t("长住心愿", "Long stay") : t("纪念收藏", "Keepsakes")}</button>)}
     </div>
@@ -73,10 +76,10 @@ export function GuestbookPage({ book, onClaim, onGo, error }: {
             if (questProgress(selected, book) >= selected.target) setView(selected.kind); else onGo(selected);
           }}>{questProgress(selected, book) >= selected.target ? t("领取纪念章", "Collect keepsakes") : t("去完成", "Go explore")}</button></>}
       </div>}
-      <details className="mio-gallery"><summary>{t("认识澪 · 四种表情立绘", "Meet Mio · four expression portraits")}</summary>
+      <details className="mio-gallery"><summary>{t("认识澪 · 六种表情立绘", "Meet Mio · six expression portraits")}</summary>
         <div className="mio-gallery-stage"><MioPortrait expression={expression} framing="full" /></div>
-        <div className="mio-gallery-options" role="group" aria-label={t("表情", "Expression")}>{MIO_EXPRESSIONS.map((value, i) => <button key={value} type="button" aria-pressed={expression === value} onClick={() => setExpression(value)}>{(english ? ["Welcome", "Smile", "Thinking", "Delighted"] : ["迎宾", "微笑", "思考", "惊喜"])[i]}</button>)}</div>
-        <p>{t("澪，27 岁。喜欢安静的夜班、黄铜钥匙和认真看账的客人。她负责接待，不承诺好运。", "Mio, 27. She likes quiet night shifts, brass keys and guests who read the ledger. She offers a welcome, never a promise of luck.")}</p>
+        <div className="mio-gallery-options" role="group" aria-label={t("表情", "Expression")}>{MIO_EXPRESSIONS.map((value, i) => <button key={value} type="button" aria-pressed={expression === value} onClick={() => setExpression(value)}>{(english ? ["Welcome", "Smile", "Thinking", "Delighted", "Concerned", "Proud"] : ["迎宾", "微笑", "思考", "惊喜", "关切", "欣慰"])[i]}</button>)}</div>
+        <p>{MIO_BIO[n]}</p>
       </details>
     </>}
   </section>;

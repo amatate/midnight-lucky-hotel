@@ -17,9 +17,13 @@ import { getBuildFit } from "@/app/build-fit";
 import { RouteBadge, UpgradeArt } from "@/app/components/UiArtwork";
 import { HOTEL_ROOMS, nextRoomTier } from "@/content/hotel";
 import { dispatchCommand } from "@/core/run";
+import { getReserveParts } from "@/core/workbench";
 import type { GameCommand } from "@/core/commands";
 import type { ReelIndex, RunState, UpgradeId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
+import { firstTicketCopy, isFirstTicket, cherryExample } from "@/app/first-upgrade";
+import { getLanguage } from "@/i18n/language";
+import "@/app/first-ticket.css";
 
 const ROLE_LABELS = {
   synergy: "强化",
@@ -37,6 +41,8 @@ interface UpgradePickerProps {
 export function UpgradePicker({ state, onCommand, currentEstimate = null, compact = false }: UpgradePickerProps): React.JSX.Element | null {
   const offers = state.currentCandidates;
   const workshop = state.workshop?.status === "shopping" ? state.workshop : null;
+  const reserveParts = getReserveParts(state);
+  const allParts = [...state.partSlots, ...reserveParts];
   const [selectedId, setSelectedId] = useState<UpgradeId | null>(null);
   const [reel, setReel] = useState<ReelIndex>(0);
   const [secondReel, setSecondReel] = useState<ReelIndex>(1);
@@ -61,12 +67,15 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
   const previewEstimate = useUpgradePreviewEstimate(state, selectedChoice);
 
   if (offers === null) return null;
+  const first = compact && isFirstTicket(state);
+  const english = getLanguage() === "en";
+  const example = first && selectedId === "cherry-press" ? cherryExample(state, english) : null;
   const canReroll = dispatchCommand(state, { type: "REROLL_CANDIDATES" }).ok;
   const nextTier = nextRoomTier(state);
   const nextReserve = nextTier === null ? 0 : HOTEL_ROOMS[nextTier].bet * HOTEL_ROOMS[nextTier].paidSpins;
 
   const fullNewPart = selectedId !== null && selectedDefinition?.kind === "part" &&
-    state.partSlots.every((part) => part !== null) && !state.partSlots.some((part) => part?.id === selectedId);
+    state.partSlots.every((part) => part !== null) && !allParts.some((part) => part?.id === selectedId);
   const selectedTarget = selectedChoice?.action === "apply" ? selectedChoice.target : undefined;
   const selectedPresentation = selectedId === null
     ? null
@@ -78,7 +87,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
     ? state.partSlots[selectedChoice.replaceSlot] ?? null
     : null;
   const selectedImpact = selectedChoice?.action === "replace" && selectedDefinition !== null && replacedPart !== null
-    ? `将替换槽 ${selectedChoice.replaceSlot + 1} 的${UPGRADES[replacedPart.id].name} L${replacedPart.level}；${selectedDefinition.name}会以 L1 装入该槽。`
+    ? `将替换槽 ${selectedChoice.replaceSlot + 1} 的${UPGRADES[replacedPart.id].name} L${replacedPart.level}；${selectedDefinition.name}会以 L1 装入该槽。${reserveParts.some((part) => part === null) ? "旧件放入备用，自身蓄力清空；可在工坊换回来。" : "两个备用槽都已满，旧件将移除，无法换回。"}`
     : selectedPresentation?.currentImpact ?? "";
 
   const choose = (id: UpgradeId): void => {
@@ -90,12 +99,12 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
   };
 
   return (
-    <div className={`upgrade-picker${compact ? " console-upgrade-picker" : ""}`} role="group" aria-label="选择升级">
+    <div className={`upgrade-picker${compact ? " console-upgrade-picker" : ""}${first ? " first-ticket-book" : ""}`} role="group" aria-label="选择升级">
       <header className="upgrade-header">
         <div>
-          <p className="tray-kicker">凌晨维修票</p>
-          <h2>{workshop === null ? "选择一项升级" : "金币整备 · 三选一"}</h2>
-          <p>{workshop === null ? "三选一 · 先查看，再确认安装" : `每项整备 ¥${workshop.cost}，确认才扣款；奉献箱另有 ¥10 自带消耗。本次结算限一次。`}</p>
+          <p className="tray-kicker">{first ? english ? "MIO · 01 / SERVICE SLIP" : "MIO · 01 / 维修票" : "凌晨维修票"}</p>
+          <h2>{first ? english ? "Your first upgrade" : "第一次强化" : workshop === null ? "选择一项升级" : "金币整备 · 三选一"}</h2>
+          <p>{first ? english ? "“Pick one, guest. Looking won't install it.”" : "「客人，三张票挑一张。先看看，点开不算选。」" : workshop === null ? "三选一 · 先查看，再确认安装" : `每项整备 ¥${workshop.cost}，确认才扣款；奉献箱另有 ¥10 自带消耗。本次结算限一次。`}</p>
           {workshop !== null && <p>当前钱包 ¥{state.bankroll}；不购买离开不扣钱，也不返小费。</p>}
           {workshop !== null && selectedId !== null && <p>购买后余额 ¥{state.bankroll - workshop.cost - (selectedId === "tithe-box" ? 10 : 0)}；下一房备付金 ¥{nextReserve}（餐费另算）。{state.bankroll - workshop.cost - (selectedId === "tithe-box" ? 10 : 0) < nextReserve ? "购买后不足以立即入房。" : ""}</p>}
           {!compact && <p>花 1 小费重抽，至少换入 1 个不同选项；没有新选项不扣费。也可攒 3 枚精修核心。</p>}
@@ -112,11 +121,14 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
         {(Object.entries(offers) as [keyof typeof offers, UpgradeId][]).map(([role, id]) => {
           const definition = UPGRADES[id];
           const presentation = describeUpgrade(state, id);
-          const ownedLevelOne = definition.kind === "part" && state.partSlots.some((part) => part?.id === id && part.level === 1);
+          const ownedLevelOne = definition.kind === "part" && allParts.some((part) => part?.id === id && part.level === 1);
           const selected = selectedId === id;
+          const ticket = first ? firstTicketCopy(state, id, english) : null;
           return (
             <article className={`upgrade-card${selected ? " is-selected" : ""}${!compact && selectedId !== null && !selected ? " is-folded" : ""}`} data-testid="upgrade-card" key={role}>
-              <div className="ticket-stub">
+              {ticket ? <button className="first-ticket-face" type="button" aria-label={`选择${definition.name}`} aria-describedby={`first-ticket-${role}`} aria-pressed={selected} onClick={() => choose(id)}>
+                <UpgradeArt id={id} /><span id={`first-ticket-${role}`} className="first-ticket-type"><small>{ticket.kind}</small><strong>{ticket.title}</strong><span>{ticket.line}</span></span><b aria-hidden="true">›</b>
+              </button> : <><div className="ticket-stub">
                 <span>{definition.kind === "tool" ? "信息工具" : ROLE_LABELS[role]}</span>
                 <RouteBadge route={definition.route} label={presentation.routeLabel} />
               </div>
@@ -128,7 +140,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
                     <p className="decision-effect">{ownedLevelOne ? presentation.levelTwoEffect ?? presentation.decisionEffect : presentation.decisionEffect}</p>
                     {!compact && presentation.triggerCondition !== null && <p><strong>条件</strong> {presentation.triggerCondition}</p>}
                     {presentation.immediateCost !== null && <p className="upgrade-warning"><strong>立即影响</strong> {presentation.immediateCost}</p>}
-                    {ownedLevelOne && <p className="owned-level">已持有 L1 → 本次升为 L2</p>}
+                    {ownedLevelOne && <p className="owned-level">已持有 L1 → 本次升为 L2{reserveParts.some((part) => part?.id === id) ? "（升级备用件，需换装才生效）" : ""}</p>}
                   </div>
                   {!compact && <HelpButton title={presentation.name + "升级说明"} trigger="效果与代价" className="upgrade-help-button">
                     <HelpFacts cost={workshop === null ? presentation.immediateCost ?? "占用本班一次三选一机会；无额外即时金钱支出。" : `整备费 ¥${workshop.cost}。${presentation.immediateCost ?? "无其他即时支出。"}`}
@@ -138,12 +150,14 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
                   </HelpButton>}
                 </>
               ) : null}
-              <button className="select-ticket" type="button" aria-label={`选择${definition.name}`} aria-pressed={selected} onClick={() => choose(id)}>{compact ? "查看 ›" : `选择${definition.name}`}</button>
+              <button className="select-ticket" type="button" aria-label={`选择${definition.name}`} aria-pressed={selected} onClick={() => choose(id)}>{compact ? "查看 ›" : `选择${definition.name}`}</button></>}
 
               {selected && selectedDefinition !== null && selectedPresentation !== null && (
                 <UpgradeConfirmationSurface compact={compact} title={`安装 · ${selectedDefinition.name}`} onClose={() => setSelectedId(null)}>
                   <div className="upgrade-confirm-art"><UpgradeArt id={selectedId} /><h4>确认 {selectedDefinition.name}</h4></div>
-                  {compact && <>
+                  {first && ticket && <div className="first-ticket-rule"><strong>{ticket.rule}</strong>{example && <p>{example}</p>}
+                    {presentation.immediateCost && <p>{presentation.immediateCost}</p>}</div>}
+                  {compact && !first && <>
                     <p className="upgrade-fit" data-fit={getBuildFit(state, id).kind}>{getBuildFit(state, id).text}</p>
                     <HelpFacts cost={workshop === null ? presentation.immediateCost ?? "占用本班一次三选一机会；无额外即时金钱支出。" : `整备费 ¥${workshop.cost}。${presentation.immediateCost ?? "无其他即时支出。"}`}
                       effect={ownedLevelOne ? presentation.levelTwoEffect ?? presentation.effect : presentation.effect}
@@ -194,6 +208,7 @@ export function UpgradePicker({ state, onCommand, currentEstimate = null, compac
                     </div>
                   )}
                   <UpgradeConsequences state={state} id={selectedId} />
+                  {first && <UpgradeStrategyDetails presentation={selectedPresentation} levelLabel={ownedLevelOne ? "L1 → L2" : "L2 效果"} />}
                   <button
                     className="primary-button"
                     type="button"

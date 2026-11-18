@@ -30,7 +30,7 @@ export function HelpWindow({ title, children, onClose, interactive = false, clos
       document.body.style.overflow = previousOverflow;
       previousDialogs.forEach(({ dialog, inert }) => { dialog.inert = inert; });
       onOpenChange(false);
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
     };
   }, [onOpenChange]);
   return createPortal(

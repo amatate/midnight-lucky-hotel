@@ -1,0 +1,28 @@
+.fixed-console .first-ticket-book {
+  --ticket-ink: #152a23; --ticket-paper: #eddfb9; --ticket-brass: #ab8951;
+}
+.first-ticket-book .upgrade-grid { gap: 7px; }
+.fixed-console .first-ticket-book .upgrade-card {
+  display: block; min-height: 0; padding: 0; border-radius: 2px 8px 8px 2px; overflow: visible;
+}
+.first-ticket-face {
+  width: 100%; min-height: 74px; display: grid; grid-template-columns: 44px minmax(0,1fr) 16px;
+  align-items: center; gap: 10px; text-align: start; padding: 9px 12px; color: var(--ticket-ink);
+  background: transparent; border: 0; box-shadow: none; text-shadow: none;
+}
+.first-ticket-face .upgrade-art { width: 42px; height: 46px; background: #284034; border-radius: 14px 14px 3px 3px; }
+.first-ticket-type { display: grid; gap: 2px; }
+.first-ticket-type small { color: #635135; font: 600 .67rem/1.1 "Barlow Condensed","PingFang SC",sans-serif; letter-spacing: .06em; }
+.first-ticket-type strong { color: var(--ticket-ink); font: 500 1.08rem/1.24 "Smiley Sans","PingFang SC",sans-serif; }
+.first-ticket-type > span { color: #4d432d; font: .78rem/1.32 "PingFang SC",sans-serif; }
+.first-ticket-face b { font-size: 1.3rem; color: #755322; }
+.first-ticket-face:focus-visible { outline: 3px solid #7c4925; outline-offset: -4px; }
+.first-ticket-rule, .first-ticket-record { border-inline-start: 3px solid #bb9a5a; padding: 7px 12px; background: #20392e; color: #f3e7ca; }
+.first-ticket-rule p, .first-ticket-record p { margin: 3px 0; font-size: .88rem; line-height: 1.45; }
+.help-content .upgrade-card-confirmation:has(.first-ticket-rule) .upgrade-strategy summary,
+.help-content .upgrade-card-confirmation:has(.first-ticket-rule) .upgrade-consequences strong { color: #e8cc8f; }
+.fixed-console:has(> .first-effect-banner) > .console-discovery:not(.first-effect-banner) { display: none; }
+.fixed-console > .first-effect-banner { margin-inline: 5px; }
+.first-effect-banner > div { flex: 1; padding: 5px 8px; line-height: 1.3; }
+.first-effect-banner strong, .first-effect-banner span { display: block; color: #f5e5be; font-size: .8rem; }
+.first-effect-banner span { color: #deceb0; font-size: .75rem; }

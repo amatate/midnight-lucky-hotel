@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { SYMBOL_LABELS } from "@/app/labels";
 import { SymbolFace } from "@/app/components/SymbolFace";
@@ -18,10 +18,14 @@ const SYMBOLS: readonly SymbolId[] = [
 afterEach(cleanup);
 
 describe("SymbolFace", () => {
-  it.each(SYMBOLS)("renders %s as labelled inline vector art without text glyphs", (symbol) => {
+  it.each(SYMBOLS)("renders %s as labelled enamel art with a vector fallback for failed loads", (symbol) => {
     const { container } = render(<SymbolFace symbol={symbol} />);
 
     const face = screen.getByRole("img", { name: SYMBOL_LABELS[symbol] });
+    const art = face.querySelector("img")!;
+    expect(art).toHaveAttribute("src", expect.stringContaining(`art/reels/${symbol}-v2.webp`));
+    expect(face.querySelector("svg")).toBeNull();
+    fireEvent.error(art);
     expect(face.querySelector("svg")).toBeInTheDocument();
     expect(face).toHaveAttribute("data-symbol", symbol);
     expect(container).not.toHaveTextContent(/🍒|🍋|🔔|🍲|★|╱/u);

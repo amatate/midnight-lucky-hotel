@@ -1,13 +1,14 @@
 /* Shared character presentation: same source scale and anchor across expression swaps. */
 .mio-portrait { position: relative; display: block; overflow: hidden; flex: none; }
 .mio-portrait img { display: block; max-width: none; image-rendering: pixelated; pointer-events: none; user-select: none; }
+.mio-portrait[data-ready="false"] img { opacity: 0; }
 .mio-bust { width: 220px; height: 290px; }
 .mio-bust img { position: absolute; width: 200%; height: auto; left: -50%; top: 0; }
 .mio-full { height: 440px; width: 220px; margin: auto; }
 .mio-full img { width: 100%; height: 100%; object-fit: contain; }
 .mio-avatar { width: 44px; height: 44px; border-radius: 50%; background: #183c32; border: 1px solid #b09b6b; }
 .mio-avatar img { position: absolute; width: 300%; height: auto; left: -100%; top: -2px; }
-.mio-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: #ddc895; font: 2rem "Smiley Sans", sans-serif; }
+.mio-fallback { position: absolute; inset: 0; display: grid; width: 100%; height: 100%; place-items: center; color: #ddc895; font: 2rem "Smiley Sans", sans-serif; }
 
 .concierge-scene { --night: #0c1715; --green: #183c32; --paper: #f2e7cc; --gold: #ddc895; --quiet: #b7b7a1; --ruby: #783c48; position: relative; min-width: 0; }
 .concierge-stage { position: relative; height: clamp(225px, 29svh, 290px); overflow: hidden; }

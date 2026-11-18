@@ -27,7 +27,9 @@ const REASONS: Readonly<Record<PartId, string>> = {
   "blank-capacitor": "付费转抽到了空白，电容积累蓄能；达到阈值才赠免费转，免费转不再充能。",
   "warranty-fraud": "其他部件因裂纹失效，保修欺诈支付本班一次的保险赔款。",
   "overload-motor": "结算中的核心效果接连发生，马达从第 2 个效果开始追加奖金。",
-  "safety-fuse": "余额低于最低下注，保险丝提供一次救援，随后被消耗。"
+  "safety-fuse": "余额低于最低下注，保险丝提供一次救援，随后被消耗。",
+  "intervention-relay": "这次付费转经过重转、锁轮或踹击后中奖，继电器再发一笔奖金；多条线也只加一次。",
+  "blank-dividend": "这次付费转露出至少两个真正的空白，股息发了一笔补偿；免费转不会再领。"
 };
 
 function readSeen(): Set<PartId> {

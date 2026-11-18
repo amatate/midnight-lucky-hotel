@@ -33,6 +33,24 @@ curved 3D reels and a physical coin tray, without upgrades or hotel goals.
 Designed for portrait touch play, also playable on desktop. This is a Web/PWA
 game, not a native mobile app. Use Add to Home Screen where your browser supports it.
 
+## November 18, 2026 · Hotel playtest
+
+The ledger now shows the meal's contribution and which reel refilled after scoring. A dish blocks only lines passing through it; its replacement does not score a second time. Room totals display to the cent. The hotel board uses the enamel artwork first, and room crowns load as individual images.
+
+### Build workshop
+
+Open **Prepare → Build workshop**, or use the hotel menu. Inspect trigger conditions, keep **5 active parts + 2 reserves**, and swap or reorder them at breaks. Once per round, exchange two positions on one reel without changing its symbol counts. Information-tool upgrades no longer occupy new offers; basic composition and build explanations are free.
+
+Name and save up to 12 machine recipes locally. Independently test 12 paid spins at a fixed ¥10 stake, including earned free spins, without touching your real run or predicting its next draw. Tests start with empty charges and do not use meals, prayer, manual interventions or room restrictions: they are small passive comparisons, **not RTP estimates**. Two connector parts reward manual-intervention wins or visible blanks. Existing Classic cabinets and room targets remain unchanged.
+
+Known older hotel saves can explicitly fork to current rules while preserving their original archive. Blueprints use separate browser-local storage, not cloud sync or single-run exports. [Implementation and validation notes](docs/implementation/build-workshop-2026-11-06.md).
+
+### A stay with Mio
+
+New hotel runs follow a guest's journey: finish a room task, explicitly pay its fee, collect its keycard from receptionist Mio, and work toward the Royal Midnight Suite. Seven collectible cards, rank-aware guidance, six refreshed Mio expressions and eight generated enamel reel symbols. The Standard Room starts with ¥100: keep ¥150 after three rounds, then pay ¥50. Fees are real wallet expenses, not payout targets.
+
+Existing no-rent saves keep their rules. Classic cabinets keep their mechanics and textures. Fees are provisional playtest values, not a validated balance pass. [Design and validation notes](docs/implementation/hotel-stay-2026-11-01.md).
+
 ## November 1, 2026 update · See your build work
 
 - **Install → charge → trigger → payout:** acquired parts travel into their slots, the Vat and Candle show their stored charge, and active parts light up when their own effects are presented. Existing generated art is reused.

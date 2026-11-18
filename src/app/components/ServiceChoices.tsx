@@ -5,6 +5,7 @@ import type { RunState, ServiceId } from "@/core/types";
 import type { GameCommand } from "@/core/commands";
 import { UiAtlasArt } from "@/app/components/UiArtwork";
 import { SERVICE_ART_ROUTE } from "@/app/ui-art-index";
+import { getLanguage } from "@/i18n/language";
 
 const TERMS: Record<ServiceId, string> = {
   repair: "每班 3 干预点；重转不保证更好。",
@@ -14,7 +15,7 @@ const TERMS: Record<ServiceId, string> = {
 };
 export function ServiceChoices({ state, onCommand }: { readonly state: RunState; readonly onCommand: (command: GameCommand) => void }): React.JSX.Element {
   return <div className="service-chooser" role="group" aria-label="选择服务">
-    <h2>今夜与谁合作？</h2><p>选一种操作风格。部件还可以在途中改变。</p>
+    <h2>{state.stay ? getLanguage() === "en" ? "Which service shall I arrange?" : "想让我安排哪种服务？" : "今夜与谁合作？"}</h2><p>选一种操作风格。部件还可以在途中改变。</p>
     <div className="service-list">{state.serviceCandidates.map((id) => <article className="service-contract" key={id}>
       <button type="button" className="service-choice" data-service={id} onClick={() => onCommand({ type: "SELECT_SERVICE", serviceId: id })}>
         <span className="service-seal" aria-hidden="true"><UiAtlasArt id={`route-${SERVICE_ART_ROUTE[id]}`} /></span>

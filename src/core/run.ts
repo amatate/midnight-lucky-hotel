@@ -20,6 +20,8 @@ import { advanceReel, drawReels, normalizeDrawIdentity } from "@/core/reels";
 import { resolveSpin } from "@/core/settlement";
 import type { BaseSpinIndex, ReelIndex, ReelSet, RngState, RunPhase, RunState, ServiceId, SettlementResult } from "@/core/types";
 import { applyUpgrade, declineUpgrade } from "@/core/upgrades";
+import { rentDue, ROOM_RENT } from "@/core/stay";
+import { applyWorkbenchCommand } from "@/core/workbench";
 
 const SERVICES: readonly ServiceId[] = ["repair", "kitchen", "chapel", "security"];
 
@@ -111,11 +113,12 @@ function safetyFuseRescue(state: RunState): {
   return { state: result.state, events };
 }
 
-export function createRun(seed: number): RunState {
+export function createRun(seed: number, stay = false): RunState {
   const serviceChoice = chooseServiceCandidates({ value: seed });
 
   return {
     schemaVersion: 2,
+    ...(stay ? { stay: { version: 1 as const, paid: [] } } : {}),
     hotel: { cleared: 0, challenge: null },
     initialSeed: seed,
     rng: serviceChoice.rng,
@@ -403,15 +406,16 @@ function presentationComplete(
   const roomFinished = completedPaidBlock && room !== null && !roundRest;
   const roomProgress = getRoomProgress(transitionState);
   const roomCleared = roomFinished && roomProgress?.cleared === true;
+  const roomBilling = roomCleared && transitionState.stay !== undefined;
   const hotel = roomFinished && challenge != null
-    ? { ...transitionState.hotel, cleared: roomCleared ? challenge.tier : (transitionState.hotel?.cleared ?? 0),
-        challenge: { ...challenge, status: roomCleared ? "cleared" as const : "failed" as const,
+    ? { ...transitionState.hotel, cleared: roomCleared && !roomBilling ? challenge.tier : (transitionState.hotel?.cleared ?? 0),
+        challenge: { ...challenge, status: roomBilling ? "billing" as const : roomCleared ? "cleared" as const : "failed" as const,
           target: roomProgress!.target, objective: roomProgress!.objective,
           paidSpins: getPaidSpinLimit(transitionState), progress: roomProgress!.value } }
     : restReward ? grantRoomRestReward(transitionState, challenge!.rounds!.current as 1 | 2)
       : transitionState.hotel;
   const boundaryOffersUpgrade = (nextPhase === "CHOOSING_UPGRADE" || nextPhase === "AFTER_HOURS")
-    && (roundRest ? restReward : !roomFinished || roomCleared);
+    && (roundRest ? restReward : !roomFinished || roomCleared && !roomBilling);
   const candidateResult = boundaryOffersUpgrade
     ? generateCandidates({ ...transitionState, baseSpinsInShift })
     : null;
@@ -433,7 +437,8 @@ function presentationComplete(
     type: "ROOM_ROUND_COMPLETED", round: challenge.rounds.current, payout: transitionState.shiftPayout,
     totalPayout: roomProgress!.value, reward: restReward
   });
-  if (roomFinished && challenge != null) drafts.push({
+  if (roomBilling && challenge != null) drafts.push({ type: "ROOM_BILL_READY", tier: challenge.tier, rent: ROOM_RENT[challenge.tier] });
+  if (roomFinished && challenge != null && !roomBilling) drafts.push({
     type: "ROOM_COMPLETED", tier: challenge.tier, payout: roundMoney((challenge.rounds?.payout ?? 0) + transitionState.shiftPayout),
     target: roomProgress!.target, cleared: roomCleared, paidSpins: getPaidSpinLimit(transitionState),
     objective: roomProgress!.objective, progress: roomProgress!.value,
@@ -500,6 +505,7 @@ function cashOut(state: RunState, command: Extract<GameCommand, { type: "CASH_OU
 function enterRoom(state: RunState, command: Extract<GameCommand, { type: "ENTER_ROOM" }>): DispatchResult {
   if (state.phase !== "SHIFT_COMPLETE" && state.phase !== "AFTER_HOURS") return invalidPhase(state, command);
   if (isRoomIntermission(state)) return rejected(state, "INVALID_PHASE", "先完成本房剩余回合");
+  if (state.stay && !state.stay.paid.includes(0)) return rejected(state, "INVALID_TARGET", "请先向澪支付标准房房费，领取第一张房卡");
   if (!state.exitUnlocked || state.shift !== getIntroShiftLimit(state) || state.currentCandidates !== null) {
     return rejected(state, "INVALID_TARGET", "先完成开场夜班并处理当前升级，才能升房");
   }
@@ -515,6 +521,27 @@ function enterRoom(state: RunState, command: Extract<GameCommand, { type: "ENTER
   }]), {
     ...next, interventionPoints: focus, maxInterventionPoints: focus
   });
+}
+
+function payRoomRent(state: RunState, command: Extract<GameCommand, { type: "PAY_ROOM_RENT" }>): DispatchResult {
+  const bill = rentDue(state);
+  if (!bill || !state.stay || state.currentCandidates !== null || state.pendingSpin !== null || state.stay.paid.includes(bill.tier)) return invalidPhase(state, command);
+  if (state.bankroll < bill.amount) return rejected(state, "INSUFFICIENT_FUNDS", `房费 ¥${bill.amount}，钱包不足；不会扣款或发放房卡`);
+  const challenge = state.hotel?.challenge;
+  if (bill.tier === 0 ? !state.exitUnlocked : challenge?.status !== "billing" || getRoomProgress(state)?.cleared !== true) return rejected(state, "INVALID_TARGET", "先完成房间任务，再向澪交房费");
+  const next: RunState = { ...state, bankroll: roundMoney(state.bankroll - bill.amount),
+    expenses: { ...state.expenses, rent: roundMoney((state.expenses.rent ?? 0) + bill.amount) },
+    stay: { ...state.stay, paid: [...state.stay.paid, bill.tier] },
+    ...(bill.tier === 0 ? {} : { hotel: { ...state.hotel!, cleared: bill.tier, challenge: { ...challenge!, status: "cleared" as const } } }) };
+  const drafts: GameEventDraft[] = [{ type: "ROOM_RENT_PAID", tier: bill.tier, amount: bill.amount }];
+  if (bill.tier !== 0) {
+    const progress = getRoomProgress(state)!;
+    drafts.push({ type: "ROOM_COMPLETED", tier: bill.tier, payout: roundMoney((challenge!.rounds?.payout ?? 0) + state.shiftPayout), target: progress.target, cleared: true,
+      paidSpins: getPaidSpinLimit(state), objective: progress.objective, progress: progress.value,
+      ...(challenge!.rounds ? { rounds: challenge!.rounds.total } : {}) });
+  }
+  const reward = bill.tier === 0 ? null : generateCandidates(next);
+  return accepted(state, command, sequenceEvents(state, drafts), { ...next, rng: reward?.rng ?? state.rng, currentCandidates: reward?.candidates ?? null });
 }
 
 function upgradePart(state: RunState, command: Extract<GameCommand, { type: "UPGRADE_PART" }>): DispatchResult {
@@ -556,6 +583,7 @@ function openWorkshop(state: RunState, command: Extract<GameCommand, { type: "OP
 }
 
 function continueRun(state: RunState, command: Extract<GameCommand, { type: "CONTINUE" }>): DispatchResult {
+  if (state.stay && !state.stay.paid.includes(0)) return rejected(state, "INVALID_TARGET", "先向澪支付标准房房费，或退房结束本次旅程");
   if (isRoomIntermission(state)) return rejected(state, "INVALID_PHASE", "本房尚未结束，请继续下一回合");
   if (state.phase === "SHIFT_COMPLETE") {
     if (!state.exitUnlocked) return rejected(state, "INVALID_TARGET", "checkout target has not been reached");
@@ -582,6 +610,10 @@ function nextRoomRound(state: RunState, command: Extract<GameCommand, { type: "N
 
 export function dispatchCommand(state: RunState, command: GameCommand): DispatchResult {
   switch (command.type) {
+    case "MOVE_PART":
+    case "SWAP_REEL_SYMBOLS":
+    case "SET_BUILD_NAME":
+      return applyWorkbenchCommand(state, command);
     case "SELECT_SERVICE":
       return selectService(state, command);
     case "SET_BET_MODE":
@@ -594,6 +626,8 @@ export function dispatchCommand(state: RunState, command: GameCommand): Dispatch
       return lightCandle(state, command);
     case "ENTER_ROOM":
       return enterRoom(state, command);
+    case "PAY_ROOM_RENT":
+      return payRoomRent(state, command);
     case "NEXT_ROOM_ROUND":
       return nextRoomRound(state, command);
     case "OPEN_WORKSHOP":

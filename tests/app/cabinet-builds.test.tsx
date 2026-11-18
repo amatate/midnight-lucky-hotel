@@ -12,8 +12,8 @@ const mixed: RunState = { ...createRun(8), service: "kitchen", phase: "READY_TO_
 
 describe("physical cabinet presentation", () => {
   it("provides one distinct artwork per part and keeps cross-route installations visible", () => {
-    expect(Object.keys(PART_ART_INDEX)).toHaveLength(19);
-    expect(new Set(Object.values(PART_ART_INDEX)).size).toBe(19);
+    expect(Object.keys(PART_ART_INDEX)).toHaveLength(21);
+    expect(new Set(Object.values(PART_ART_INDEX)).size).toBe(21);
     const before = structuredClone(mixed);
     const { container } = render(<PartsBar state={mixed} />);
     expect(screen.getAllByTestId("part-slot")).toHaveLength(5);
@@ -46,10 +46,10 @@ describe("physical cabinet presentation", () => {
     expect(art).toHaveAttribute("data-art-ready", "false");
     expect(screen.getByText("fallback")).toBeInTheDocument();
   });
-  it("uses independent clipping identifiers when several room crowns are mounted", () => {
+  it("uses self-contained sprites without runtime SVG clipping", () => {
     const { container } = render(<><RoomCrown tier={1} /><RoomCrown tier={1} /><RoomCrown tier={6} /></>);
-    const ids = [...container.querySelectorAll("clipPath")].map((el) => el.id);
-    expect(new Set(ids).size).toBe(3);
+    expect(container.querySelectorAll('img[src$="art/crowns/room-1-v1.webp"]')).toHaveLength(2);
+    expect(container.querySelector('[data-room-crown="6"]')).toHaveAttribute('src', expect.stringContaining('art/crowns/room-6-v1.webp'));
     expect(container.querySelectorAll('[data-room-crown="6"]')).toHaveLength(1);
   });
 });

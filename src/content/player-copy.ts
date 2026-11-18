@@ -287,6 +287,20 @@ const UPGRADE_COPY = {
     risk: "一次性消耗品；只有严格低于最低下注才触发。保住下注机会，不保证中奖或凑足客房要求的全部下注备付金。",
     targetHint: null
   },
+  "intervention-relay": {
+    effect: "付费转中，重转、锁轮或踹击后出现中奖线，额外支付 1 × 当前下注；水果沙拉也算。每转只奖一次。",
+    levelTwoEffect: "L2：额外奖金提高到 2 × 当前下注，仍每转只奖一次。",
+    synergy: "维修锁轮、保安踹击或普通重转都能接入；保留不同图案也能靠水果沙拉触发。",
+    risk: "单独祈祷不算，免费转不奖励；干预后仍需实际中奖，不返还干预点。",
+    targetHint: null
+  },
+  "blank-dividend": {
+    effect: "付费转结算时，盘面至少出现 2 个实体空白，额外支付 1 × 当前下注。每转只奖一次。",
+    levelTwoEffect: "L2：额外奖金提高到 2 × 当前下注，空白要求不变。",
+    synergy: "与空白电容共用空白，或接住三重祝福加入的临时空白。",
+    risk: "免费转不奖励；空白会占掉普通连线位置，保留空白不等于总收益必然更高。",
+    targetHint: null
+  },
   calculator: {
     effect: "解锁每个转轮的精确符号概率。",
     levelTwoEffect: null,
@@ -337,6 +351,8 @@ const UPGRADE_DECISION_COPY = {
   "pruning-shears": { decisionEffect: "从长轮删除 1 个非百搭图案", triggerCondition: "轮长必须大于 6", immediateCost: "所选图案永久减少" },
   "carbon-copy": { decisionEffect: "向一轮加入 2 个指定基础图案", triggerCondition: "只能复制基础图案", immediateCost: "转轮永久变长" },
   "safety-fuse": { decisionEffect: "余额不足时补 1 次最低下注，至少 ¥20", triggerCondition: "低于最低下注自动触发", immediateCost: "一次性部件" },
+  "intervention-relay": { decisionEffect: "手动干预后中奖，额外 +1×下注", triggerCondition: "只计付费转，每转一次；祈祷不算", immediateCost: null },
+  "blank-dividend": { decisionEffect: "付费转露出至少2个空白，额外 +1×下注", triggerCondition: "只计实体空白，每转一次", immediateCost: null },
   calculator: { decisionEffect: "显示每轮精确符号概率", triggerCondition: null, immediateCost: null },
   ledger: { decisionEffect: "显示模拟 RTP 和风险带", triggerCondition: "信息是模拟估算", immediateCost: null },
   "statistics-terminal": { decisionEffect: "显示破产概率、波动和可承受转数", triggerCondition: "信息是模拟估算", immediateCost: null }
@@ -414,6 +430,10 @@ function genericCurrentImpact(state: RunState, id: UpgradeId): string {
   const definition = UPGRADES[id];
   if (definition.kind === "reel-mod") return UPGRADE_COPY[id].targetHint ?? "选择目标后显示改造前后变化。";
   if (definition.kind === "tool") return `当前信息工具等级 L${state.toolLevel}；取得后解锁下一层可见信息。`;
+  const reserve = state.workbench?.reserve.find((part) => part?.id === id);
+  if (reserve) return reserve.level === 1
+    ? "当前备用 L1；再次取得会升至 L2，仍在备用槽，换上后才生效。"
+    : "当前备用 L2；已达到最高等级，换上后才生效。";
   const equipped = state.partSlots.find((part) => part?.id === id);
   return equipped === undefined || equipped === null
     ? "当前未装备；取得后放入一个部件槽。"
@@ -481,6 +501,10 @@ function equippedImpact(state: RunState, part: PartInstance): string {
       const charge = Math.max(0, state.counters.blankCharge);
       return `当前蓄能 ${charge}/${threshold}；付费转还需 ${Math.max(0, threshold - charge)} 个实体空白。每转最多赠 1 次，免费转不充能。${status}`;
     }
+    case "intervention-relay":
+      return `付费转手动干预后中奖，额外 +¥${money(part.level * bet)}；每转最多一次。祈祷和免费转不计。${status}`;
+    case "blank-dividend":
+      return `付费转盘面至少2个实体空白，额外 +¥${money(part.level * bet)}；每转最多一次，免费转不计。${status}`;
     case "warranty-fraud": {
       const payout = (part.level === 1 ? 3 : 6) * bet;
       return state.shiftFlags.warrantyPaid
@@ -523,9 +547,9 @@ export function describeUpgrade(
   const targetImpact = definition.kind === "reel-mod" && target !== undefined
     ? reelImpact(state, id, target, estimates)
     : null;
-  const available = definition.requires(state) && (
-    definition.kind !== "part" || !state.partSlots.some((part) => part?.id === id && part.level === 2)
-  );
+  const owned = definition.kind === "part"
+    ? [...state.partSlots, ...(state.workbench?.reserve ?? [])].find((part) => part?.id === id) : undefined;
+  const available = (owned !== undefined || definition.requires(state)) && owned?.level !== 2;
   return {
     id,
     name: definition.name,

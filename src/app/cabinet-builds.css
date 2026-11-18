@@ -24,7 +24,7 @@
 .cabinet-shell[data-room-tier="4"]::before { border-inline: 3px double #cbaa75; }
 .cabinet-shell[data-room-tier="5"]::before { border-inline: 4px double var(--room-metal); }
 .cabinet-shell[data-room-tier="6"]::before { border-inline: 3px double var(--room-seam); }
-.room-crown-art { position: absolute; top: -8px; left: 0; width: 100%; height: 56px; pointer-events: none; }
+.room-crown-art { position: absolute; top: -8px; left: 0; width: 100%; height: 56px; object-fit: contain; object-position: center bottom; pointer-events: none; }
 .cabinet-shell:not([data-room-tier="house"]) > .cabinet-marquee {
   top: 52px; inset-inline: 10%; font: 0.875rem "Smiley Sans", sans-serif; letter-spacing: 0.1em; color: var(--room-metal);
 }

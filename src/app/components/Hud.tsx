@@ -10,6 +10,10 @@ import type { RunState, SymbolId } from "@/core/types";
 import type { MachineEstimate } from "@/sim/types";
 import type { EstimateStatus } from "@/app/useEstimate";
 import type { ReactNode } from "react";
+import { ROOM_RENT } from "@/core/stay";
+import { currentStayTier } from "@/story/stay-copy";
+import { getLanguage } from "@/i18n/language";
+import { safeMoney } from "@/core/money";
 
 const BAND_LABELS = {
   danger: "凶险",
@@ -60,11 +64,12 @@ export function Hud({
   const blockBlanks = (state.blockReelAdditions ?? []).reduce((total, strip) => total + strip.length, 0);
   const activePayout = settlementPresentation?.awardDelta ?? payoutAmount;
   const room = activeRoom(state);
+  const lounge = !!state.stay && state.afterHoursLevel > 0 && !state.hotel?.challenge;
   const visibleBankroll = settlementPresentation?.visibleBankrollTarget ?? state.bankroll;
   const roomProgress = room === null ? null : getRoomProgress(state,
     settlementPresentation?.visiblePayoutTarget ?? (state.phase === "RESOLVING_EFFECTS" ? 0 : undefined));
   const target = roomProgress?.required ?? state.checkoutTarget;
-  const progress = Math.max(0, Math.min(target, roomProgress?.value ?? visibleBankroll));
+  const progress = safeMoney(Math.max(0, Math.min(target, roomProgress?.value ?? visibleBankroll)));
   return (
     <section className="hud" aria-label="本局状态" data-has-room={room !== null}>
       <dl className="room-counters" role="group" aria-label="酒店房号计数窗" data-payout-active={activePayout > 0 ? "true" : undefined}>
@@ -93,19 +98,20 @@ export function Hud({
         </div>
         <div className="room-counter room-counter-target">
           <dt className="sr-only">目标</dt>
-          <dd data-counter="target">{roomProgress === null ? `目标 ¥${state.checkoutTarget}` : compact
+          <dd data-counter="target">{lounge ? getLanguage() === "en" ? "Lounge · free play" : "大堂 · 自由游玩" : roomProgress === null ? `目标 ¥${state.checkoutTarget}` : compact
             ? roomProgress.objective.kind === "scoring-spins" ? `达标 ${roomProgress.value} / ${roomProgress.required} 转`
-              : `${roomProgress.objective.kind === "best-spin" ? "峰值" : roomProgress.rounds ? "累计" : "本段"} ¥${roomProgress.value} / ${roomProgress.required}`
+              : `${roomProgress.objective.kind === "best-spin" ? "峰值" : roomProgress.rounds ? "累计" : "本段"} ¥${safeMoney(roomProgress.value)} / ${roomProgress.required}`
             : roomGoalCopy(roomProgress.objective, roomProgress.target)}</dd>
-          <dd className={`target-meter meter-${roomProgress?.objective.kind ?? "total-payout"}`} role="progressbar" aria-label={roomProgress === null ? "余额目标" : roomProgress.rounds ? "本房累计奖金目标" : `${roomObjectiveLabel(roomProgress.objective)}目标`}
+          {!lounge && <dd className={`target-meter meter-${roomProgress?.objective.kind ?? "total-payout"}`} role="progressbar" aria-label={roomProgress === null ? "余额目标" : roomProgress.rounds ? "本房累计奖金目标" : `${roomObjectiveLabel(roomProgress.objective)}目标`}
             aria-valuemin={0} aria-valuemax={target} aria-valuenow={progress}
             aria-valuetext={roomProgress === null ? `余额 ¥${visibleBankroll} / ¥${target}` : roomProgressCopy(roomProgress)}>
             <RoomGoalInstrument objective={roomProgress?.objective ?? null} value={progress} target={target} />
-          </dd>
+          </dd>}
         </div>
         <div className="room-counter room-counter-bet">
           <dt className="sr-only">下注</dt>
           <dd data-counter="bet">下注 ¥{getCurrentBet(state)}</dd>
+          {state.stay && <dd className="stay-hud-fee">{getLanguage() === "en" ? "Room" : "房费"} {lounge ? "—" : `¥${ROOM_RENT[currentStayTier(state)]}${state.stay.paid.includes(currentStayTier(state)) ? " ✓" : ""}`}</dd>}
         </div>
       </dl>
       {room !== null && roomProgress !== null && <section className="room-progress" aria-label="客房进度">

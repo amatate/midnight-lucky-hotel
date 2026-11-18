@@ -11,8 +11,8 @@ import { setLanguage } from "@/i18n/language";
 beforeEach(() => { localStorage.clear(); setLanguage("zh", false); });
 afterEach(cleanup);
 
-it("maps all 29 upgrades, five routes and nine keepsakes without reusing atlas cells", () => {
-  expect(Object.keys(PART_ART_INDEX)).toHaveLength(19);
+it("maps every upgrade, five routes and nine keepsakes without reusing atlas cells", () => {
+  expect(Object.keys(PART_ART_INDEX).sort()).toEqual(UPGRADE_IDS.filter(id => UPGRADES[id].kind === "part").sort());
   expect(Object.keys(UI_ART_INDEX)).toHaveLength(24);
   expect(new Set(Object.values(UI_ART_INDEX)).size).toBe(24);
   for (const index of Object.values(UI_ART_INDEX)) {

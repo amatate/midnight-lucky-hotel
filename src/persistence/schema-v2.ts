@@ -1,6 +1,8 @@
 import { MAX_RECEIPT_AWARDS, MAX_SPIN_HISTORY, isSpinReceipt } from "@/core/receipts";
 import { getPaidSpinLimit, MAX_ROOM_TIER } from "@/content/hotel";
 import type { PendingSpin, ReceiptAward, RunState, SpinReceipt } from "@/core/types";
+import { ROOM_RENT, type StayTier } from "@/core/stay";
+import { validBuildName } from "@/core/workbench";
 import {
   ATTRIBUTION,
   LINE_IDS,
@@ -13,6 +15,7 @@ import {
   isEnum,
   isGameEventV2,
   isPlainRecord,
+  isPart,
   isPaidSpinLimit,
   isRoomObjective,
   isReelDraw,
@@ -99,7 +102,26 @@ function isSpinHistory(value: unknown, nextSpinOrdinal: unknown): value is reado
 }
 
 export function decodeRunStateV2(value: unknown): RunState | null {
-  if (!hasShape(value, ROOT_KEYS_V2, ["hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "blockReelAdditions", "introShifts", "routeKits"]) || value.schemaVersion !== 2) return null;
+  if (!hasShape(value, ROOT_KEYS_V2, ["stay", "hotel", "freeAfterHoursLevel", "blockStartBankroll", "workshop", "workbench", "blockReelAdditions", "introShifts", "routeKits"]) || value.schemaVersion !== 2) return null;
+  if (Object.hasOwn(value, "workbench")) {
+    const workbench = value.workbench;
+    if (!hasShape(workbench, ["reserve", "name"], ["reelEditStamp"])
+      || !isDenseArray(workbench.reserve, 2, 2) || !workbench.reserve.every((part) => part === null || isPart(part))
+      || workbench.name !== "" && !validBuildName(workbench.name)
+      || Object.hasOwn(workbench, "reelEditStamp") && (typeof workbench.reelEditStamp !== "string"
+        || !/^\d{1,16}:\d{1,16}$/u.test(workbench.reelEditStamp)) || !isDenseArray(value.partSlots, 5, 5)) return null;
+    const ids = [...value.partSlots, ...workbench.reserve].filter((part) => part !== null)
+      .map((part) => isPlainRecord(part) ? part.id : undefined);
+    if (new Set(ids).size !== ids.length) return null;
+  }
+  if (Object.hasOwn(value, "stay")) {
+    const stay = value.stay;
+    if (!hasShape(stay, ["version", "paid"]) || stay.version !== 1 || !isDenseArray(stay.paid, 7)
+      || !stay.paid.every((tier, index) => tier === index) || !isPlainRecord(value.hotel)
+      || value.hotel.cleared !== Math.max(0, stay.paid.length - 1) || value.introShifts !== 3
+      || !isPlainRecord(value.expenses) || (value.expenses.rent ?? 0) !== stay.paid.reduce<number>((sum, tier) => sum + ROOM_RENT[tier as StayTier], 0)
+      || Number(value.afterHoursLevel) > 0 && stay.paid.length === 0) return null;
+  } else if (isPlainRecord(value.expenses) && value.expenses.rent !== undefined) return null;
   if (Object.hasOwn(value, "routeKits") && value.routeKits !== true) return null;
   if (Object.hasOwn(value, "introShifts") && value.introShifts !== 3) return null;
   if (Object.hasOwn(value, "blockReelAdditions") && (!isReels(value.blockReelAdditions, true)
@@ -126,9 +148,12 @@ export function decodeRunStateV2(value: unknown): RunState | null {
         || (Object.hasOwn(challenge, "objective") && !isRoomObjective(challenge.objective))
         || (Object.hasOwn(challenge, "progress") && (!isBoundedMoney(challenge.progress)
           || isPlainRecord(challenge.objective) && challenge.objective.kind === "scoring-spins" && !isSafeInteger(challenge.progress, 0)))
-        || !["playing", "cleared", "failed"].includes(String(challenge.status))
+        || !["playing", "cleared", "failed", "billing"].includes(String(challenge.status))
         || value.shift !== (value.introShifts ?? 5) || !isSafeInteger(value.afterHoursLevel, 1) || value.exitUnlocked !== true) return null;
       if (challenge.status === "cleared" ? challenge.tier !== hotel.cleared : challenge.tier !== hotel.cleared + 1) return null;
+      if (challenge.status === "billing" && (!Object.hasOwn(value, "stay") || value.currentCandidates !== null
+        || value.workshop != null || !isBoundedMoney(challenge.progress) || !isBoundedMoney(challenge.target)
+        || !isRoomObjective(challenge.objective) || challenge.progress < (challenge.objective.kind === "scoring-spins" ? challenge.objective.count : challenge.target))) return null;
       const rewards = challenge.tier === 1 ? hotel.gardenRewardsGranted
         : isPlainRecord(hotel.roomRewardsGranted) ? hotel.roomRewardsGranted[String(challenge.tier)] : undefined;
       if (Object.hasOwn(challenge, "rounds")) {

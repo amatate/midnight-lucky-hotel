@@ -1,5 +1,5 @@
 import type { GameEvent } from "@/core/events";
-import type { BaseSymbolId, BetMode, CommandError, ReelIndex, RunState, ServiceId, UpgradeChoice } from "@/core/types";
+import type { BaseSymbolId, BetMode, CommandError, ReelIndex, RunState, ServiceId, UpgradeChoice, WorkbenchAddress } from "@/core/types";
 
 export type GameCommand =
   | { readonly type: "SELECT_SERVICE"; readonly serviceId: ServiceId }
@@ -8,8 +8,12 @@ export type GameCommand =
   | { readonly type: "UPGRADE_PART"; readonly slot: number }
   | { readonly type: "LIGHT_CANDLE" }
   | { readonly type: "ENTER_ROOM" }
+  | { readonly type: "PAY_ROOM_RENT" }
   | { readonly type: "NEXT_ROOM_ROUND" }
   | { readonly type: "OPEN_WORKSHOP" }
+  | { readonly type: "MOVE_PART"; readonly from: WorkbenchAddress; readonly to: WorkbenchAddress }
+  | { readonly type: "SWAP_REEL_SYMBOLS"; readonly reelIndex: ReelIndex; readonly firstIndex: number; readonly secondIndex: number }
+  | { readonly type: "SET_BUILD_NAME"; readonly name: string }
   | { readonly type: "PRAY"; readonly symbol: BaseSymbolId }
   | { readonly type: "ENABLE_MARTYR" }
   | { readonly type: "SPIN" }

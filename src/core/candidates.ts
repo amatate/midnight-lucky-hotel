@@ -1,6 +1,8 @@
 import { UPGRADES, UPGRADE_IDS } from "@/content/upgrades";
 import { getBuildFit } from "@/content/build-fit";
 import { ROUTE_KITS } from "@/content/route-kits";
+import { BASE_REELS } from "@/content/base-machine";
+import { getReserveParts } from "@/core/workbench";
 import { nextInt } from "@/core/random";
 import type {
   CandidateResult,
@@ -45,7 +47,16 @@ export function countPermanentReelModifications(state: RunState): Readonly<Recor
 }
 
 export function getDominantRoute(state: RunState): ConstructRoute {
-  const scores = { ...countPermanentReelModifications(state) };
+  // Acquisition history describes how we got here, not what the machine still is.
+  const scores = emptyRouteCounts();
+  for (const [reel, strip] of state.reels.entries()) {
+    for (const [symbols, route] of [
+      [["cherry", "lemon"], "fruit"], [["seven"], "chapel"], [["crack"], "violent"]] as const) {
+      const density = strip.filter((symbol) => (symbols as readonly string[]).includes(symbol)).length / strip.length;
+      const base = BASE_REELS[reel]!.filter((symbol) => (symbols as readonly string[]).includes(symbol)).length / BASE_REELS[reel]!.length;
+      scores[route] += Math.max(0, density - base) * 3;
+    }
+  }
   for (const part of state.partSlots) {
     if (part === null) continue;
     const route = UPGRADES[part.id].route;
@@ -59,18 +70,20 @@ export function getDominantRoute(state: RunState): ConstructRoute {
 }
 
 function isLevelTwoPart(state: RunState, id: UpgradeId): boolean {
-  return state.partSlots.some((part) => part?.id === (id as PartId) && part.level === 2);
+  return [...state.partSlots, ...getReserveParts(state)].some((part) => part?.id === (id as PartId) && part.level === 2);
 }
 
 function eligibleIds(state: RunState): readonly UpgradeId[] {
   return UPGRADE_IDS.filter((id) => {
     const definition = UPGRADES[id];
-    return definition.requires(state) && !(definition.kind === "part" && isLevelTwoPart(state, id));
+    // Basic machine information is free in the workbench; legacy tool definitions remain loadable.
+    const held = definition.kind === "part" && [...state.partSlots, ...getReserveParts(state)].some((part) => part?.id === id);
+    return definition.kind !== "tool" && (held || definition.requires(state)) && !(definition.kind === "part" && isLevelTwoPart(state, id));
   });
 }
 
 function acquiredTags(state: RunState): ReadonlySet<string> {
-  return new Set(state.acquiredUpgrades.flatMap((id) => [...UPGRADES[id].tags]));
+  return new Set(state.partSlots.flatMap((part) => part ? [...UPGRADES[part.id].tags] : []));
 }
 
 function carriesRole(id: UpgradeId, role: CandidateRole): boolean {
@@ -137,7 +150,7 @@ export function assignCandidateRoles(state: RunState, eligible: readonly Upgrade
     pivotState,
     eligible,
     "pivot",
-    (id) => UPGRADES[id].route !== dominantRoute
+    (id) => UPGRADES[id].route !== dominantRoute && getBuildFit(state, id).kind === "fits"
   );
   const wildcardState = { ...state, rng: pivot.rng };
   const wildcard = seededRoleOrder(wildcardState, eligible, "wildcard", () => true);

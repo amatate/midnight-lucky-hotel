@@ -27,6 +27,8 @@ export const UPGRADE_IDS = [
   "pruning-shears",
   "carbon-copy",
   "safety-fuse",
+  "intervention-relay",
+  "blank-dividend",
   "calculator",
   "ledger",
   "statistics-terminal"
@@ -268,6 +270,16 @@ export const UPGRADES = {
     route: "neutral",
     tags: ["neutral", "bankroll-protection", "consumable"],
     candidateRoles: ["synergy", "pivot"],
+    requires: always
+  },
+  "intervention-relay": {
+    id: "intervention-relay", name: "干预继电器", kind: "part", route: "neutral",
+    tags: ["neutral", "intervention", "line-payout"], candidateRoles: ["synergy", "pivot", "wildcard"],
+    requires: always
+  },
+  "blank-dividend": {
+    id: "blank-dividend", name: "空白股息", kind: "part", route: "neutral",
+    tags: ["neutral", "blank", "payout"], candidateRoles: ["synergy", "pivot", "wildcard"],
     requires: always
   },
   calculator: {

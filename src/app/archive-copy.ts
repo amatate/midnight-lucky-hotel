@@ -6,8 +6,12 @@ import { roomGoalCopy, roomProgressCopy } from "@/app/room-copy";
 import type { GameCommand } from "@/core/commands";
 import type { GameEvent } from "@/core/events";
 import type { ActionEntry } from "@/persistence/archives";
+import { getLanguage } from "@/i18n/language";
+import { stayName } from "@/story/stay-copy";
 
 export const FIELD_LABELS: Readonly<Record<string, string>> = {
+  workbench: "机台工坊（名称、备用槽、编排次数）",
+  stay: "入住旅程与已付费房卡",
   hotel: "客房挑战与通关进度",
   blockReelAdditions: "本班临时空白（换班清除）",
   freeAfterHoursLevel: "自由加班等级", blockStartBankroll: "本段起始钱包", workshop: "金币整备", expenses: "累计支出明细",
@@ -25,11 +29,17 @@ export const money = (value: number): string => "¥" + value.toLocaleString("zh-
 
 export function commandLabel(command: GameCommand): string {
   switch (command.type) {
+    case "MOVE_PART": return getLanguage() === "en" ? `Swap ${command.from.area} ${command.from.slot + 1} with ${command.to.area} ${command.to.slot + 1}`
+      : `交换${command.from.area === "machine" ? "工作" : "备用"}槽 ${command.from.slot + 1} 与${command.to.area === "machine" ? "工作" : "备用"}槽 ${command.to.slot + 1}`;
+    case "SWAP_REEL_SYMBOLS": return getLanguage() === "en" ? `Reorder reel ${command.reelIndex + 1}: positions ${command.firstIndex + 1} / ${command.secondIndex + 1}`
+      : `编排第 ${command.reelIndex + 1} 轮：交换第 ${command.firstIndex + 1} / ${command.secondIndex + 1} 格`;
+    case "SET_BUILD_NAME": return (getLanguage() === "en" ? "Name build · " : "机台命名 · ") + command.name;
     case "SELECT_SERVICE": return "选择服务 · " + SERVICE_PRESENTATIONS[command.serviceId].name;
     case "SET_BET_MODE": return "下注改为" + ({ conservative: "保守", normal: "标准", aggressive: "激进" })[command.mode];
     case "BUY_FOOD": return "买食物 · 第 " + (command.reelIndex + 1) + " 轮";
     case "UPGRADE_PART": return "花 3 小费精修第 " + (command.slot + 1) + " 槽部件至 L2";
     case "ENTER_ROOM": return "入住下一间挑战客房／原房重试";
+    case "PAY_ROOM_RENT": return getLanguage() === "en" ? "Pay Mio and collect the room keycard" : "向澪交房费并领取房卡";
     case "NEXT_ROOM_ROUND": return "继续客房下一回合";
     case "OPEN_WORKSHOP": return "查看本次金币整备（三选一，确认购买才扣费）";
     case "PRAY": return "祈祷 · " + SYMBOL_LABELS[command.symbol];
@@ -55,6 +65,13 @@ export function eventLabel(event: GameEvent): string {
   const formula = (value: { preMultiplierAmount: number; appliedMultiplier: number; amount: number }): string =>
     money(value.preMultiplierAmount) + " × " + value.appliedMultiplier + " = " + money(value.amount);
   switch (event.type) {
+    case "PARTS_MOVED": return commandLabel({ type: "MOVE_PART", from: event.from, to: event.to })
+      + (event.resetCounters.length > 0 ? (getLanguage() === "en" ? " · Shelved part charges cleared" : " · 已清空收起部件的蓄力") : "");
+    case "REEL_SYMBOLS_SWAPPED": return commandLabel({ type: "SWAP_REEL_SYMBOLS", reelIndex: event.reelIndex, firstIndex: event.firstIndex, secondIndex: event.secondIndex })
+      + ` · ${SYMBOL_LABELS[event.firstSymbol]} ↔ ${SYMBOL_LABELS[event.secondSymbol]}`;
+    case "BUILD_NAMED": return (getLanguage() === "en" ? "Build named · " : "机台已命名 · ") + event.name;
+    case "ROOM_BILL_READY": return getLanguage() === "en" ? `Room task complete · fee ${money(event.rent)} pending; no charge or card yet` : `房间任务完成 · 待交房费 ${money(event.rent)}，尚未扣款或发卡`;
+    case "ROOM_RENT_PAID": return getLanguage() === "en" ? `Mio received ${money(event.amount)} · ${stayName(event.tier, true)} keycard collected` : `澪收到房费 ${money(event.amount)} · 已发放 ${stayName(event.tier)} 房卡`;
     case "ROOM_ROUND_STARTED": return "花园房 · 开始第 " + event.round + " / 3 回合，干预点与服务次数恢复";
     case "ROOM_ROUND_COMPLETED": return "花园房 · 第 " + event.round + " 回合结束：本回合 " + money(event.payout)
       + "，本房累计 " + money(event.totalPayout) + (event.reward ? " · 获得一次免费强化" : "");

@@ -1,6 +1,9 @@
 import { useCallback, useState } from "react";
+import { getLanguage } from "@/i18n/language";
+import { mealPlacement } from "@/app/meal-receipt";
 import { ActionBar } from "@/app/components/ActionBar";
 import { RouteBrief } from "@/app/components/RouteBrief";
+import { BuildWorkshopButton } from "@/app/components/BuildWorkshop";
 import { routeReadiness } from "@/app/route-readiness";
 import { CabinetPartArt } from "@/app/components/CabinetArtwork";
 import { HelpButton, HelpFacts, HelpWindow } from "@/app/components/HelpWindow";
@@ -25,10 +28,10 @@ export function PreparationConsole({ state, foodReel, onFoodReel, onCommand }: {
   const legal = canOrder && dispatchCommand(state, foodCommand).ok;
   return <section className={`preparation-deck console-preparation${foodReel !== null ? " is-targeting-food" : ""}`} aria-label="当前决策" data-phase={state.phase}>
     {foodReel !== null ? <>
-      <div className="console-food-copy"><strong>餐点送至第 {foodReel + 1} 轮</strong><span>点盘面或列键换位置 · 接下来 3 转 +50%</span></div>
+      <div className="console-food-copy"><strong>餐点送至第 {foodReel + 1} 轮</strong><span>{getLanguage() === "en" ? "Next 3 spins +50% · dish blocks its lines" : "接下来 3 转奖金 +50% · 餐盘不连线"}</span></div>
       <HelpButton title="购买食物" className="console-food-help"><HelpFacts cost={`立即花费 ¥${mealCost}。`}
         effect="接下来 3 转适用赔付 +50%；选定转轮加入食物，抽到后再给之后 3 转 +25%。"
-        limit="每段一次；免费转与空转也消耗加成次数，食物暂时稀释原有图案。"
+        limit={`${mealPlacement(getLanguage() === "en")} ${getLanguage() === "en" ? "Free spins and misses also use a turn." : "免费转和空转也扣次数。"}`}
         current={!legal ? "余额不足。" : state.freeSpinQueue === 0 && state.bankroll - mealCost < getCurrentBet(state) ? "买餐后付不起当前下一注，请留下注钱或调整下注。" : `余额 ¥${state.bankroll}。`} /></HelpButton>
       <div className="console-food-actions"><button type="button" onClick={() => onFoodReel(null)}>取消</button>
         <button type="button" className="primary-button" disabled={!legal} onClick={() => { onCommand(foodCommand); onFoodReel(null); }}>确认送餐<small>¥{mealCost} · 第{foodReel + 1}轮</small></button></div>
@@ -37,8 +40,8 @@ export function PreparationConsole({ state, foodReel, onFoodReel, onCommand }: {
         <CabinetPartArt id="room-service" /><span>点餐<small>{route.badge} · ¥{mealCost}</small></span></button>}
       {!canOrder && (spinning ? <p className="console-ready-copy">转轮依次停下…</p>
         : <HelpButton title="构筑进度" trigger={route.badge} className="console-route-key"><RouteBrief state={state} /></HelpButton>)}
-      <button type="button" className="console-tools-key" disabled={spinning} onClick={() => setOpen(true)}>{state.service === "chapel" && !state.shiftFlags.prayerUsed ? "祈祷 / 准备" : "准备 / 调注"}<small>服务 · 部件 · 下注</small></button>
+      <button type="button" className="console-tools-key" disabled={spinning} onClick={() => setOpen(true)}>{state.service === "chapel" && !state.shiftFlags.prayerUsed ? "祈祷 / 准备" : "准备 / 工坊"}<small>服务 · 调注 · 试机</small></button>
     </div>}
-    {open && <HelpWindow title="本转准备" interactive onClose={close}><ActionBar state={state} onCommand={(command) => { onCommand(command); close(); }} /></HelpWindow>}
+    {open && <HelpWindow title="本转准备" interactive onClose={close}><BuildWorkshopButton state={state} onCommand={onCommand} /><ActionBar state={state} onCommand={(command) => { onCommand(command); close(); }} /></HelpWindow>}
   </section>;
 }
